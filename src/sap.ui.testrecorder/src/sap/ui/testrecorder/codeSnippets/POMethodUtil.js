@@ -50,8 +50,8 @@ sap.ui.define(
 				return (
 					this._getMethodName(mSettings) +
 					": " +
-					(bAsync ? "async" : "") +
-					" function () {\n" +
+					(bAsync ? "async " : "") +
+					"function () {\n" +
 					sSnippet +
 					"\n}"
 				);

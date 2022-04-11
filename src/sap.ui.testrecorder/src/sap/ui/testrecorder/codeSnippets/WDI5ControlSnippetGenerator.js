@@ -27,9 +27,9 @@ sap.ui.define(
          */
         WDI5ControlSnippetGenerator.prototype._generate = function (mData) {
             var sBasicSelector =
-                "await browser.asControl({ \n\tselector: " +
+                "await browser.asControl({\n\tselector: " +
                 this._getSelectorAsString(mData.controlSelector) +
-                ")";
+                "})";
             var sSelectorWithAssertion = this._getSelectorWithAssertion(
                 sBasicSelector,
                 mData.assertion
@@ -39,6 +39,12 @@ sap.ui.define(
                 this._getActionAsString(mData.action) +
                 ";"
             );
+        };
+
+        WDI5ControlSnippetGenerator.prototype._getSelectorAsString = function (mControlSelector) {
+            var sSelector = JSON.stringify(mControlSelector, undefined, 8);
+            // remove quotes from keys. our key names are 'safe'
+            return sSelector.replace(/\"([^(\")"]+)\":/g, "$1:");
         };
 
         WDI5ControlSnippetGenerator.prototype._getActionAsString = function (
@@ -76,8 +82,8 @@ sap.ui.define(
                         mAssertion.propertyName.slice(1);
                     return (
                         'const ' + mAssertion.propertyName + ' = ' + sSelector +
-                        '.get' +
-                        sPropertyNameWithFirstLetterUpperCase + '()\n expect(' + mAssertion.propertyName + ')' + sMatcher
+                        '.get' + sPropertyNameWithFirstLetterUpperCase
+                        + '()\nexpect(' + mAssertion.propertyName + ')' + sMatcher
                     );
                 } else {
                     return sSelector;
