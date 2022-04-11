@@ -1,7 +1,7 @@
 sap.ui.define([
 	"sap/base/util/merge",
 	"sap/ui/Device"
-], function(merge, Device) {
+], function (merge, Device) {
 	"use strict";
 
 	var oTests = {
@@ -35,13 +35,13 @@ sap.ui.define([
 		name: "TestSuite for sap.ui.core: GTP testcase CORE/TEST RECORDER",
 		defaults: {
 			loader: {
-					map: {
-						"*": {
-							// override sinon with sinon-4 for code that depends on OPA (which has a hard dependency to sinon)
-							"sap/ui/thirdparty/sinon": "sap/ui/thirdparty/sinon-4",
-							"sap/ui/thirdparty/sinon-qunit": "sap/ui/qunit/sinon-qunit-bridge"
-						}
+				map: {
+					"*": {
+						// override sinon with sinon-4 for code that depends on OPA (which has a hard dependency to sinon)
+						"sap/ui/thirdparty/sinon": "sap/ui/thirdparty/sinon-4",
+						"sap/ui/thirdparty/sinon-qunit": "sap/ui/qunit/sinon-qunit-bridge"
 					}
+				}
 			},
 			qunit: {
 				noglobals: false
@@ -77,8 +77,8 @@ sap.ui.define([
 	};
 
 	Object.keys(oTests).forEach(function (name) {
-		oTestSuite.tests[name + "1"] = merge({}, oTests[name], {qunit: { version: 1 }});
-		oTestSuite.tests[name + "2"] = merge({}, oTests[name], {qunit: { version: 2 }});
+		oTestSuite.tests[name + "1"] = merge({}, oTests[name], { qunit: { version: 1 } });
+		oTestSuite.tests[name + "2"] = merge({}, oTests[name], { qunit: { version: 2 } });
 
 		if (oTestSuite.tests[name + "2"].title) {
 			oTestSuite.tests[name + "2"].title += " (QUnit 2)";
