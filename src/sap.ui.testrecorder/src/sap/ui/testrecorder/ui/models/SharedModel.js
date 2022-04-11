@@ -38,8 +38,10 @@ sap.ui.define(
                 },
                 {
                     key: Dialects.WDI5,
-                    label: "WDI5"
-                },
+                    label: oI18nModel.getProperty(
+                        "TestRecorder.Inspect.Snippet.Dialect.WDI5"
+                    )
+                }
             ],
             selectedDialect: Dialects.OPA5,
             settings: {
