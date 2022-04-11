@@ -27,9 +27,9 @@ sap.ui.define(
          */
         WDI5ControlSnippetGenerator.prototype._generate = function (mData) {
             var sBasicSelector =
-                "await browser.asControl(selector: " +
+                "await browser.asControl({ \n\tselector: " +
                 this._getSelectorAsString(mData.controlSelector) +
-                "))";
+                ")";
             var sSelectorWithAssertion = this._getSelectorWithAssertion(
                 sBasicSelector,
                 mData.assertion
@@ -75,11 +75,9 @@ sap.ui.define(
                         mAssertion.propertyName[0].toUpperCase() +
                         mAssertion.propertyName.slice(1);
                     return (
-                        sSelector +
-                        ".get" +
-                        sPropertyNameWithFirstLetterUpperCase +
-                        "()" +
-                        sMatcher
+                        'const ' + mAssertion.propertyName + ' = ' + sSelector +
+                        '.get' +
+                        sPropertyNameWithFirstLetterUpperCase + '()\n expect(' + mAssertion.propertyName + ')' + sMatcher
                     );
                 } else {
                     return sSelector;
