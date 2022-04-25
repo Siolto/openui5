@@ -21,7 +21,7 @@ sap.ui.define(
                     } else {
                         return oDialectRegistry;
                     }
-                },
+                }
             }
         );
 

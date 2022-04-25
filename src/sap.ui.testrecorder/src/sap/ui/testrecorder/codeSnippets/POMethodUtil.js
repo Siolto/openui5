@@ -33,7 +33,7 @@ sap.ui.define(
 		 * @param {boolean} mSettings.formatAsPOMethod true if selectors should be wrapped in a page object method. Default value is true.
 		 * @param {boolean} mSettings.multipleSnippets true if the snippets for multiple controls should be combined
 		 * @param {string} mSettings.action name of the current (latest) action
-		 * @param {boolean} bAsync whetehr the page object method should be async or not
+		 * @param {boolean} bAsync whether the page object method should be async or not
 		 * @returns {string} a code snippet with the expected formatting
 		 */
 		POMethodUtil.prototype.getPOMethod = function (
@@ -47,14 +47,11 @@ sap.ui.define(
 						return sSnippet.replace(/^/gm, "    ");
 					})
 					.join("\n\n");
-				return (
-					this._getMethodName(mSettings) +
-					": " +
-					(bAsync ? "async " : "") +
-					"function () {\n" +
-					sSnippet +
-					"\n}"
-				);
+				if (bAsync) {
+					return this._getMethodName(mSettings) + "async () => {\n" + sSnippet + "\n}";
+				} else {
+					return this._getMethodName(mSettings) + ": function () {\n" + sSnippet + "\n}";
+				}
 			} else {
 				return aSnippets.join("\n\n");
 			}

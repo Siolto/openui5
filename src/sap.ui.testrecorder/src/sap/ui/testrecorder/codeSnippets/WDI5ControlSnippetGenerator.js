@@ -77,13 +77,14 @@ sap.ui.define(
                         );
                         sMatcher = '.toEqual("' + sExpectedValue + '")';
                     }
+                    // we need the first letter upper case to build out getter
                     var sPropertyNameWithFirstLetterUpperCase =
                         mAssertion.propertyName[0].toUpperCase() +
                         mAssertion.propertyName.slice(1);
                     return (
                         'const ' + mAssertion.propertyName + ' = ' + sSelector +
                         '.get' + sPropertyNameWithFirstLetterUpperCase
-                        + '()\nexpect(' + mAssertion.propertyName + ')' + sMatcher
+                        + '();\nexpect(' + mAssertion.propertyName + ')' + sMatcher
                     );
                 } else {
                     return sSelector;
