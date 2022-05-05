@@ -108,6 +108,9 @@ sap.ui.define([
 		},
 		getId: function() {
 			return "myFakeContainer";
+		},
+		_getControl: function () {
+			return "Control"; // just to test forwarding
 		}
 	};
 
@@ -298,23 +301,29 @@ sap.ui.define([
 
 		var oListBinding = oTable.getBinding("items");
 		sinon.spy(oListBinding, "filter");
-		oMTable.setFilterValue("3");
+		oMTable.onBeforeShow(); // filtering should happen only if open
 
-		// compare arguments of filter as Filter object is changed during filtering
-		assert.equal(oListBinding.filter.args.length, 1, "ListBinding filter called once");
-		assert.equal(oListBinding.filter.args[0].length, 2, "ListBinding filter number of arguments");
-		assert.equal(oListBinding.filter.args[0][0].length, 1, "ListBinding filter is array with one filter");
-		assert.equal(oListBinding.filter.args[0][0][0].aFilters.length, 2, "ListBinding filter contains 2 Filters filter");
-		assert.equal(oListBinding.filter.args[0][0][0].aFilters[0].sPath, "text", "ListBinding 1. filter path");
-		assert.equal(oListBinding.filter.args[0][0][0].aFilters[0].sOperator, FilterOperator.Contains, "ListBinding 1. filter operator");
-		assert.equal(oListBinding.filter.args[0][0][0].aFilters[0].oValue1, "3", "ListBinding 1. filter value1");
-		assert.equal(oListBinding.filter.args[0][0][0].aFilters[1].sPath, "additionalText", "ListBinding 2. filter path");
-		assert.equal(oListBinding.filter.args[0][0][0].aFilters[1].sOperator, FilterOperator.Contains, "ListBinding 2. filter operator");
-		assert.equal(oListBinding.filter.args[0][0][0].aFilters[1].oValue1, "3", "ListBinding 2. filter value1");
-		assert.equal(oListBinding.filter.args[0][1], FilterType.Application, "ListBinding filter type");
-		var aItems = oTable.getItems();
-		assert.equal(aItems.length, 1, "number of items");
-		assert.equal(aItems[0].getCells()[0].getText(), "I3", "Key of item");
+		var fnDone = assert.async();
+		setTimeout( function(){ // as waiting for onBeforeShow-Promise
+			oMTable.setFilterValue("3");
+			// compare arguments of filter as Filter object is changed during filtering
+			assert.equal(oListBinding.filter.args.length, 1, "ListBinding filter called once");
+			assert.equal(oListBinding.filter.args[0].length, 2, "ListBinding filter number of arguments");
+			assert.equal(oListBinding.filter.args[0][0].length, 1, "ListBinding filter is array with one filter");
+			assert.equal(oListBinding.filter.args[0][0][0].aFilters.length, 2, "ListBinding filter contains 2 Filters filter");
+			assert.equal(oListBinding.filter.args[0][0][0].aFilters[0].sPath, "text", "ListBinding 1. filter path");
+			assert.equal(oListBinding.filter.args[0][0][0].aFilters[0].sOperator, FilterOperator.Contains, "ListBinding 1. filter operator");
+			assert.equal(oListBinding.filter.args[0][0][0].aFilters[0].oValue1, "3", "ListBinding 1. filter value1");
+			assert.equal(oListBinding.filter.args[0][0][0].aFilters[1].sPath, "additionalText", "ListBinding 2. filter path");
+			assert.equal(oListBinding.filter.args[0][0][0].aFilters[1].sOperator, FilterOperator.Contains, "ListBinding 2. filter operator");
+			assert.equal(oListBinding.filter.args[0][0][0].aFilters[1].oValue1, "3", "ListBinding 2. filter value1");
+			assert.notOk(oListBinding.filter.args[0][0][0].bAnd, "ListBinding filters are OR combined");
+			assert.equal(oListBinding.filter.args[0][1], FilterType.Application, "ListBinding filter type");
+			var aItems = oTable.getItems();
+			assert.equal(aItems.length, 1, "number of items");
+			assert.equal(aItems[0].getCells()[0].getText(), "I3", "Key of item");
+			fnDone();
+		}, 0);
 
 	});
 
@@ -323,20 +332,31 @@ sap.ui.define([
 		var oListBinding = oTable.getBinding("items");
 		sinon.spy(oListBinding, "filter");
 		var oCondition = Condition.createCondition("EQ", ["3"], undefined, undefined, ConditionValidated.NotValidated);
-		oMTable.setProperty("inConditions", {inValue: [oCondition]});
-		oMTable.onShow(); // to trigger filtering
+		var oInPromise = Promise.resolve({inValue: [oCondition]});
+		sinon.stub(ValueHelpDelegate, "getInitialFilterConditions").returns(oInPromise);
 
-		// compare arguments of filter as Filter object is changed during filtering
-		assert.equal(oListBinding.filter.args.length, 1, "ListBinding filter called once");
-		assert.equal(oListBinding.filter.args[0].length, 2, "ListBinding filter number of arguments");
-		assert.equal(oListBinding.filter.args[0][0].length, 1, "ListBinding filter is array with one filter");
-		assert.equal(oListBinding.filter.args[0][0][0].sPath, "inValue", "ListBinding filter path");
-		assert.equal(oListBinding.filter.args[0][0][0].sOperator, FilterOperator.EQ, "ListBinding filter operator");
-		assert.equal(oListBinding.filter.args[0][0][0].oValue1, "3", "ListBinding filter value1");
-		assert.equal(oListBinding.filter.args[0][1], FilterType.Application, "ListBinding filter type");
-		var aItems = oTable.getItems();
-		assert.equal(aItems.length, 1, "number of items");
-		assert.equal(aItems[0].getCells()[0].getText(), "I3", "Key of item");
+		oMTable.onBeforeShow(); // to trigger filtering
+
+		assert.ok(ValueHelpDelegate.getInitialFilterConditions.calledWith({x: "X"}, oMTable, "Control"), "ValueHelpDelegate.getInitialFilterConditions called");
+
+		var fnDone = assert.async();
+		oInPromise.then(function() {
+			oMTable.onShow(); // to trigger filtering
+			// compare arguments of filter as Filter object is changed during filtering
+			assert.equal(oListBinding.filter.args.length, 1, "ListBinding filter called once");
+			assert.equal(oListBinding.filter.args[0].length, 2, "ListBinding filter number of arguments");
+			assert.equal(oListBinding.filter.args[0][0].length, 1, "ListBinding filter is array with one filter");
+			assert.equal(oListBinding.filter.args[0][0][0].sPath, "inValue", "ListBinding filter path");
+			assert.equal(oListBinding.filter.args[0][0][0].sOperator, FilterOperator.EQ, "ListBinding filter operator");
+			assert.equal(oListBinding.filter.args[0][0][0].oValue1, "3", "ListBinding filter value1");
+			assert.equal(oListBinding.filter.args[0][1], FilterType.Application, "ListBinding filter type");
+			var aItems = oTable.getItems();
+			assert.equal(aItems.length, 1, "number of items");
+			assert.equal(aItems[0].getCells()[0].getText(), "I3", "Key of item");
+
+			ValueHelpDelegate.getInitialFilterConditions.restore();
+			fnDone();
+		});
 
 	});
 
@@ -371,7 +391,8 @@ sap.ui.define([
 
 	});
 
-	QUnit.test("Filtering waiting for delegate", function(assert) {
+	// Delegate seems to already be loaded in this test?
+	/* QUnit.test("Filtering waiting for delegate", function(assert) {
 
 		var fnResolve;
 		var oPromise = new Promise(function(fResolve) {
@@ -399,7 +420,7 @@ sap.ui.define([
 		oContainer.isValueHelpDelegateInitialized.restore();
 		oContainer.awaitValueHelpDelegate.restore();
 
-	});
+	}); */
 
 	QUnit.test("isSearchSupported without $search", function(assert) {
 
@@ -408,7 +429,7 @@ sap.ui.define([
 
 	});
 
-	QUnit.test("isSearchSupported uning $search", function(assert) {
+	QUnit.test("isSearchSupported using $search", function(assert) {
 
 		sinon.stub(oContainer, "getValueHelpDelegate").returns(ValueHelpDelegateV4);
 		sinon.spy(ValueHelpDelegateV4, "isSearchSupported"); // returns false for non V4-ListBinding
@@ -435,20 +456,24 @@ sap.ui.define([
 
 	QUnit.test("getItemForValue: check for key - match", function(assert) {
 
-		var oInFilter = new Filter({path: "inValue", operator: FilterOperator.EQ, value1: "3"});
+		sinon.spy(ValueHelpDelegate, "getInitialFilterConditions");
+		sinon.stub(ValueHelpDelegate, "createConditionPayload").callsFake(function(oPayload, oContent, aValues, oContext) {
+			if (aValues && aValues[0] === "I3") {
+				return {inParameters: {inValue: "3"}, outParameters: null};
+			}
+		});
 
 		var oConfig = {
 			parsedValue: "I3",
 			value: "I3",
-			inParameters: oInFilter,
-			outParameters: undefined,
 			bindingContext: undefined,
 			conditionModel: undefined,
 			conditionModelName: undefined,
 			checkKey: true,
 			checkDescription: false,
 			caseSensitive: true,
-			exception: ParseException
+			exception: ParseException,
+			control: "MyControl"
 		};
 
 		var oPromise = oMTable.getItemForValue(oConfig);
@@ -458,18 +483,79 @@ sap.ui.define([
 			var fnDone = assert.async();
 			oPromise.then(function(oItem) {
 				assert.ok(true, "Promise Then must be called");
-				assert.deepEqual(oItem, {key: "I3", description: "X-Item 3", inParameters: {inValue: "3"}, outParameters: null}, "Item returned");
+				assert.ok(ValueHelpDelegate.getInitialFilterConditions.calledWith({x: "X"}, oMTable, "MyControl"), "ValueHelpDelegate.getInitialFilterConditions called");
+				assert.deepEqual(oItem, {key: "I3", description: "X-Item 3", payload: {inParameters: {inValue: "3"}, outParameters: null}}, "Item returned");
+				ValueHelpDelegate.getInitialFilterConditions.restore();
+				ValueHelpDelegate.createConditionPayload.restore();
 				fnDone();
 			}).catch(function(oError) {
 				assert.notOk(true, "Promise Catch called: " + oError.message || oError);
+				ValueHelpDelegate.getInitialFilterConditions.restore();
+				ValueHelpDelegate.createConditionPayload.restore();
 				fnDone();
 			});
 		}
 
 	});
 
-	QUnit.test("getItemForValue: check for key - no unique match", function(assert) {
+	QUnit.test("getItemForValue: check for key with InParameter - match", function(assert) {
 
+		oModel.setData({
+			items: [
+				{ text: "Item 1", key: "I1", additionalText: "Text 1a", inValue: "a" },
+				{ text: "Item 3", key: "I3", additionalText: "Text 3", inValue: "3a" },
+				{ text: "X-Item 3", key: "I3", additionalText: "Text 3", inValue: "3" }
+			]
+		});
+
+		var oCondition = Condition.createCondition("EQ", ["3"], undefined, undefined, ConditionValidated.NotValidated);
+		var oInPromise = Promise.resolve({inValue: [oCondition]});
+		sinon.stub(ValueHelpDelegate, "getInitialFilterConditions").returns(oInPromise);
+
+		sinon.stub(ValueHelpDelegate, "createConditionPayload").callsFake(function(oPayload, oContent, aValues, oContext) {
+			if (aValues && aValues[0] === "I3") {
+				return {inParameters: {inValue: "3"}, outParameters: null};
+			}
+		});
+
+		var oConfig = {
+			parsedValue: "I3",
+			value: "I3",
+			bindingContext: "BC", // just to test if used
+			conditionModel: undefined,
+			conditionModelName: undefined,
+			checkKey: true,
+			checkDescription: false,
+			caseSensitive: true,
+			exception: ParseException,
+			control: "MyControl"
+		};
+
+		var oPromise = oMTable.getItemForValue(oConfig);
+		assert.ok(oPromise instanceof Promise, "getItemForValue returns promise");
+
+		if (oPromise) {
+			var fnDone = assert.async();
+			oPromise.then(function(oItem) {
+				assert.ok(true, "Promise Then must be called");
+				assert.ok(ValueHelpDelegate.getInitialFilterConditions.calledWith({x: "X"}, oMTable, "MyControl"), "ValueHelpDelegate.getInitialFilterConditions called");
+				assert.deepEqual(oItem, {key: "I3", description: "X-Item 3", payload: {inParameters: {inValue: "3"}, outParameters: null}}, "Item returned");
+				ValueHelpDelegate.getInitialFilterConditions.restore();
+				ValueHelpDelegate.createConditionPayload.restore();
+				fnDone();
+			}).catch(function(oError) {
+				assert.notOk(true, "Promise Catch called: " + oError.message || oError);
+				ValueHelpDelegate.getInitialFilterConditions.restore();
+				ValueHelpDelegate.createConditionPayload.restore();
+				fnDone();
+			});
+		}
+
+	});
+
+	QUnit.test("getItemForValue: check for key - no unique match with setUseFirstMatch=false", function(assert) {
+
+		oMTable.setUseFirstMatch(false);
 		oModel.setData({
 			items: [
 				{ text: "Item 1", key: "I1", additionalText: "Text 1a", inValue: "a" },
@@ -489,7 +575,8 @@ sap.ui.define([
 			checkKey: true,
 			checkDescription: false,
 			caseSensitive: true,
-			exception: ParseException
+			exception: ParseException,
+			control: "MyControl"
 		};
 
 		var oPromise = oMTable.getItemForValue(oConfig);
@@ -512,20 +599,17 @@ sap.ui.define([
 
 	QUnit.test("getItemForValue: check for key - match from request", function(assert) {
 
-		var oInFilter = new Filter({path: "inValue", operator: FilterOperator.EQ, value1: "3"});
-
 		var oConfig = {
 			parsedValue: "I3",
 			value: "I3",
-			inParameters: oInFilter,
-			outParameters: undefined,
 			bindingContext: undefined,
 			conditionModel: undefined,
 			conditionModelName: undefined,
 			checkKey: true,
 			checkDescription: false,
 			caseSensitive: true,
-			exception: ParseException
+			exception: ParseException,
+			control: "MyControl"
 		};
 
 		sinon.stub(oTable, "getItems").onFirstCall().returns([]); // to force request
@@ -538,10 +622,67 @@ sap.ui.define([
 			var fnDone = assert.async();
 			oPromise.then(function(oItem) {
 				assert.ok(true, "Promise Then must be called");
-				assert.deepEqual(oItem, {key: "I3", description: "X-Item 3", inParameters: {inValue: "3"}, outParameters: null}, "Item returned");
-				fnDone();
+				assert.deepEqual(oItem, {key: "I3", description: "X-Item 3", payload: undefined}, "Item returned");
 			}).catch(function(oError) {
 				assert.notOk(true, "Promise Catch called: " + oError.message || oError);
+			}).finally(function () {
+				fnDone();
+			});
+		}
+
+	});
+
+	QUnit.test("getItemForValue: check for key with InParameters - match from request", function(assert) {
+
+		oModel.setData({
+			items: [
+				{ text: "Item 1", key: "I1", additionalText: "Text 1a", inValue: "a" },
+				{ text: "Item 3", key: "I3", additionalText: "Text 3", inValue: "3a" },
+				{ text: "X-Item 3", key: "I3", additionalText: "Text 3", inValue: "3" }
+			]
+		});
+
+		var oCondition = Condition.createCondition("EQ", ["3"], undefined, undefined, ConditionValidated.NotValidated);
+		var oInPromise = Promise.resolve({inValue: [oCondition]});
+		sinon.stub(ValueHelpDelegate, "getInitialFilterConditions").returns(oInPromise);
+
+		sinon.stub(ValueHelpDelegate, "createConditionPayload").callsFake(function(oPayload, oContent, aValues, oContext) {
+			var oData = oContext.getObject();
+			if (oData.key === "I3") {
+				return {inParameters: {inValue: oData.inValue}};
+			}
+		});
+
+		var oConfig = {
+			parsedValue: "I3",
+			value: "I3",
+			bindingContext: "BC",
+			conditionModel: undefined,
+			conditionModelName: undefined,
+			checkKey: true,
+			checkDescription: false,
+			caseSensitive: true,
+			exception: ParseException,
+			control: "MyControl"
+		};
+
+		sinon.stub(oTable, "getItems").onFirstCall().returns([]); // to force request
+		oTable.getItems.callThrough();
+
+		var oPromise = oMTable.getItemForValue(oConfig);
+		assert.ok(oPromise instanceof Promise, "getItemForValue returns promise");
+
+		if (oPromise) {
+			var fnDone = assert.async();
+			oPromise.then(function(oItem) {
+				assert.ok(true, "Promise Then must be called");
+				assert.ok(ValueHelpDelegate.getInitialFilterConditions.calledWith({x: "X"}, oMTable, "MyControl"), "ValueHelpDelegate.getInitialFilterConditions called");
+				assert.deepEqual(oItem, {key: "I3", description: "X-Item 3", payload: {inParameters: {inValue: "3"}}}, "Item returned");
+			}).catch(function(oError) {
+				assert.notOk(true, "Promise Catch called: " + oError.message || oError);
+			}).finally(function () {
+				ValueHelpDelegate.getInitialFilterConditions.restore();
+				ValueHelpDelegate.createConditionPayload.restore();
 				fnDone();
 			});
 		}
@@ -550,20 +691,17 @@ sap.ui.define([
 
 	QUnit.test("getItemForValue: check for key - no match", function(assert) {
 
-		var oInFilter = new Filter({path: "inValue", operator: FilterOperator.EQ, value1: "3"});
-
 		var oConfig = {
 			parsedValue: "X",
 			value: "X",
-			inParameters: oInFilter,
-			outParameters: undefined,
 			bindingContext: undefined,
 			conditionModel: undefined,
 			conditionModelName: undefined,
 			checkKey: true,
 			checkDescription: false,
 			caseSensitive: true,
-			exception: ParseException
+			exception: ParseException,
+			control: "MyControl"
 		};
 
 		var oPromise = oMTable.getItemForValue(oConfig);
@@ -586,20 +724,17 @@ sap.ui.define([
 
 	QUnit.test("getItemForValue: check for description - match", function(assert) {
 
-		var oInFilter = new Filter({path: "inValue", operator: FilterOperator.EQ, value1: "3"});
-
 		var oConfig = {
 			parsedValue: undefined,
 			value: "x-item 3",
-			inParameters: oInFilter,
-			outParameters: undefined,
 			bindingContext: undefined,
 			conditionModel: undefined,
 			conditionModelName: undefined,
 			checkKey: false,
 			checkDescription: true,
 			caseSensitive: false,
-			exception: ParseException
+			exception: ParseException,
+			control: "MyControl"
 		};
 
 		var oPromise = oMTable.getItemForValue(oConfig);
@@ -609,7 +744,7 @@ sap.ui.define([
 			var fnDone = assert.async();
 			oPromise.then(function(oItem) {
 				assert.ok(true, "Promise Then must be called");
-				assert.deepEqual(oItem, {key: "I3", description: "X-Item 3", inParameters: {inValue: "3"}, outParameters: null}, "Item returned");
+				assert.deepEqual(oItem, {key: "I3", description: "X-Item 3", payload: undefined}, "Item returned");
 				fnDone();
 			}).catch(function(oError) {
 				assert.notOk(true, "Promise Catch called: " + oError.message || oError);
@@ -632,15 +767,14 @@ sap.ui.define([
 		var oConfig = {
 			parsedValue: undefined,
 			value: "item 1",
-			inParameters: undefined,
-			outParameters: undefined,
 			bindingContext: undefined,
 			conditionModel: undefined,
 			conditionModelName: undefined,
 			checkKey: false,
 			checkDescription: true,
-			caseSensitive: false,
-			exception: ParseException
+			caseSensitive: false, // should check fallback if multiple items map  but only one case sensitive.
+			exception: ParseException,
+			control: "MyControl"
 		};
 
 		var oPromise = oMTable.getItemForValue(oConfig);
@@ -650,7 +784,7 @@ sap.ui.define([
 			var fnDone = assert.async();
 			oPromise.then(function(oItem) {
 				assert.ok(true, "Promise Then must be called");
-				assert.deepEqual(oItem, {key: "i1", description: "item 1", inParameters: null, outParameters: null}, "Item returned");
+				assert.deepEqual(oItem, {key: "i1", description: "item 1", payload: undefined}, "Item returned");
 				fnDone();
 			}).catch(function(oError) {
 				assert.notOk(true, "Promise Catch called: " + oError.message || oError);
@@ -662,20 +796,17 @@ sap.ui.define([
 
 	QUnit.test("getItemForValue: check for description - match from request", function(assert) {
 
-		var oInFilter = new Filter({path: "inValue", operator: FilterOperator.EQ, value1: "3"});
-
 		var oConfig = {
 			parsedValue: undefined,
 			value: "x-item 3",
-			inParameters: oInFilter,
-			outParameters: undefined,
 			bindingContext: undefined,
 			conditionModel: undefined,
 			conditionModelName: undefined,
 			checkKey: false,
 			checkDescription: true,
 			caseSensitive: false,
-			exception: ParseException
+			exception: ParseException,
+			control: "MyControl"
 		};
 
 		sinon.stub(oTable, "getItems").onFirstCall().returns([]); // to force request
@@ -688,7 +819,7 @@ sap.ui.define([
 			var fnDone = assert.async();
 			oPromise.then(function(oItem) {
 				assert.ok(true, "Promise Then must be called");
-				assert.deepEqual(oItem, {key: "I3", description: "X-Item 3", inParameters: {inValue: "3"}, outParameters: null}, "Item returned");
+				assert.deepEqual(oItem, {key: "I3", description: "X-Item 3", payload: undefined}, "Item returned");
 				fnDone();
 			}).catch(function(oError) {
 				assert.notOk(true, "Promise Catch called: " + oError.message || oError);
@@ -700,25 +831,17 @@ sap.ui.define([
 
 	QUnit.test("getItemForValue: check for key and description - match", function(assert) {
 
-		var oInFilter = new Filter({
-			filters: [
-				new Filter({ path: "inValue", operator: FilterOperator.EQ, value1: "3" }),
-				new Filter({ path: "additionalText", operator: FilterOperator.EQ, value1: "Text 3" })
-			], and: true
-		});
-
 		var oConfig = {
 			parsedValue: "I3",
 			value: "I3",
-			inParameters: oInFilter,
-			outParameters: undefined,
 			bindingContext: undefined,
 			conditionModel: undefined,
 			conditionModelName: undefined,
 			checkKey: true,
 			checkDescription: true,
 			caseSensitive: true,
-			exception: ParseException
+			exception: ParseException,
+			control: "MyControl"
 		};
 
 		var oPromise = oMTable.getItemForValue(oConfig);
@@ -728,10 +851,10 @@ sap.ui.define([
 			var fnDone = assert.async();
 			oPromise.then(function(oItem) {
 				assert.ok(true, "Promise Then must be called");
-				assert.deepEqual(oItem, {key: "I3", description: "X-Item 3", inParameters: {inValue: "3", additionalText: "Text 3"}, outParameters: null}, "Item returned");
-				fnDone();
+				assert.deepEqual(oItem, {key: "I3", description: "X-Item 3", payload: undefined}, "Item returned");
 			}).catch(function(oError) {
 				assert.notOk(true, "Promise Catch called: " + oError.message || oError);
+			}).finally(function() {
 				fnDone();
 			});
 		}
@@ -740,25 +863,17 @@ sap.ui.define([
 
 	QUnit.test("getItemForValue: check for key and description - match from request", function(assert) {
 
-		var oInFilter = new Filter({
-			filters: [
-				new Filter({ path: "inValue", operator: FilterOperator.EQ, value1: "3" }),
-				new Filter({ path: "additionalText", operator: FilterOperator.EQ, value1: "Text 3" })
-			], and: true
-		});
-
 		var oConfig = {
 			parsedValue: "I3",
 			value: "I3",
-			inParameters: oInFilter,
-			outParameters: undefined,
 			bindingContext: undefined,
 			conditionModel: undefined,
 			conditionModelName: undefined,
 			checkKey: true,
 			checkDescription: true,
 			caseSensitive: true,
-			exception: ParseException
+			exception: ParseException,
+			control: "MyControl"
 		};
 
 		sinon.stub(oTable, "getItems").onFirstCall().returns([]); // to force request
@@ -771,12 +886,48 @@ sap.ui.define([
 			var fnDone = assert.async();
 			oPromise.then(function(oItem) {
 				assert.ok(true, "Promise Then must be called");
-				assert.deepEqual(oItem, {key: "I3", description: "X-Item 3", inParameters: {inValue: "3", additionalText: "Text 3"}, outParameters: null}, "Item returned");
-				fnDone();
+				assert.deepEqual(oItem, {key: "I3", description: "X-Item 3", payload: undefined}, "Item returned");
 			}).catch(function(oError) {
 				assert.notOk(true, "Promise Catch called: " + oError.message || oError);
+			}).finally(function() {
 				fnDone();
 			});
+		}
+
+	});
+
+	QUnit.test("getItemForValue: check missing paths", function(assert) {
+
+		oMTable.setKeyPath();
+		oMTable.setDescriptionPath();
+
+		var oConfig = {
+			parsedValue: "I3",
+			value: "I3",
+			bindingContext: undefined,
+			conditionModel: undefined,
+			conditionModelName: undefined,
+			checkKey: true,
+			checkDescription: true,
+			caseSensitive: true,
+			exception: ParseException,
+			control: "MyControl"
+		};
+
+		try {
+			oMTable.getItemForValue(oConfig);
+			assert.ok(false, "Exception missing");
+		} catch (oException) {
+			assert.equal(oException.message, "MTable: KeyPath missing! " + oMTable.getId(), "Exception fired");
+		}
+
+		oConfig.checkKey = false;
+
+		try {
+			oMTable.getItemForValue(oConfig);
+			assert.ok(false, "Exception missing");
+		} catch (oException) {
+			assert.equal(oException.message, "MTable: DescriptionPath missing! " + oMTable.getId(), "Exception fired");
 		}
 
 	});
@@ -1141,6 +1292,7 @@ sap.ui.define([
 			iConfirm++;
 		});
 
+		oMTable.setFilterValue("X");
 		var oContent = oMTable.getContent();
 
 		if (oContent) {
@@ -1156,6 +1308,8 @@ sap.ui.define([
 				assert.equal(oFixContent.getItems().length, 1, "VBox number of items");
 				var oFilterBar = oFixContent.getItems()[0];
 				assert.ok(oFilterBar.isA("sap.ui.mdc.filterbar.vh.FilterBar"), "VBox item is FilterBar");
+				var oConditions = oFilterBar.getInternalConditions();
+				assert.equal(oConditions["*text,additionalText*"][0].values[0], "X", "Search condition in FilterBar");
 				var oFlexContent = oContent.getFlexContent();
 				assert.ok(oFlexContent.isA("sap.m.Panel"), "FlexContent is sap.m.Panel");
 				assert.ok(oFlexContent.getExpanded(), "Panel is expanded");
@@ -1238,15 +1392,20 @@ sap.ui.define([
 		});
 
 		oMTable.setFilterBar(oFilterBar);
+		assert.ok(oFilterBar.getBasicSearchField(), "SearchField added to FilterBar");
+
 		oFilterBar.fireSearch();
 
 		// compare arguments of filter as Filter object is changed during filtering
 		assert.equal(oListBinding.filter.args.length, 1, "ListBinding filter called once");
 		assert.equal(oListBinding.filter.args[0].length, 2, "ListBinding filter number of arguments");
 		assert.equal(oListBinding.filter.args[0][0].length, 1, "ListBinding filter is array with one filter");
-		assert.equal(oListBinding.filter.args[0][0][0].sPath, "additionalText", "ListBinding filter path");
-		assert.equal(oListBinding.filter.args[0][0][0].sOperator, FilterOperator.Contains, "ListBinding filter operator");
-		assert.equal(oListBinding.filter.args[0][0][0].oValue1, "2", "ListBinding filter value1");
+		assert.equal(oListBinding.filter.args[0][0][0].aFilters.length, 2, "ListBinding filter contains 2 filters");
+		assert.ok(oListBinding.filter.args[0][0][0].bAnd, "ListBinding filters are AND combined");
+		assert.equal(oListBinding.filter.args[0][0][0].aFilters[0].sPath, "additionalText", "ListBinding filter1 path");
+		assert.equal(oListBinding.filter.args[0][0][0].aFilters[0].sOperator, FilterOperator.Contains, "ListBinding filter1 operator");
+		assert.equal(oListBinding.filter.args[0][0][0].aFilters[0].oValue1, "2", "ListBinding filter1 value1");
+		assert.equal(oListBinding.filter.args[0][0][0].aFilters[1].aFilters.length, 2, "ListBinding filter2 contains 2 filters (search)"); // details tested above
 		assert.equal(oListBinding.filter.args[0][1], FilterType.Application, "ListBinding filter type");
 		var aItems = oTable.getItems();
 		assert.equal(aItems.length, 1, "number of items");
@@ -1258,6 +1417,8 @@ sap.ui.define([
 		oFilterBar.setInternalConditions({
 			additionalText: [Condition.createCondition("Contains", "3")]
 		});
+		assert.notOk(oFilterBar.getBasicSearchField(), "SearchField removed from FilterBar");
+
 		oFilterBar.fireSearch();
 		assert.notOk(oListBinding.filter.called, "No filtering called");
 		oFilterBar.destroy();
@@ -1280,10 +1441,7 @@ sap.ui.define([
 		ValueHelpDelegateV4.adjustSearch.callThrough();
 
 		var oListBinding = oTable.getBinding("items");
-		sinon.spy(oListBinding, "filter");
 		oListBinding.changeParameters = function(oParameters) {}; // just fake V4 logic
-		sinon.spy(oListBinding, "changeParameters");
-		sinon.spy(oListBinding, "suspend");
 
 		var oFilterBar = new FilterBar("FB1");
 		oFilterBar.setInternalConditions({
@@ -1291,8 +1449,15 @@ sap.ui.define([
 			$search: [Condition.createCondition("StartsWith", "i")]
 		});
 
+		oMTable.setFilterValue("i");
 		oMTable.setFilterFields("$search");
 		oMTable.setFilterBar(oFilterBar);
+		assert.ok(oFilterBar.getBasicSearchField(), "SearchField added to FilterBar");
+
+		sinon.spy(oListBinding, "filter");
+		sinon.spy(oListBinding, "changeParameters");
+		sinon.spy(oListBinding, "suspend");
+
 		oFilterBar.fireSearch();
 
 		assert.ok(ValueHelpDelegateV4.isSearchSupported.called, "ValueHelpDelegateV4.isSearchSupported called");
@@ -1310,6 +1475,9 @@ sap.ui.define([
 		assert.equal(oListBinding.filter.args[0][0][0].sOperator, FilterOperator.Contains, "ListBinding filter operator");
 		assert.equal(oListBinding.filter.args[0][0][0].oValue1, "2", "ListBinding filter value1");
 		assert.equal(oListBinding.filter.args[0][1], FilterType.Application, "ListBinding filter type");
+
+		oMTable.setFilterFields("");
+		assert.notOk(oFilterBar.getBasicSearchField(), "SearchField removed from FilterBar");
 
 		oContainer.getValueHelpDelegate.restore();
 		ValueHelpDelegateV4.isSearchSupported.restore();

@@ -3,7 +3,6 @@
 sap.ui.define([
 	"sap/ui/qunit/QUnitUtils",
 	"sap/ui/unified/FileUploader",
-	"sap/ui/unified/FileUploaderParameter",
 	"sap/ui/unified/FileUploaderHttpRequestMethod",
 	"sap/ui/core/TooltipBase",
 	"sap/ui/core/InvisibleText",
@@ -11,7 +10,7 @@ sap.ui.define([
 	"sap/m/Text",
 	"sap/ui/Device",
 	"sap/ui/core/Core"
-], function(qutils, FileUploader, FileUploaderParameter, FileUploaderHttpRequestMethod, TooltipBase, InvisibleText, Label, Text, Device, oCore) {
+], function(qutils, FileUploader, FileUploaderHttpRequestMethod, TooltipBase, InvisibleText, Label, Text, Device, oCore) {
 	"use strict";
 
 	/**
@@ -579,6 +578,34 @@ sap.ui.define([
 		oFireUploadStartSpy.restore();
 	});
 
+	QUnit.test("'fireBeforeOpen', 'fileAfterClose' are properly called", function (assert) {
+		// arrange
+		var oFileUploader = new FileUploader().placeAt("content"),
+			oFireBeforeDialogOpenSpy = this.spy(oFileUploader, "fireBeforeDialogOpen"),
+			oFireAfterDialogCloseSpy = this.spy(oFileUploader, "fireAfterDialogClose"),
+			oInputElement = document.createElement("input"),
+			oFakeEvent = {};
+
+		oCore.applyChanges();
+		oInputElement.setAttribute("type", "file");
+		oFakeEvent.target = oInputElement;
+
+		// act
+		oFileUploader.onclick(oFakeEvent);
+
+		// assert
+		assert.ok(oFireBeforeDialogOpenSpy.calledOnce, "'fireBeforeDialogOpen' event called once");
+
+		// act
+		document.body.onfocus();
+
+		// assert
+		assert.ok(oFireAfterDialogCloseSpy.calledOnce, "'fireAfterDialogClose' event called once");
+
+		// cleanup
+		oFileUploader.destroy();
+	});
+
 	QUnit.module("File validation");
 	QUnit.test("Test file type validation - handlechange()", function (assert){
 		//setup
@@ -941,9 +968,11 @@ sap.ui.define([
 	QUnit.test("Change event listener is reattached to the rerendered inner input field", function(assert) {
 		// prepare
 		var oFileUploader = new FileUploader(),
-			oChangeHandlerSpy = this.spy(oFileUploader, "handlechange");
+			oChangeHandlerSpy = this.spy(oFileUploader, "handlechange"),
+			oCacheDOMEls;
 		oFileUploader.placeAt("qunit-fixture");
 		oCore.applyChanges();
+		oCacheDOMEls = this.spy(oFileUploader, "_cacheDOMEls");
 
 		// act
 		oFileUploader.setMultiple(false);
@@ -951,6 +980,7 @@ sap.ui.define([
 
 		// assert
 		assert.ok(oChangeHandlerSpy.calledOnce, "Change handler is attached");
+		assert.ok(oCacheDOMEls.calledOnce, "Elements are cached");
 
 		// clean
 		oFileUploader.destroy();
@@ -999,6 +1029,16 @@ sap.ui.define([
 			this.oFileUploader.oFilePath.getId(),
 			this.oFileUploader.getId()  + sTextFueldSuffix,
 			"Input field ID is stable"
+		);
+	});
+
+	QUnit.test("getFocusDomRef returns the proper element", function(assert) {
+
+		// assert
+		assert.strictEqual(
+			this.oFileUploader.getFocusDomRef().id,
+			this.oFileUploader.oBrowse.getId(),
+			"Browse button returned"
 		);
 	});
 
@@ -1377,12 +1417,15 @@ sap.ui.define([
 		//Arrange
 		this.stub(Device, "browser").value({"safari": true});
 		var oFileUploader = new FileUploader("fu"),
-			oSpy = this.spy(oFileUploader.oBrowse, "focus");
+			oSpy = this.spy(oFileUploader.oBrowse, "focus"),
+			oFakeEvent = {};
 
 		oFileUploader.placeAt("qunit-fixture");
 		oCore.applyChanges();
+		oFakeEvent.target = oFileUploader.getDomRef();
+
 		//Act
-		oFileUploader.onclick();
+		oFileUploader.onclick(oFakeEvent);
 
 		//Assert
 		assert.strictEqual(oSpy.callCount, 1, "Clicking on browse button should focus the button in safari");

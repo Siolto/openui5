@@ -25,7 +25,9 @@ sap.ui.define(['sap/base/util/extend', 'sap/ui/base/Object', './CalendarType', '
 		constructor: function(oLocale) {
 			this.oLocale = oLocale;
 			BaseObject.apply(this);
-			this.mData = getData(oLocale);
+			var oDataLoaded = getData(oLocale);
+			this.mData = oDataLoaded.mData;
+			this.sCLDRLocaleId = oDataLoaded.sCLDRLocaleId;
 		},
 
 		/**
@@ -318,22 +320,56 @@ sap.ui.define(['sap/base/util/extend', 'sap/ui/base/Object', './CalendarType', '
 		 *   it falls back to the calendar type either set in the configuration or calculated from
 		 *   the locale.
 		 * @returns {string} the combined pattern with datetime and timezone
+		 * @private
+		 * @ui5-restricted sap.ui.core.format.DateFormat
+		 * @since 1.101
 		 */
 		getCombinedDateTimeWithTimezonePattern: function(sDateStyle, sTimeStyle, sCalendarType) {
-			assert(sDateStyle == "short" || sDateStyle == "medium" || sDateStyle == "long" || sDateStyle == "full", "sStyle must be short, medium, long or full");
-			assert(sTimeStyle == "short" || sTimeStyle == "medium" || sTimeStyle == "long" || sTimeStyle == "full", "sStyle must be short, medium, long or full");
-			var aPatterns = [this.getCombinedDateTimePattern(sDateStyle, sTimeStyle, sCalendarType)];
+			return this.applyTimezonePattern(this.getCombinedDateTimePattern(sDateStyle, sTimeStyle, sCalendarType));
+		},
+
+		/**
+		 * Applies the timezone to the pattern
+		 *
+		 * @param {string} sPattern pattern, e.g. <code>y</code>
+		 * @returns {string} applied timezone, e.g. <code>y VV</code>
+		 * @private
+		 * @ui5-restricted sap.ui.core.format.DateFormat
+		 * @since 1.101
+		 */
+		applyTimezonePattern: function(sPattern) {
+			var aPatterns = [sPattern];
 			var aMissingTokens = [{
 				group: "Timezone",
 				length: 2,
 				field: "zone",
 				symbol: "V"
-
 			}];
 			this._appendItems(aPatterns, aMissingTokens);
 			return aPatterns[0];
 		},
 
+		/**
+		 * Retrieves all timezone translations.
+		 *
+		 * E.g. for locale "en"
+		 * <pre>
+		 * {
+		 *  "America/New_York": "Americas, New York"
+		 *  ...
+		 * }
+		 * </pre>
+		 *
+		 * @return {Object<string, string>} the mapping, with 'key' being the IANA timezone ID, and 'value' being the translation.
+		 * @ui5-restricted sap.ui.core.format.DateFormat, sap.ui.export
+		 * @private
+		 */
+		getTimezoneTranslations: function() {
+			this.mTimezoneTranslations = this.mTimezoneTranslations || getTimezoneTranslationMap(this._get("timezoneNames"), this._get("timezoneNamesFormats"));
+
+			// retrieve a copy such that the original object won't be modified.
+			return Object.assign({}, this.mTimezoneTranslations);
+		},
 
 		/**
 		 * Get custom datetime pattern for a given skeleton format.
@@ -1977,6 +2013,103 @@ sap.ui.define(['sap/base/util/extend', 'sap/ui/base/Object', './CalendarType', '
 	 */
 	var mLocaleDatas = {};
 
+
+	function getTimezoneTranslationMap(oTimezoneNames, oTimezoneNamesFormats) {
+		var oTimezoneTranslationMap = _resolveTimezoneTranslationStructure(oTimezoneNames);
+		var aOffsetList = [
+			"Etc/GMT0",
+			"Etc/GMT+0",
+			"Etc/GMT+1",
+			"Etc/GMT+2",
+			"Etc/GMT+3",
+			"Etc/GMT+4",
+			"Etc/GMT+5",
+			"Etc/GMT+6",
+			"Etc/GMT+7",
+			"Etc/GMT+8",
+			"Etc/GMT+9",
+			"Etc/GMT+10",
+			"Etc/GMT+11",
+			"Etc/GMT+12",
+			"Etc/GMT-0",
+			"Etc/GMT-1",
+			"Etc/GMT-2",
+			"Etc/GMT-3",
+			"Etc/GMT-4",
+			"Etc/GMT-5",
+			"Etc/GMT-6",
+			"Etc/GMT-7",
+			"Etc/GMT-8",
+			"Etc/GMT-9",
+			"Etc/GMT-10",
+			"Etc/GMT-11",
+			"Etc/GMT-12",
+			"Etc/GMT-13",
+			"Etc/GMT-14"
+		];
+
+		aOffsetList.forEach(function(sOffsetKey) {
+			oTimezoneTranslationMap[sOffsetKey] = oTimezoneNamesFormats.gmtFormat.replace("{0}", sOffsetKey.substring("Etc/GMT".length));
+		});
+
+		return oTimezoneTranslationMap;
+	}
+
+	/**
+	 * Creates a flat map from an object structure which contains a link to the parent ("_parent").
+	 * The values should contain the parent(s) and the element joined by <code>", "</code>.
+	 * The keys are the keys of the object structure joined by "/" excluding "_parent".
+	 *
+	 * E.g. input
+	 * <code>
+	 * {
+	 *     a: {
+	 *         a1: {
+	 *             a11: "A11",
+	 *             _parent: "A1"
+	 *         },
+	 *         _parent: "A"
+	 *     }
+	 * }
+	 * </code>
+	 *
+	 * output:
+	 * <code>
+	 * {
+	 *     "a/a1/a11": "A, A1, A11"
+	 * }
+	 * </code>
+	 *
+	 * @param {object} oNode the node which will be processed
+	 * @param {string} [sKey=""] the key inside the node which should be processed
+	 * @param {object} [oResult={}] the result which is passed through the recursion
+	 * @param {string[]} [aParentTranslations=[]] the list of parent translations, e.g. ["A", "A1"]
+	 * @returns {{string, string}} object map with key being the keys joined by "/" and the values joined by ", ".
+	 * @private
+	 */
+	function _resolveTimezoneTranslationStructure (oNode, sKey, oResult, aParentTranslations) {
+		aParentTranslations = aParentTranslations ? aParentTranslations.slice() : [];
+		oResult = oResult || {};
+
+		sKey = sKey || "";
+		Object.keys(oNode).forEach(function (sChildKey) {
+			var vChildNode = oNode[sChildKey];
+			if (typeof vChildNode === "object") {
+				var aParentTranslationForChild = aParentTranslations.slice();
+				var sParent = vChildNode["_parent"];
+				if (sParent) {
+					aParentTranslationForChild.push(sParent);
+				}
+				_resolveTimezoneTranslationStructure(vChildNode, sKey + sChildKey + "/", oResult, aParentTranslationForChild);
+			} else if (typeof vChildNode === "string" && sChildKey !== "_parent") {
+				// Check if the time zones are valid and collect only the time zones which are supported by the browser.
+				var sParents = aParentTranslations.length ? aParentTranslations.join(", ") + ", " : "";
+				oResult[sKey + sChildKey] = sParents + vChildNode;
+			}
+		});
+		return oResult;
+	}
+
 	/**
 	 * Returns the corresponding calendar name in CLDR of the given calendar type, or the calendar type
 	 * from the configuration, in case sCalendarType is undefined.
@@ -2080,7 +2213,13 @@ sap.ui.define(['sap/base/util/extend', 'sap/ui/base/Object', './CalendarType', '
 			sLanguage = "sr_Latn";
 		}
 
-		var sId = sLanguage + "_" + sRegion; // the originally requested locale; this is the key under which the result (even a fallback one) will be stored in the end
+		// sId is the originally requested locale.
+		// this is the key under which the result (even a fallback one) will be stored in the end
+		var sId = sLanguage + "_" + sRegion;
+
+		// the locale of the loaded json file
+		var sCLDRLocaleId = sId;
+
 		// first try: load CLDR data for specific language / region combination
 		if ( sLanguage && sRegion ) {
 			mData = getOrLoad(sId);
@@ -2088,11 +2227,22 @@ sap.ui.define(['sap/base/util/extend', 'sap/ui/base/Object', './CalendarType', '
 		// second try: load data for language only
 		if ( !mData && sLanguage ) {
 			mData = getOrLoad(sLanguage);
+			sCLDRLocaleId = sLanguage;
 		}
 		// last try: load data for default language "en" (english)
-		mLocaleDatas[sId] = mData || getOrLoad("en");
+		if (!mData) {
+			mData = getOrLoad("en");
+			sCLDRLocaleId = "en";
+		}
 
-		return mLocaleDatas[sId];
+		// store in cache
+		mLocaleDatas[sId] = mData;
+
+		sCLDRLocaleId = sCLDRLocaleId.replace(/_/g, "-");
+		return {
+			mData: mData,
+			sCLDRLocaleId: sCLDRLocaleId
+		};
 	}
 
 

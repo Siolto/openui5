@@ -35,15 +35,16 @@ sap.ui.define([
 		"ignorePattern": "/sap/opu/odata4/|\" :$|\" : \\{$|\\{meta>"}], */
 	"use strict";
 
-	var sClassName = "sap.ui.model.odata.v4.lib._V2MetadataConverter",
-		rCountTrue = /[?&]\$count=true/, // $count=true, but not inside $expand
+	var rCountTrue = /[?&]\$count=true/, // $count=true, but not inside $expand
 		sDefaultLanguage = sap.ui.getCore().getConfiguration().getLanguage(),
 		fnFireEvent = EventProvider.prototype.fireEvent,
 		sInvalidModel = "/invalid/model/",
 		sODCB = "sap.ui.model.odata.v4.ODataContextBinding",
 		sODLB = "sap.ui.model.odata.v4.ODataListBinding",
 		sODPrB = "sap.ui.model.odata.v4.ODataPropertyBinding",
+		sPreviousFailed = "HTTP request was not processed because the previous request failed",
 		sSalesOrderService = "/sap/opu/odata4/sap/zui5_testv4/default/sap/zui5_epm_sample/0002/",
+		rSkip = /&\$skip=(\d+)/, // $skip=<number>
 		sTeaBusi = "/sap/opu/odata4/IWBEP/TEA/default/IWBEP/TEA_BUSI/0001/",
 		rTop = /&\$top=(\d+)/, // $top=<number>
 		rTransientPredicate = /\(\$uid=[-\w]+\)/g;
@@ -261,6 +262,16 @@ sap.ui.define([
 	 */
 	function getBindingContextPath(oManagedObject) {
 		return oManagedObject.getBindingContext().getPath();
+	}
+
+	/**
+	 * Returns the given context's path. Transient predicates are normalized to "($uid=...)".
+	 *
+	 * @param {sap.ui.model.Context} oContext - A context
+	 * @returns {string} The context's path
+	 */
+	function getNormalizedPath(oContext) {
+		return oContext.getPath().replace(rTransientPredicate, "($uid=...)");
 	}
 
 	/**
@@ -1075,7 +1086,7 @@ sap.ui.define([
 			].forEach(function (sAnnotation) {
 				oLogMock.expects("warning")
 					.withExactArgs("Unsupported annotation 'sap:" + sAnnotation + "'",
-						sinon.match.string, sClassName);
+						sinon.match.string, "sap.ui.model.odata.v4.lib._V2MetadataConverter");
 			});
 
 			mModelParameters = Object.assign({}, {odataVersion : "2.0"}, mModelParameters);
@@ -1100,7 +1111,7 @@ sap.ui.define([
 					.withExactArgs("Unsupported SAP annotation at a complex type in"
 						+ " '/sap/opu/odata/IWBEP/GWSAMPLE_BASIC/$metadata'",
 						"sap:" + sAnnotation + " at property 'GWSAMPLE_BASIC.CT_String/String'",
-						sClassName);
+						"sap.ui.model.odata.v4.lib._V2MetadataConverter");
 			});
 
 			mModelParameters = Object.assign({}, {odataVersion : "2.0"}, mModelParameters);
@@ -1274,9 +1285,10 @@ sap.ui.define([
 			 * expected.
 			 *
 			 * @param {object[]} aRequests The array of requests in a $batch
+			 * @param {string} sGroupId The group ID of the $batch
 			 * @returns {Promise} A promise on the array of batch responses
 			 */
-			function checkBatch(aRequests) {
+			function checkBatch(aRequests, sGroupId) {
 				/*
 				 * Processes a request or a change set within a batch/change set.
 				 * @param {number} iChangeSetNo Number of the change set in the current batch
@@ -1293,7 +1305,7 @@ sap.ui.define([
 					}
 					oRequest.$ContentID = i + "." + (iChangeSetNo - 1);
 					return checkRequest(oRequest.method, oRequest.url, oRequest.headers,
-						oRequest.body, undefined, that.iBatchNo, iChangeSetNo || i + 1,
+						oRequest.body, undefined, sGroupId, that.iBatchNo, iChangeSetNo || i + 1,
 						oRequest.$ContentID
 					).catch(function (oError) {
 						if (oError.$insideBatch) {
@@ -1361,6 +1373,8 @@ sap.ui.define([
 			 *   checkBatch)
 			 * @param {string} [sOriginalResourcePath] The path by which the resource has originally
 			 *   been requested
+			 * @param {string} [sGroupId] The group ID this request, only available when sent with
+			 *   a batch
 			 * @param {number} [iBatchNo] Number of the batch which the request belongs to
 			 * @param {number} [iChangeSetNo] Number of the change set in the current batch which
 			 *   the request belongs to
@@ -1375,7 +1389,7 @@ sap.ui.define([
 			 *   the error.
 			 */
 			function checkRequest(sMethod, sUrl, mHeaders, vPayload, sOriginalResourcePath,
-					iBatchNo, iChangeSetNo, sContentID) {
+					sGroupId, iBatchNo, iChangeSetNo, sContentID) {
 				var oActualRequest = {
 						method : sMethod,
 						url : sUrl,
@@ -1416,6 +1430,9 @@ sap.ui.define([
 					mResponseHeaders = oExpectedRequest.responseHeaders;
 					delete oExpectedRequest.response;
 					delete oExpectedRequest.responseHeaders;
+					if ("groupId" in oExpectedRequest) {
+						oActualRequest.groupId = sGroupId;
+					}
 					if ("batchNo" in oExpectedRequest) {
 						oActualRequest.batchNo = iBatchNo;
 					}
@@ -1558,13 +1575,13 @@ sap.ui.define([
 		 * <code>canceled === true</code>. Note: The reporting class name is ignored.
 		 *
 		 * @param {string} sLogMessage - The expected log message
-		 * @param {string} sErrorMessage - The expected error message
+		 * @param {string} [sErrorMessage=sLogMessage] - The expected error message
 		 * @returns {object} The test instance for chaining
 		 */
 		expectCanceledError : function (sLogMessage, sErrorMessage) {
 			this.aExpectedCanceledErrors.push({
 				logMessage : sLogMessage,
-				errorMessage : sErrorMessage
+				errorMessage : sErrorMessage || sLogMessage
 			});
 
 			return this;
@@ -1784,11 +1801,11 @@ sap.ui.define([
 			var iCount,
 				iLength,
 				aMatches,
+				iSkip = 0,
 				iTop;
 
 			if (typeof vRequest === "string") {
 				vRequest = {
-					method : "GET",
 					url : vRequest
 				};
 			}
@@ -1813,8 +1830,11 @@ sap.ui.define([
 					iCount = parseInt(vResponse["@odata.count"]);
 					iLength = vResponse.value.length;
 					iTop = parseInt(aMatches[1]);
-					if (iLength !== iCount && iLength !== iTop) {
-						//TODO take $skip into consideration once it becomes necessary
+					aMatches = rSkip.exec(vRequest.url);
+					if (aMatches) {
+						iSkip = parseInt(aMatches[1]);
+					}
+					if (iLength !== iTop && iSkip + iLength !== iCount) {
 						throw new Error("Unexpected short read?");
 					}
 				}
@@ -3869,13 +3889,14 @@ sap.ui.define([
 			return that.waitForChanges(assert);
 		});
 	});
+});
 
 	//*********************************************************************************************
 	// Scenario: Create a new entity without using a UI and reset it immediately via ODataModel.
 	// No request is added to the queue and ODataModel#hasPendingChanges and
 	// ODataListBinding#hasPendingChanges work as expected.
 	// JIRA: CPOUI5ODATAV4-36
-	QUnit.test("create an entity and immediately reset changes (no UI)", function (assert) {
+	QUnit.test("create an entity and immediately reset changes (no UI) V4-36", function (assert) {
 		var // use autoExpandSelect so that the cache is created asynchronously
 			oModel = createSalesOrdersModel({autoExpandSelect : true}),
 			that = this;
@@ -3883,6 +3904,10 @@ sap.ui.define([
 		return this.createView(assert, "", oModel).then(function () {
 			var oListBindingWithoutUI = oModel.bindList("/SalesOrderList"),
 				oCreatedPromise = oListBindingWithoutUI.create({}, true).created();
+
+			that.oLogMock.expects("error")
+				.withArgs(sinon.match("Failed to drill-down into ($uid="),
+					sSalesOrderService + "SalesOrderList", "sap.ui.model.odata.v4.lib._Cache");
 
 			assert.ok(oModel.hasPendingChanges());
 			assert.ok(oListBindingWithoutUI.hasPendingChanges());
@@ -3910,7 +3935,6 @@ sap.ui.define([
 			});
 		});
 	});
-});
 
 	//*********************************************************************************************
 	// Scenario: ODCB, late property at a binding for a complex type, so that no entity can be found
@@ -3965,10 +3989,10 @@ sap.ui.define([
 
 		this.oLogMock.expects("error")
 			.withExactArgs("Failed to read path /EMPLOYEES('42')", sinon.match(oError.message),
-				"sap.ui.model.odata.v4.ODataContextBinding");
+				sODCB);
 		this.oLogMock.expects("error")
 			.withExactArgs("Failed to read path /EMPLOYEES('42')/Name", sinon.match(oError.message),
-				"sap.ui.model.odata.v4.ODataPropertyBinding");
+				sODPrB);
 		this.expectRequest("EMPLOYEES('42')", oError)
 			.expectMessages([{
 				code : "CODE",
@@ -4015,7 +4039,7 @@ sap.ui.define([
 
 		this.oLogMock.expects("error")
 			.withExactArgs("Failed to read path /EMPLOYEES('42')/Name", sinon.match(oError.message),
-				"sap.ui.model.odata.v4.ODataPropertyBinding");
+				sODPrB);
 		this.expectRequest("EMPLOYEES('42')/Name", oError)
 			.expectMessages([{
 				code : "CODE",
@@ -4307,7 +4331,7 @@ sap.ui.define([
 
 			that.oLogMock.expects("error")
 				.withExactArgs("Failed to refresh entity: /EMPLOYEES('0')[0]",
-					sinon.match(oError.message), "sap.ui.model.odata.v4.ODataListBinding");
+					sinon.match(oError.message), sODLB);
 			that.expectRequest("EMPLOYEES('0')?$select=ID", oError)
 				.expectMessages([{
 					code : "CODE",
@@ -4827,9 +4851,9 @@ sap.ui.define([
 			var oError = createError({message : "Employee does not exist"});
 
 			that.oLogMock.expects("error").withExactArgs("Failed to read path /EMPLOYEES('2')",
-				sinon.match(oError.message), "sap.ui.model.odata.v4.ODataContextBinding");
+				sinon.match(oError.message), sODCB);
 			that.oLogMock.expects("error").withExactArgs("Failed to read path /EMPLOYEES('2')/Name",
-				sinon.match(oError.message), "sap.ui.model.odata.v4.ODataPropertyBinding");
+				sinon.match(oError.message), sODPrB);
 			that.expectRequest(
 					"EMPLOYEES('2')?$select=ID,Name,__CT__FAKE__Message/__FAKE__Messages", oError)
 				.expectChange("text", null)
@@ -5269,7 +5293,7 @@ sap.ui.define([
 
 			that.oLogMock.expects("error")
 				.withExactArgs("Failed to execute /ChangeTeamBudgetByID(...)",
-				sinon.match(oError.message), "sap.ui.model.odata.v4.ODataContextBinding");
+				sinon.match(oError.message), sODCB);
 			that.expectRequest({
 					method : "POST",
 					url : "ChangeTeamBudgetByID",
@@ -6645,8 +6669,7 @@ sap.ui.define([
 			that.oLogMock.expects("error")
 				.withExactArgs("POST on 'EntitiesWithComplexKey' failed; "
 					+ "will be repeated automatically",
-					sinon.match("Request intentionally failed"),
-					"sap.ui.model.odata.v4.ODataListBinding");
+					sinon.match("Request intentionally failed"), sODLB);
 			that.expectChange("item", ["", "Baz", "Foo", "Bar"])
 				.expectRequest({
 					method : "POST",
@@ -6996,7 +7019,7 @@ sap.ui.define([
 				}]);
 			that.oLogMock.expects("error")
 				.withExactArgs("POST on 'SalesOrderList' failed; will be repeated automatically",
-					sinon.match(oError.message), "sap.ui.model.odata.v4.ODataListBinding");
+					sinon.match(oError.message), sODLB);
 
 			fnRejectPost(oError);
 
@@ -7108,15 +7131,17 @@ sap.ui.define([
 
 			assertIndices(assert, oBinding.getCurrentContexts(), [-2, -1, 0]);
 
-			// Note: changes have to be expected with the current iIndex of the contexts because
-			// ODLB#refreshInternal is called before changes are checked but at this point in time
-			// oBinding.iCreatedContexts is not yet restored
-			that.expectChange("note", "new5", -5)
-				.expectChange("note", "new4", -4)
-				.expectChange("note", "new3", -3)
-				.expectChange("note", "new2", -2)
-				.expectChange("note", "new1", -1)
-				.expectChange("note", "#42", 0)
+			that.expectChange("note", ["new5"]) // Note: inline creation row is kept
+				// Note: The #create calls cause "change" events on the ODLB and then the table
+				// fetches the current contexts again, calling #setContext on ODPrB in the end.
+				// #checkUpdateInternal becomes async and then fires a "change" event to the
+				// formatter, so to say. At that point in time, ODLB#reset has been called
+				// (affecting iCreatedContexts) but bKeepCacheOnError's restore did not yet happen.
+				// Thus indices are off by 4 (no. of created which were never inactive)!
+				.expectChange("note", "new4", -3)
+				.expectChange("note", "new3", -2)
+				.expectChange("note", "new2", -1)
+				.expectChange("note", ["new1", "#42"])
 				.expectRequest({
 					method : "POST",
 					url : "SalesOrderList",
@@ -7127,7 +7152,7 @@ sap.ui.define([
 					url : "SalesOrderList",
 					payload : {Note : "new4"}
 				}/* response does not matter here */)
-				.expectRequest("SalesOrderList?$select=Note,SalesOrderID&$skip=0&$top=100"
+				.expectRequest("SalesOrderList?$select=Note,SalesOrderID&$skip=0&$top=99"
 					/* response does not matter here */)
 				.expectMessages([{
 					code : "CODE",
@@ -7139,13 +7164,11 @@ sap.ui.define([
 				}]);
 			that.oLogMock.expects("error")
 				.withExactArgs("POST on 'SalesOrderList' failed; will be repeated automatically",
-					sinon.match(oError.error.message), "sap.ui.model.odata.v4.ODataListBinding")
+					sinon.match(oError.error.message), sODLB)
 				.exactly(2);
 			that.oLogMock.expects("error")
 				.withExactArgs("Failed to get contexts for " + sSalesOrderService + "SalesOrderList"
-					+ " with start index 0 and length 100",
-					sinon.match("request was not processed because the previous request failed"),
-					"sap.ui.model.odata.v4.ODataListBinding");
+					+ " with start index 0 and length 100", sinon.match(sPreviousFailed), sODLB);
 
 			aCreatedContexts.push(oBinding.create({Note : "new3"}, /*bSkipRefresh*/true));
 			aCreatedContexts.push(oBinding.create({Note : "new4"}, /*bSkipRefresh*/true));
@@ -7157,8 +7180,7 @@ sap.ui.define([
 			return Promise.all([
 				oBinding.getHeaderContext().requestSideEffects([""])
 					.then(mustFail(assert), function (oError0) {
-						assert.strictEqual(oError0.message,
-							"HTTP request was not processed because the previous request failed");
+						assert.strictEqual(oError0.message, sPreviousFailed);
 						assert.strictEqual(oError0.cause.message, sCreateError);
 					}),
 				that.waitForChanges(assert,
@@ -7168,27 +7190,41 @@ sap.ui.define([
 			var aCurrentContexts = oBinding.getCurrentContexts();
 
 			assert.strictEqual(oBinding.getCount(), 5);
+			assert.strictEqual(oBinding.getLength(), 6);
+			assert.strictEqual(oBinding.isLengthFinal(), true);
+			assert.deepEqual(aCurrentContexts.map(getNormalizedPath), [
+				"/SalesOrderList($uid=...)",
+				"/SalesOrderList($uid=...)",
+				"/SalesOrderList($uid=...)",
+				"/SalesOrderList('44')",
+				"/SalesOrderList('43')",
+				"/SalesOrderList('42')"
+			]);
 			assertIndices(assert, aCurrentContexts, [-5, -4, -3, -2, -1, 0]);
 
 			// 3. the list binding is properly restored
 			// still 3x transient
 			assert.ok(aCurrentContexts[0].isTransient());
+			assert.strictEqual(aCurrentContexts[0].getProperty("Note"), "new5");
 			assert.ok(aCurrentContexts[1].isTransient());
+			assert.strictEqual(aCurrentContexts[1].getProperty("Note"), "new4");
 			assert.ok(aCurrentContexts[2].isTransient());
+			assert.strictEqual(aCurrentContexts[2].getProperty("Note"), "new3");
 			// still 2x created but already saved
-			//TODO: have to be still created after rejection
-			//assert.ok(aCurrentContexts[3].created());
+			assert.ok(aCurrentContexts[3].created());
 			assert.notOk(aCurrentContexts[3].isTransient());
-			//TODO: have to be still created after rejection
-			//assert.ok(aCurrentContexts[4].created());
+			assert.strictEqual(aCurrentContexts[3].getProperty("Note"), "new2");
+			assert.ok(aCurrentContexts[4].created());
 			assert.notOk(aCurrentContexts[4].isTransient());
+			assert.strictEqual(aCurrentContexts[4].getProperty("Note"), "new1");
 			// still 1x NOT created
 			assert.notOk(aCurrentContexts[5].created());
+			assert.strictEqual(aCurrentContexts[5].getProperty("Note"), "#42");
 
 			that.expectChange("note", [, "new3", "new2", "new1", "#42"]);
 
 			return Promise.all([
-				// delete 2nd transient one
+				// delete 2nd transient one ("new4")
 				aCreatedContexts[3].delete(),
 				// handle rejection of created promise
 				aCreatedContexts[3].created().then(mustFail(assert), function (oError) {
@@ -7200,6 +7236,18 @@ sap.ui.define([
 				that.waitForChanges(assert, "4. deletion of second transient context")
 			]);
 		}).then(function () {
+			var aCurrentContexts = oBinding.getCurrentContexts();
+
+			assert.strictEqual(oBinding.getCount(), 4);
+			assert.strictEqual(oBinding.getLength(), 5);
+			assert.strictEqual(oBinding.isLengthFinal(), true);
+			assert.deepEqual(aCurrentContexts.map(getNormalizedPath), [
+				"/SalesOrderList($uid=...)",
+				"/SalesOrderList($uid=...)",
+				"/SalesOrderList('44')",
+				"/SalesOrderList('43')",
+				"/SalesOrderList('42')"
+			]);
 			assertIndices(assert, oBinding.getCurrentContexts(), [-4, -3, -2, -1, 0]);
 		});
 	});
@@ -7217,12 +7265,14 @@ sap.ui.define([
 <Table id="table" items="{/SalesOrderList}">\
 	<Input id="note" value="{Note}"/>\
 	<Text id="companyName" binding="{SO_2_BP}" text="{CompanyName}"/>\
+	<Text id="buyerID" text="{BuyerID}"/>\
 </Table>',
 				that = this;
 
-			this.expectRequest("SalesOrderList?$select=Note,SalesOrderID"
+			this.expectRequest("SalesOrderList?$select=BuyerID,Note,SalesOrderID"
 					+ "&$expand=SO_2_BP($select=BusinessPartnerID,CompanyName)&$skip=0&$top=100", {
 					value : [{
+						BuyerID : "23",
 						Note : "foo",
 						SalesOrderID : "42",
 						SO_2_BP : {
@@ -7232,16 +7282,19 @@ sap.ui.define([
 					}]
 				})
 				.expectChange("note", ["foo"])
-				.expectChange("companyName", ["SAP"]);
+				.expectChange("companyName", ["SAP"])
+				.expectChange("buyerID", ["23"]);
 
 			return this.createView(assert, sView, oModel).then(function () {
 				var oTable = that.oView.byId("table");
 
-				that.expectChange("note", ["bar"])
-					.expectChange("note", ["baz", "foo"])
-					.expectChange("companyName", [null, "SAP"]);
+				that.expectChange("note", ["bar", "foo"])
+					.expectChange("companyName", [null, "SAP"])
+					.expectChange("buyerID", ["24", "23"])
+					.expectChange("note", ["baz"]);
 
-				oCreatedContext = oTable.getBinding("items").create({Note : "bar"}, bSkipRefresh);
+				oCreatedContext = oTable.getBinding("items")
+					.create({BuyerID : "24", Note : "bar"}, bSkipRefresh);
 				oTable.getItems()[0].getCells()[0].getBinding("value").setValue("baz");
 
 				return that.waitForChanges(assert);
@@ -7249,21 +7302,26 @@ sap.ui.define([
 				that.expectRequest({
 						method : "POST",
 						url : "SalesOrderList",
-						payload : {Note : "baz"}
+						payload : {BuyerID : "24", Note : "baz"}
 					}, {
+						// no BuyerID (JIRA: CPOUI5ODATAV4-1503)
 						Note : "from server",
 						SalesOrderID : "43"
 					})
 					.expectChange("note", ["from server"]);
 				if (bSkipRefresh) {
-					that.oLogMock.expects("error").withExactArgs("Failed to drill-down into"
-						+ " ('43')/SO_2_BP/CompanyName, invalid segment: SO_2_BP",
-						sSalesOrderService + "SalesOrderList?$select=Note,SalesOrderID"
-						+ "&$expand=SO_2_BP($select=BusinessPartnerID,CompanyName)",
-						"sap.ui.model.odata.v4.lib._Cache");
-				} else {
-					that.expectRequest("SalesOrderList('43')?$select=Note,SalesOrderID"
+					// late property request for CompanyName
+					that.expectRequest("SalesOrderList('43')?$select=SO_2_BP"
 							+ "&$expand=SO_2_BP($select=BusinessPartnerID,CompanyName)", {
+							SO_2_BP : {
+								BusinessPartnerID : "456",
+								CompanyName : "ACM"
+							}
+						});
+				} else {
+					that.expectRequest("SalesOrderList('43')?$select=BuyerID,Note,SalesOrderID"
+							+ "&$expand=SO_2_BP($select=BusinessPartnerID,CompanyName)", {
+							BuyerID : "24",
 							Note : "fresh from server",
 							SalesOrderID : "43",
 							SO_2_BP : {
@@ -7271,15 +7329,17 @@ sap.ui.define([
 								CompanyName : "ACM"
 							}
 						})
-						.expectChange("note", ["fresh from server"])
-						.expectChange("companyName", ["ACM"]);
+						.expectChange("note", ["fresh from server"]);
 				}
+				that.expectChange("companyName", ["ACM"]);
 
 				return Promise.all([
 					oCreatedContext.created(),
 					that.oModel.submitBatch("update"),
 					that.waitForChanges(assert)
 				]);
+			}).then(function () {
+				assert.strictEqual(oCreatedContext.getProperty("BuyerID"), "24");
 			});
 		});
 	});
@@ -8269,7 +8329,7 @@ sap.ui.define([
 			return that.waitForChanges(assert);
 		}).then(function () {
 			that.expectRequest("SalesOrderList?$filter=(contains(Note,'SalesOrder'))"
-					+ " and not (SalesOrderID eq '46' or SalesOrderID eq '44')"
+					+ " and not (SalesOrderID eq '44' or SalesOrderID eq '46')"
 					+ "&$select=Note,SalesOrderID&$skip=2&$top=2", {value : []});
 
 			oTable.requestItems();
@@ -9892,8 +9952,7 @@ sap.ui.define([
 			oTable = that.oView.byId("table");
 			that.oLogMock.expects("error")
 				.withExactArgs("POST on 'SalesOrderList('42')/SO_2_SOITEM' failed; "
-					+ "will be repeated automatically", sinon.match(oError.message),
-					"sap.ui.model.odata.v4.ODataListBinding");
+					+ "will be repeated automatically", sinon.match(oError.message), sODLB);
 			that.expectRequest({
 					method : "POST",
 					url : "SalesOrderList('42')/SO_2_SOITEM",
@@ -11317,33 +11376,6 @@ sap.ui.define([
 	});
 
 	//*********************************************************************************************
-	// Scenario:
-	QUnit.test("setContext on relative binding is forbidden", function (assert) {
-		var oTeam2EmployeesBinding,
-			that = this;
-
-		return prepareTestForCreateOnRelativeBinding(this, assert).then(function () {
-			oTeam2EmployeesBinding = that.oView.byId("table").getBinding("items");
-			that.oView.byId("form").getObjectBinding();
-			// insert new employee at first row
-			that.expectChange("id", ["", "2"])
-				.expectChange("text", ["John Doe", "Frederic Fall"]);
-			oTeam2EmployeesBinding.create({ID : null, Name : "John Doe"});
-
-			return that.waitForChanges(assert);
-		}).then(function () {
-			assert.throws(function () {
-				that.oView.byId("form").bindElement("/TEAMS('43')",
-					{$expand : {TEAM_2_EMPLOYEES : {$select : "ID,Name"}}});
-			}, new Error("setContext on relative binding is forbidden if a transient entity exists"
-				+ ": sap.ui.model.odata.v4.ODataListBinding: /TEAMS('42')|TEAM_2_EMPLOYEES"));
-
-			// Is needed for afterEach, to avoid that destroy is called twice
-			that.oView.byId("form").getObjectBinding().destroy = function () {};
-		});
-	});
-
-	//*********************************************************************************************
 	// Scenario: create an entity on a relative binding without an own cache and reset changes or
 	// delete the newly created entity again
 	// None of our applications has such a scenario.
@@ -11485,10 +11517,10 @@ sap.ui.define([
 				});
 
 			that.oLogMock.expects("error").withExactArgs("Failed to execute /" + sUrl + "(...)",
-				sinon.match(oError.message), "sap.ui.model.odata.v4.ODataContextBinding");
+				sinon.match(oError.message), sODCB);
 			that.oLogMock.expects("error").withExactArgs(//TODO: prevent log -> CPOUI5ODATAV4-127
 				"Failed to read path /" + sUrl + "(...)/TEAM_ID", sinon.match(oError.message),
-				"sap.ui.model.odata.v4.ODataPropertyBinding");
+				sODPrB);
 			that.expectRequest({
 					method : "POST",
 					headers : {"If-Match" : "ETag"},
@@ -12249,14 +12281,14 @@ sap.ui.define([
 		}).then(function () {
 			that.expectRequest("TEAMS?$select=BudgetCurrency,Team_Id&$skip=0&$top=100", {
 					value : [
-						{BudgetCurrency : "RBL", Team_Id : "TEAM_01"},
-						{BudgetCurrency : "RBL", Team_Id : "TEAM_02"}
+						{BudgetCurrency : "UAH", Team_Id : "TEAM_01"},
+						{BudgetCurrency : "UAH", Team_Id : "TEAM_02"}
 					]
 				})
-				.expectChange("currency", ["RBL", "RBL"])
+				.expectChange("currency", ["UAH", "UAH"])
 				.expectRequest("TEAMS('TEAM_02')?$select=Budget,Name",
-					{Budget : "123", Name : "Gzprm"})
-				.expectChange("name", "Gzprm")
+					{Budget : "123", Name : "Nftgz"})
+				.expectChange("name", "Nftgz")
 				.expectChange("budget", "123");
 
 			return Promise.all([
@@ -12834,12 +12866,15 @@ sap.ui.define([
 	//
 	// Property annotations contribute to $select and do not cause a "Failed to drill-down".
 	// BCP: 2170245436
+	// Setting stream property to undefined leads to implicit value.
+	// BCP: 2280039562
 ["@mediaReadLink", "@odata.mediaReadLink"].forEach(function (sAnnotation) {
 	[undefined, null, "image/jpeg"].forEach(function (vMediaContentType) {
 		var sTitle = "stream property with " + sAnnotation + "=" + vMediaContentType;
 
 	QUnit.test(sTitle, function (assert) {
-		var oModel = createTeaBusiModel({autoExpandSelect : true}),
+		var oContext,
+			oModel = createTeaBusiModel({autoExpandSelect : true}),
 			oResponse = {},
 			sView = '\
 <FlexBox binding="{/Equipments(\'1\')/EQUIPMENT_2_PRODUCT}">\
@@ -12847,7 +12882,8 @@ sap.ui.define([
 	<Text id="contentType"\
 		text="{= JSON.stringify(%{ProductPicture/Picture@odata.mediaContentType}) }"/>\
 	<Text id="fooBar" text="{= %{SupplierIdentifier@foo.bar} }"/>\
-</FlexBox>';
+</FlexBox>',
+			that = this;
 
 		oResponse["Picture" + sAnnotation] = "ProductPicture('42')";
 		if (vMediaContentType !== undefined) {
@@ -12866,7 +12902,32 @@ sap.ui.define([
 			.expectChange("contentType", JSON.stringify(vMediaContentType))
 			.expectChange("fooBar", "The answer");
 
-		return this.createView(assert, sView, oModel);
+		return this.createView(assert, sView, oModel).then(function () {
+			oContext = that.oView.byId("contentType").getBindingContext();
+
+			that.expectChange("url", null)
+				.expectRequest({
+					method : "PATCH",
+					// prefixed with container since Products is in a different metadata document
+					url : "com.sap.gateway.default.iwbep.tea_busi_product.v0001.Container%2F"
+						+ "Products(42)",
+					payload : {
+						ProductPicture : {
+							Picture : null
+						}
+					}
+				}, {/* response does not matter here */});
+
+			oContext.setProperty("ProductPicture/Picture", null);
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectChange("url", sTeaBusi + "ProductPicture('42')");
+
+			oContext.setProperty("ProductPicture/Picture", undefined, null);
+
+			return that.waitForChanges(assert);
+		});
 	});
 	});
 });
@@ -12934,6 +12995,123 @@ sap.ui.define([
 				oContext.setProperty("ProductPicture/Picture@odata.mediaEditLink", "foo*"),
 				that.waitForChanges(assert, "PATCH")
 			]);
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: A new instance is created and the POST returns instance annotations, both for
+	// missing and existing properties, w/ and w/o updates. Check that these are properly updated in
+	// the client's data. Check that a late property request also updates instance annotations.
+	//
+	// BCP: 2270023075
+	QUnit.test("BCP: 2270023075 - creation POST returns instance annotations", function (assert) {
+		var oContext,
+			oListBinding,
+			oModel = createTeaBusiModel({autoExpandSelect : true}),
+			fnRespond,
+			sView = '\
+<Table id="table" items="{/TEAMS}">\
+	<Text id="budget" text="{Budget}"/>\
+	<Text id="budgetCurrency" text="{BudgetCurrency}"/>\
+	<Text id="name" text="{Name}"/>\
+	<Text id="instanceAnnotation" text="{= %{@a.b} }"/>\
+	<Text id="propertyAnnotation" text="{= %{BudgetCurrency@foo.bar} }"/>\
+</Table>',
+			that = this;
+
+		this.expectRequest("TEAMS?$select=Budget,BudgetCurrency,Name,Team_Id&$skip=0&$top=100", {
+				value : []
+			})
+			.expectChange("budget", [])
+			.expectChange("budgetCurrency", [])
+			.expectChange("name", [])
+			.expectChange("instanceAnnotation", [])
+			.expectChange("propertyAnnotation", []);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			oListBinding = that.oView.byId("table").getBinding("items");
+
+			that.expectChange("budget", ["42.1"])
+				.expectChange("budgetCurrency", [""])
+				.expectChange("name", ["New Team"])
+				.expectChange("instanceAnnotation", [undefined])
+				.expectChange("propertyAnnotation", [undefined])
+				.expectRequest({
+					method : "POST",
+					url : "TEAMS",
+					payload : {Budget : "42.1", Name : "New Team"}
+				}, {
+					"@a.b" : "A & B",
+					"@x.y.z" : "X, Y, Z",
+					Budget : "42", // update
+					"Budget@some.annotation" : "hello, world!",
+					// BudgetCurrency missing
+					"BudgetCurrency@foo.bar" : "love & peace!",
+					MEMBER_COUNT : 0, // MUST be ignored
+					"MEMBER_COUNT@n.a" : "n/a",
+					Name : "New Team", // no update
+					"Name@my.comment" : "Please choose a new name",
+					Team_Id : "Team_00"
+				})
+				.expectChange("budget", ["42"])
+				.expectChange("instanceAnnotation", ["A & B"])
+				.expectChange("propertyAnnotation", ["love & peace!"])
+				// Note: For an Edm.Stream property, this would not happen. Other properties should
+				// not be missing. Still, we can nicely use this to check a "late property request"
+				// (because all _dependent_ bindings are refreshed due to bSkipRefresh === true)
+				.expectRequest("TEAMS('Team_00')?$select=BudgetCurrency",
+					new Promise(function (resolve) {
+						fnRespond = resolve.bind(null, {
+							"@a.b" : "A & B",
+							"@x.y.z" : "X, Y, Z",
+							// BudgetCurrency still missing
+							"BudgetCurrency@a.b" : "A/B",
+							"BudgetCurrency@foo.bar" : "peace on earth"
+						});
+					}));
+
+			// code under test
+			oContext = oListBinding.create({Budget : "42.1", Name : "New Team"},
+				/*bSkipRefresh*/true);
+
+			// oContext.created() waits for the refresh of the dependent bindings which includes the
+			// late property request
+			return that.waitForChanges(assert, "create");
+		}).then(function () {
+			assert.deepEqual(oContext.getObject(), {
+					"@$ui5.context.isTransient" : false,
+					"@a.b" : "A & B",
+					"@x.y.z" : "X, Y, Z",
+					Budget : "42",
+					"Budget@some.annotation" : "hello, world!",
+					"BudgetCurrency@foo.bar" : "love & peace!",
+					Name : "New Team",
+					"Name@my.comment" : "Please choose a new name",
+					Team_Id : "Team_00"
+			});
+
+			that.expectChange("budgetCurrency", [null])
+				.expectChange("propertyAnnotation", ["peace on earth"]);
+
+			fnRespond();
+
+			return Promise.all([
+				oContext.created(),
+				that.waitForChanges(assert, "late property request")
+			]);
+		}).then(function () {
+			assert.deepEqual(oContext.getObject(), {
+					"@$ui5.context.isTransient" : false,
+					"@a.b" : "A & B",
+					"@x.y.z" : "X, Y, Z",
+					Budget : "42",
+					"Budget@some.annotation" : "hello, world!",
+					"BudgetCurrency@a.b" : "A/B",
+					"BudgetCurrency@foo.bar" : "peace on earth",
+					Name : "New Team",
+					"Name@my.comment" : "Please choose a new name",
+					Team_Id : "Team_00"
+			});
 		});
 	});
 
@@ -13713,7 +13891,9 @@ sap.ui.define([
 
 	//*********************************************************************************************
 	// Scenario: infinite prefetch alone must not make _CollectionCache#read async
-	QUnit.test("infinite prefetch", function (assert) {
+	// TODO: We have to skip this test because of 2 BCP incidents (2280024694 && 2180279839).
+	// At current state, we are not able to handle this in a synchronous way!
+	QUnit.skip("infinite prefetch", function (assert) {
 		var oListBinding,
 			aValues = [],
 			i,
@@ -13749,13 +13929,14 @@ sap.ui.define([
 	// dataReceived event is sent after each dataRequested.
 	//
 	// BCP: 2180279839
+	// BCP: 2280024694
 	QUnit.test("BCP: 2180279839: dataReceived follows each dataRequested", function (assert) {
 		var oListBinding,
 			aValues = [],
 			i,
 			that = this;
 
-		for (i = 0; i < 10; i += 1) {
+		for (i = 0; i < 1200; i += 1) {
 			aValues[i] = {Team_Id : "TEAM_" + i};
 		}
 
@@ -13769,19 +13950,46 @@ sap.ui.define([
 					[, "dataReceived", {data : {}}]
 				]);
 
-			oListBinding.getContexts(0, 7);
+			assert.deepEqual(oListBinding.getContexts(0, 7).map(getPath), []);
 
 			return that.waitForChanges(assert);
 		}).then(function () {
-			that.expectRequest("TEAMS?$skip=7&$top=3", {value : aValues.slice(7, 3)})
+			that.expectRequest("TEAMS?$skip=7&$top=3", {value : aValues.slice(7, 10)})
+				.expectEvents(assert, oListBinding, [
+					[, "dataRequested"],
+					[, "dataReceived", {data : {}}]
+				]);
+
+			// code under test
+			assert.deepEqual(oListBinding.getContexts(3, 2, 5).map(getPath), [
+				"/TEAMS('TEAM_3')",
+				"/TEAMS('TEAM_4')"
+			]);
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest("TEAMS?$skip=1098&$top=7", {value : aValues.slice(1098, 1105)})
 				.expectEvents(assert, oListBinding, [
 					[, "dataRequested"],
 					[, "change", {reason : "change"}],
 					[, "dataReceived", {data : {}}]
 				]);
 
-			// code under test
-			oListBinding.getContexts(3, 2, 5);
+			assert.deepEqual(oListBinding.getContexts(1098, 7).map(getPath), []);
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest("TEAMS?$skip=1105&$top=5", {value : aValues.slice(1105, 1110)})
+				.expectEvents(assert, oListBinding, [
+					[, "dataRequested"],
+					[, "dataReceived", {data : {}}]
+				]);
+
+			// code under test (BCP: 2280024694)
+			assert.deepEqual(oListBinding.getContexts(1103, 2, 5).map(getPath), [
+				"/TEAMS('TEAM_1103')",
+				"/TEAMS('TEAM_1104')"
+			]);
 
 			return that.waitForChanges(assert);
 		});
@@ -18590,7 +18798,7 @@ sap.ui.define([
 
 		this.expectRequest("Artists?$apply=groupby"
 				+ "((IsActiveEntity,BestPublication/DraftAdministrativeData/InProcessByUser))"
-				+ "/orderby(BestPublication/DraftAdministrativeData/InProcessByUser%20desc)"
+				+ "/orderby(BestPublication/DraftAdministrativeData/InProcessByUser desc)"
 				+ "&$count=true&$skip=0&$top=6", {
 				"@odata.count" : "2",
 				value : [{
@@ -20306,8 +20514,7 @@ sap.ui.define([
 				.withExactArgs("Read-only path must not be updated", oMatcher,
 					"sap.ui.model.odata.v4.ODataMetaModel");
 			that.oLogMock.expects("error")
-				.withExactArgs("Failed to update path /MANAGERS('1')/@$ui5.foo", oMatcher,
-					"sap.ui.model.odata.v4.ODataPropertyBinding");
+				.withExactArgs("Failed to update path /MANAGERS('1')/@$ui5.foo", oMatcher, sODPrB);
 
 			that.expectMessages([{
 					message : "/MANAGERS('1')/@$ui5.foo: Read-only path must not be updated",
@@ -21558,9 +21765,9 @@ sap.ui.define([
 				.expectChange("artistName", null);
 
 			return Promise.all([
-				oCreationRowContext.delete(),
 				// handle cancellation caused by .delete()
 				checkCanceled(assert, oCreationRowContext.created()),
+				oCreationRowContext.delete(),
 				that.waitForChanges(assert)
 			]);
 		}).then(function () {
@@ -22796,124 +23003,124 @@ sap.ui.define([
 							"for the 'clone', we need the context to distinguish");
 					});
 				});
-			} else { // cancel
-				oInput = oTable.getItems()[0].getCells()[2];
+			}
+			// cancel
+			oInput = oTable.getItems()[0].getCells()[2];
+
+			that.expectMessages([{
+					message : sMessage1,
+					target : "/Artists(ArtistID='42',IsActiveEntity=true)/Name",
+					type : "Success"
+				}, {
+					message : sMessage2,
+					target : "/Artists(ArtistID='42',IsActiveEntity=false)/Name",
+					type : "Success"
+				}, {
+					message : sMessage,
+					persistent : false,
+					target : oInput.getId() + "/value",
+					technical : false,
+					type : "Error"
+				}]);
+
+			// Note: Because the invalid value has to be set via control, changes for that
+			// control cannot be observed via expectChange
+			oInput.setValue(sValue);
+
+			assert.strictEqual(oInput.getValue(), sValue);
+			assert.strictEqual(oInput.getBinding("value").getValue(), "Missy Eliot");
+
+			return Promise.all([
+				that.checkValueState(assert, oInput, "Error", sMessage),
+				that.waitForChanges(assert)
+			]).then(function () {
+				var oSiblingEntity;
 
 				that.expectMessages([{
+					message : sMessage1,
+					target : "/Artists(ArtistID='42',IsActiveEntity=true)/Name",
+					type : "Success"
+				}, {
+					message : sMessage2,
+					target : "/Artists(ArtistID='42',IsActiveEntity=false)/Name",
+					type : "Success"
+				}]);
+
+				if (bWithActive) {
+					that.expectChange("isActiveEntity", ["Yes"]);
+
+					// code under test
+					oInactiveArtistContext.replaceWith(oActiveArtistContext);
+
+					return that.waitForChanges(assert, "replaceWith");
+				}
+
+				oSiblingEntity = that.oModel.bindContext("SiblingEntity(...)",
+					oInactiveArtistContext, {$$inheritExpandSelect : true});
+
+				that.expectRequest("Artists(ArtistID='42',IsActiveEntity=false)"
+					+ "/SiblingEntity?$select=ArtistID,IsActiveEntity,Messages,Name", {
+					"@odata.etag" : "activETag*",
+					ArtistID : "42",
+					IsActiveEntity : true,
+					Messages : [{
 						message : sMessage1,
-						target : "/Artists(ArtistID='42',IsActiveEntity=true)/Name",
-						type : "Success"
-					}, {
-						message : sMessage2,
-						target : "/Artists(ArtistID='42',IsActiveEntity=false)/Name",
-						type : "Success"
-					}, {
-						message : sMessage,
-						persistent : false,
-						target : oInput.getId() + "/value",
-						technical : false,
-						type : "Error"
-					}]);
-
-				// Note: Because the invalid value has to be set via control, changes for that
-				// control cannot be observed via expectChange
-				oInput.setValue(sValue);
-
-				assert.strictEqual(oInput.getValue(), sValue);
-				assert.strictEqual(oInput.getBinding("value").getValue(), "Missy Eliot");
+						numericSeverity : 1,
+						target : "Name"
+					}],
+					Name : "Missy Eliot"
+				})
+				.expectChange("isActiveEntity", ["Yes"]);
 
 				return Promise.all([
-					that.checkValueState(assert, oInput, "Error", sMessage),
-					that.waitForChanges(assert)
-				]).then(function () {
-					var oSiblingEntity;
+					// code under test
+					oSiblingEntity.execute("$auto", /*bIgnoreETag*/false,
+						/*fnOnStrictHandlingFailed*/null, /*bReplaceWithRVC*/true),
+					that.waitForChanges(assert, "SiblingEntity")
+				]);
+			}).then(function (aResults) {
+				if (!bWithActive) {
+					that.expectRequest("Artists(ArtistID='42',IsActiveEntity=true)/_Publication"
+							+ "?$select=Price,PublicationID&$skip=0&$top=100", {
+							value : [{
+								Price : "13.99",
+								PublicationID : "42-0"
+							}]
+						});
+				}
+				that.expectChange("price", [bWithActive ? "9.99" : "13.99"]);
 
-					that.expectMessages([{
+				that.oView.byId("items").setBindingContext(
+					bWithActive ? oActiveArtistContext : aResults[0]);
+
+				return that.waitForChanges(assert, "items for old active");
+			}).then(function () {
+				assert.strictEqual(oInput.getValue(), "Missy Eliot");
+
+				return Promise.all([
+					that.checkValueState(assert, oInput, "Success", sMessage1),
+					that.waitForChanges(assert)
+				]);
+			}).then(function () {
+				that.expectRequest({
+						headers : {
+							"If-Match" : "inactivETag"
+						},
+						method : "DELETE",
+						url : "Artists(ArtistID='42',IsActiveEntity=false)"
+					}) // 204 No Content
+					.expectMessages([{
 						message : sMessage1,
 						target : "/Artists(ArtistID='42',IsActiveEntity=true)/Name",
 						type : "Success"
-					}, {
-						message : sMessage2,
-						target : "/Artists(ArtistID='42',IsActiveEntity=false)/Name",
-						type : "Success"
 					}]);
 
-					if (bWithActive) {
-						that.expectChange("isActiveEntity", ["Yes"]);
-
-						// code under test
-						oInactiveArtistContext.replaceWith(oActiveArtistContext);
-
-						return that.waitForChanges(assert, "replaceWith");
-					}
-
-					oSiblingEntity = that.oModel.bindContext("SiblingEntity(...)",
-						oInactiveArtistContext, {$$inheritExpandSelect : true});
-
-					that.expectRequest("Artists(ArtistID='42',IsActiveEntity=false)"
-						+ "/SiblingEntity?$select=ArtistID,IsActiveEntity,Messages,Name", {
-						"@odata.etag" : "activETag*",
-						ArtistID : "42",
-						IsActiveEntity : true,
-						Messages : [{
-							message : sMessage1,
-							numericSeverity : 1,
-							target : "Name"
-						}],
-						Name : "Missy Eliot"
-					})
-					.expectChange("isActiveEntity", ["Yes"]);
-
-					return Promise.all([
-						// code under test
-						oSiblingEntity.execute("$auto", /*bIgnoreETag*/false,
-							/*fnOnStrictHandlingFailed*/null, /*bReplaceWithRVC*/true),
-						that.waitForChanges(assert, "SiblingEntity")
-					]);
-				}).then(function (aResults) {
-					if (!bWithActive) {
-						that.expectRequest("Artists(ArtistID='42',IsActiveEntity=true)/_Publication"
-								+ "?$select=Price,PublicationID&$skip=0&$top=100", {
-								value : [{
-									Price : "13.99",
-									PublicationID : "42-0"
-								}]
-							});
-					}
-					that.expectChange("price", [bWithActive ? "9.99" : "13.99"]);
-
-					that.oView.byId("items").setBindingContext(
-						bWithActive ? oActiveArtistContext : aResults[0]);
-
-					return that.waitForChanges(assert, "items for old active");
-				}).then(function () {
-					assert.strictEqual(oInput.getValue(), "Missy Eliot");
-
-					return Promise.all([
-						that.checkValueState(assert, oInput, "Success", sMessage1),
-						that.waitForChanges(assert)
-					]);
-				}).then(function () {
-					that.expectRequest({
-							headers : {
-								"If-Match" : "inactivETag"
-							},
-							method : "DELETE",
-							url : "Artists(ArtistID='42',IsActiveEntity=false)"
-						}) // 204 No Content
-						.expectMessages([{
-							message : sMessage1,
-							target : "/Artists(ArtistID='42',IsActiveEntity=true)/Name",
-							type : "Success"
-						}]);
-
-					return Promise.all([
-						// code under test
-						oInactiveArtistContext.delete("$auto", /*bDoNotRequestCount*/true),
-						that.waitForChanges(assert, "DELETE")
-					]);
-				});
-			}
+				return Promise.all([
+					// code under test
+					oInactiveArtistContext.delete("$auto", /*bDoNotRequestCount*/true),
+					that.waitForChanges(assert, "DELETE")
+				]);
+			});
 		});
 	});
 			});
@@ -24234,14 +24441,13 @@ sap.ui.define([
 
 			that.oLogMock.expects("error")
 				.withExactArgs("Failed to read path /TEAMS('TEAM_01')/Team_Id",
-					sinon.match.string, "sap.ui.model.odata.v4.ODataPropertyBinding");
+					sinon.match.string, sODPrB);
 			that.oLogMock.expects("error")
-				.withExactArgs("Failed to read path /TEAMS('TEAM_01')",
-					sinon.match.string, "sap.ui.model.odata.v4.ODataContextBinding");
+				.withExactArgs("Failed to read path /TEAMS('TEAM_01')", sinon.match.string, sODCB);
 			that.oLogMock.expects("error")
 				.withExactArgs("Failed to get contexts for " + sTeaBusi
 						+ "TEAMS('TEAM_01')/TEAM_2_EMPLOYEES with start index 0 and length 100",
-					sinon.match.string, "sap.ui.model.odata.v4.ODataListBinding");
+					sinon.match.string, sODLB);
 			that.expectRequest("TEAMS('TEAM_01')?$select=Team_Id", oError1)
 				.expectRequest("TEAMS('TEAM_01')/TEAM_2_EMPLOYEES?$select=ID,Name"
 					+ "&$skip=0&$top=100", oError2)
@@ -24649,8 +24855,7 @@ sap.ui.define([
 			oPromise = that.oView.byId("form").getBindingContext().requestSideEffects([{
 				$PropertyPath : "GrossAmount"
 			}]).then(mustFail(assert), function (oError0) {
-				assert.strictEqual(oError0.message,
-					"HTTP request was not processed because the previous request failed");
+				assert.strictEqual(oError0.message, sPreviousFailed);
 			});
 
 			return Promise.all([
@@ -27098,8 +27303,7 @@ sap.ui.define([
 					that.waitForChanges(assert)
 				]);
 			}).then(function () {
-				assert.strictEqual(
-					oTeamCreatedContext.getPath().replace(rTransientPredicate, "($uid=...)"),
+				assert.strictEqual(getNormalizedPath(oTeamCreatedContext),
 					bKeepTransientPath ? "/TEAMS($uid=...)" : "/TEAMS('23')");
 				if (bKeepTransientPath) {
 					assert.strictEqual(oTeamCreatedContext.getPath(), sTransientPath);
@@ -28913,7 +29117,7 @@ sap.ui.define([
 
 			that.oLogMock.expects("error").withExactArgs(
 				"Failed to drill-down into MEMBER_COUNT, invalid segment: MEMBER_COUNT",
-				"/sap/opu/odata4/IWBEP/TEA/default/IWBEP/TEA_BUSI/0001/TEAMS('TEAM_02')",
+				sTeaBusi + "TEAMS('TEAM_02')",
 				"sap.ui.model.odata.v4.lib._Cache");
 
 			// code under test
@@ -29438,20 +29642,33 @@ sap.ui.define([
 	// Allow side effect to refresh a dependent list binding even if it only contains transient
 	// contexts.
 	// JIRA: CPOUI5ODATAV4-37
+	//
+	// Keep all inline creation rows during a side-effects refresh; make sure $count is correct even
+	// when a filter is involved. (Note: for simplicity, $filter is not really shown here.)
+	// JIRA: CPOUI5ODATAV4-1384
 [false, true].forEach(function (bEmpty) {
 	[false, true].forEach(function (bSuccess) {
-		var sTitle = "CPOUI5ODATAV4-37: items table is empty = " + bEmpty
-				+ "; creation succeeds = " + bSuccess;
+		[false, true].forEach(function (bFound) {
+			var sTitle = "CPOUI5ODATAV4-37: items table is empty = " + bEmpty
+					+ "; creation succeeds = " + bSuccess
+					+ "; created item is part of side effect response = " + bFound;
+
+			if (!bSuccess && bFound) {
+				return;
+			}
 
 	QUnit.test(sTitle, function (assert) {
 		var oCreationRowContext,
 			oModel = createSalesOrdersModel({autoExpandSelect : true}),
 			oNewContext,
 			oTableBinding,
+			// image we had a $filter : \'NoteLanguage ne null\' or similar for the table
 			sView = '\
 <FlexBox id="form" binding="{/SalesOrderList(\'1\')}">\
 	<Input id="soCurrencyCode" value="{CurrencyCode}"/>\
-	<Table id="table" items="{path : \'SO_2_SOITEM\', parameters : {$$ownRequest : true}}">\
+	<Text id="count" text="{headerContext>$count}"/>\
+	<Table id="table" growing="true" growingThreshold="2" items="{path : \'SO_2_SOITEM\',\
+			parameters : {$$ownRequest : true, $count : true}}">\
 		<Text id="note" text="{Note}"/>\
 	</Table>\
 </FlexBox>\
@@ -29464,22 +29681,38 @@ sap.ui.define([
 				CurrencyCode : "EUR",
 				SalesOrderID : "1"
 			})
-			.expectRequest("SalesOrderList('1')/SO_2_SOITEM?$select=ItemPosition,Note,SalesOrderID"
-				+ "&$skip=0&$top=100", {
+			.expectChange("soCurrencyCode", "EUR")
+			.expectRequest("SalesOrderList('1')/SO_2_SOITEM?$count=true"
+				+ "&$select=ItemPosition,Note,SalesOrderID&$skip=0&$top=2", {
+				"@odata.count" : bEmpty ? 0 : 3,
 				value : bEmpty ? [] : [{
 					ItemPosition : "10",
 					Note : "Foo",
 					SalesOrderID : "1"
+				}, {
+					ItemPosition : "20",
+					Note : "Bar",
+					SalesOrderID : "1"
 				}]
 			})
-			.expectChange("note", bEmpty ? [] : ["Foo"])
-			.expectChange("soCurrencyCode", "EUR")
+			.expectChange("note", bEmpty ? [] : ["Foo", "Bar"])
+			.expectChange("count")
 			.expectChange("creationRow::note");
 
 		return this.createView(assert, sView, oModel).then(function () {
+			oTableBinding = that.oView.byId("table").getBinding("items");
+
+			that.expectChange("count", bEmpty ? "0" : "3");
+
+			// code under test
+			that.oView.setModel(that.oView.getModel(), "headerContext");
+			that.oView.byId("count").setBindingContext(oTableBinding.getHeaderContext(),
+				"headerContext");
+
+			return that.waitForChanges(assert, "$count");
+		}).then(function () {
 			var oCreationRowListBinding;
 
-			oTableBinding = that.oView.byId("table").getBinding("items");
 			oCreationRowListBinding = oModel.bindList(oTableBinding.getPath(),
 				oTableBinding.getContext(), undefined, undefined,
 				{$$updateGroupId : "doNotSubmit"});
@@ -29490,15 +29723,12 @@ sap.ui.define([
 			oCreationRowContext = oCreationRowListBinding.create({Note : "New item note"});
 			that.oView.byId("creationRow").setBindingContext(oCreationRowContext);
 
-			return that.waitForChanges(assert);
+			return that.waitForChanges(assert, "creationRow");
 		}).then(function () {
-			// Note: Context#requestSideEffects sync. calls ODLB#reset, but
-			// ODPrB#checkUpdateInternal is intentionally async => oTableBinding.iCreatedContexts
-			// is already reset here
-			that.expectChange("note", "First new row", -1);
-			if (!bEmpty) {
-				that.expectChange("note", ["Foo"]);
-			}
+			var aItems;
+
+			that.expectChange("count", bEmpty ? "1" : "4")
+				.expectChange("note", ["First new row"]);
 			that.expectRequest({
 					batchNo : 2,
 					method : "POST",
@@ -29506,7 +29736,8 @@ sap.ui.define([
 					url : "SalesOrderList('1')/SO_2_SOITEM"
 				}, bSuccess ? {
 					ItemPosition : "0",
-					Note : "First new row",
+					Note : "First *new* row",
+					NoteLanguage : "ignored",
 					SalesOrderID : "1"
 				} : createErrorInsideBatch())
 				.expectMessages(bSuccess ? [] : [{
@@ -29524,29 +29755,68 @@ sap.ui.define([
 					.withArgs("Failed to request side effects");
 				that.oLogMock.expects("error")
 					.withArgs("Failed to get contexts for " + sSalesOrderService
-						+ "SalesOrderList('1')/SO_2_SOITEM with start index 0 and length 100");
+						+ "SalesOrderList('1')/SO_2_SOITEM with start index 0 and length 2");
 			}
 
 			// add transient row to items table
-			oNewContext = oTableBinding.create({Note : "First new row"}, /*bSkipRefresh*/true);
+			oNewContext = oTableBinding.create({}, /*bSkipRefresh*/false, /*bAtEnd*/false,
+				/*bInactive*/true);
+			oNewContext.setProperty("Note", "First new row"); // activate
 
+			aItems = [{
+				ItemPosition : "10",
+				Note : "Foo - side effect",
+				SalesOrderID : "1"
+			}, {
+				ItemPosition : "20",
+				Note : "Bar - side effect",
+				SalesOrderID : "1"
+			}];
+			if (bFound) {
+				aItems.unshift({
+					ItemPosition : "0",
+					Note : "n/a",
+					SalesOrderID : "1"
+				});
+				aItems.length = 2;
+			} // else: "First new row" not part of this read range
 			that.expectRequest({
 					batchNo : 2,
 					url : "SalesOrderList('1')/SO_2_SOITEM"
-						+ "?$select=ItemPosition,Note,SalesOrderID&$skip=0&$top=100"
-				}, {
-					value : [{ //TODO failed to drill-down if this is missing (BCP: 2170230216)
-						ItemPosition : "0",
-						Note : "First new row",
-						SalesOrderID : "1"
-					}, {
-						ItemPosition : "10",
-						Note : "Foo - side effect",
-						SalesOrderID : "1"
-					}]
+						+ "?$count=true&$select=ItemPosition,Note,SalesOrderID&$skip=0&$top=2"
+				}, { // ignored if !bSuccess; else bEmpty does not play a role anymore
+					"@odata.count" : 4,
+					value : aItems
 				});
 			if (bSuccess) {
-				that.expectChange("note", [, "Foo - side effect"]);
+				that.expectChange("note", ["First *new* row", "Foo - side effect"]);
+				if (bFound) {
+					if (bEmpty) { // now we see this $count for the 1st time
+						that.expectChange("count", "4");
+					}
+				} else {
+					// we cannot tell if "First new row" is affected by our imaginative $filter...
+					that.expectRequest({
+							batchNo : 3,
+							url : "SalesOrderList('1')/SO_2_SOITEM?$count=true"
+								+ "&$filter=not (SalesOrderID eq '1' and ItemPosition eq '0')"
+								+ "&$top=0"
+						}, {
+							"@odata.count" : 4, ///... looks like it is
+							value : []
+						})
+						.expectChange("count", "5");
+				}
+				that.expectRequest({ // see /*bSkipRefresh*/false
+						batchNo : 3,
+						url : "SalesOrderList('1')/SO_2_SOITEM(SalesOrderID='1',ItemPosition='0')"
+							+ "?$select=ItemPosition,Note,SalesOrderID"
+					}, {
+						ItemPosition : "0",
+						Note : "First **new** row",
+						SalesOrderID : "1"
+					})
+					.expectChange("note", ["First **new** row"]);
 			}
 
 			// code under test: requestSideEffects promise resolves, "creationRow::note" unchanged
@@ -29554,21 +29824,18 @@ sap.ui.define([
 				oTableBinding.getContext().requestSideEffects(["SO_2_SOITEM"])
 					.then(bSuccess ? null : mustFail(assert), function (oError0) {
 						assert.notOk(bSuccess);
-						assert.strictEqual(oError0.message,
-							"HTTP request was not processed because the previous request failed");
+						assert.strictEqual(oError0.message, sPreviousFailed);
 						assert.strictEqual(oError0.cause.message, "Request intentionally failed");
 					}),
 				bSuccess && oNewContext.created(),
-				that.waitForChanges(assert)
+				that.waitForChanges(assert, "requestSideEffects")
 			]);
 		}).then(function () {
-			if (bSuccess) {
-				return; // must not use oNewContext anymore after side effects refresh!
-			}
-
 			assert.strictEqual(oNewContext.getBinding(), oTableBinding);
 			assert.strictEqual(oNewContext.getIndex(), 0);
-			assert.strictEqual(oNewContext.getProperty("Note"), "First new row");
+			assert.strictEqual(oNewContext.getProperty("Note"),
+				bSuccess ? "First **new** row" : "First new row");
+			assert.notOk("NoteLanguage" in oNewContext.getObject(), "updateSelected :-)");
 
 			that.expectChange("note", ["*First new row*"]);
 
@@ -29586,20 +29853,24 @@ sap.ui.define([
 			return that.waitForChanges(assert);
 		}).then(function () {
 			that.expectChange("creationRow::note", null);
-			if (!bSuccess && !bEmpty) {
-				that.expectChange("note", ["Foo"]);
+			if (!bSuccess) {
+				that.expectChange("count", bEmpty ? "0" : "3"); // @see oNewContext.delete() below
+				if (!bEmpty) {
+					that.expectChange("note", [, "Bar"]);
+				}
 			}
 
 			return Promise.all([
+				checkCanceled(assert, oCreationRowContext.created()),
 				// cleanup: delete creation row to avoid error on view destruction
 				oCreationRowContext.delete(),
-				checkCanceled(assert, oCreationRowContext.created()),
-				bSuccess || oNewContext.delete(),
 				bSuccess || checkCanceled(assert, oNewContext.created()),
+				bSuccess || oNewContext.delete(),
 				that.waitForChanges(assert)
 			]);
 		});
 	});
+		});
 	});
 });
 
@@ -29726,9 +29997,9 @@ sap.ui.define([
 			that.expectChange("creationRow::note", null);
 
 			return Promise.all([
+				checkCanceled(assert, oCreationRowContext.created()),
 				// cleanup: delete creation row to avoid error on view destruction
 				oCreationRowContext.delete(),
-				checkCanceled(assert, oCreationRowContext.created()),
 				that.waitForChanges(assert)
 			]);
 		}).then(function () {
@@ -29862,16 +30133,7 @@ sap.ui.define([
 				}]
 			})
 			.expectChange("id", ["44", "43"])
-			//TODO Wrong index is caused by ODPaB#refreshDependentListBindingsWithoutCache which
-			// again resets the BP_2_SO list binding and thus sets this.iCreatedContexts = 0;
-			// => Context#getIndex returns a negative number
-			// This is later healed by ODLB#createContexts, but we have a timing issue, with the
-			// response for #create and #rSE being handled in an interleaved fashion
-			// JIRA: CPOUI5ODATAV4-288
-			.expectChange("note", "Side", -1)
-			.expectChange("note", "Unrealistic", -2)
-			.expectChange("note", [,, "Effect"]);
-			//.expectChange("note", ["Unrealistic", "Side", "Effect"]);
+			.expectChange("note", ["Unrealistic", "Side", "Effect"]);
 	},
 	text : "Repeated POST succeeds"
 }, {
@@ -30035,9 +30297,10 @@ sap.ui.define([
 	// Scenario: Creation of an entity fails due to a network error. A subsequent call to
 	// requestSideEffects repeats the failed POST in the same $batch but fails again. All transient
 	// contexts are kept, even if not visible.
-	// JIRA: CPOUI5UISERVICESV3-1764
-	QUnit.skip("requestSideEffects keeps invisible transient contexts", function (assert) {
+	// JIRA: CPOUI5UISERVICESV3-1764 (now: CPOUI5ODATAV4-1361)
+	QUnit.test("requestSideEffects keeps invisible transient contexts", function (assert) {
 		var oModel = createSalesOrdersModel({autoExpandSelect : true}),
+			oNewContext,
 			oTable,
 			oTableBinding,
 			sView = '\
@@ -30057,22 +30320,18 @@ sap.ui.define([
 			.expectChange("note", ["Test 1", "Test 2"]);
 
 		return this.createView(assert, sView, oModel).then(function () {
-			that.oLogMock.expects("error").withArgs("POST on 'SalesOrderList' failed; will be"
-				+ " repeated automatically");
-			that.oLogMock.expects("error").withArgs("$batch failed");
+			that.oLogMock.expects("error")
+				.withExactArgs("POST on 'SalesOrderList' failed; will be repeated automatically",
+					sinon.match("Request intentionally failed"), sODLB);
 
 			that.expectRequest({
 					method : "POST",
 					payload : {Note : "Created"},
 					url : "SalesOrderList"
-				}, createError())
+				}, createErrorInsideBatch())
 				.expectMessages([{
-					message : "Communication error: 500 ",
-					persistent : true,
-					technical : true,
-					type : "Error"
-				}, {
-					message : "HTTP request was not processed because $batch failed",
+					code : "CODE",
+					message : "Request intentionally failed",
 					persistent : true,
 					technical : true,
 					type : "Error"
@@ -30082,9 +30341,9 @@ sap.ui.define([
 
 			oTable = that.oView.byId("table");
 			oTableBinding = oTable.getBinding("rows");
-			oTableBinding.create({Note : "Created"}, /*bSkipRefresh*/true);
+			oNewContext = oTableBinding.create({Note : "Created"}, /*bSkipRefresh*/true);
 
-			return that.waitForChanges(assert);
+			return that.waitForChanges(assert, "creation fails");
 		}).then(function () {
 			that.expectChange("id", [, "0500000001", "0500000002"])
 				.expectChange("note", [, "Test 1", "Test 2"]);
@@ -30092,39 +30351,35 @@ sap.ui.define([
 			// scroll down
 			oTable.setFirstVisibleRow(1);
 
-			return that.waitForChanges(assert);
+			return that.waitForChanges(assert, "scroll down");
 		}).then(function () {
-			var oCausingError = createError();
+			var oError = createErrorInsideBatch();
 
 			// remove persistent, technical messages from above
 			sap.ui.getCore().getMessageManager().removeAllMessages();
 
-			that.oLogMock.expects("error").withArgs("POST on 'SalesOrderList' failed; will be"
-				+ " repeated automatically");
-			that.oLogMock.expects("error").withArgs("Failed to get contexts for "
-				+ sSalesOrderService + "SalesOrderList with start index 1 and length 2");
-			that.oLogMock.expects("error").withArgs("$batch failed");
-			that.oLogMock.expects("error").withArgs("Failed to request side effects");
+			that.oLogMock.expects("error")
+				.withExactArgs("POST on 'SalesOrderList' failed; will be repeated automatically",
+					sinon.match(oError.error.message), sODLB);
+			that.oLogMock.expects("error")
+				.withExactArgs("Failed to get contexts for " + sSalesOrderService + "SalesOrderList"
+					+ " with start index 1 and length 2",
+					sinon.match("request was not processed because the previous request failed"),
+					sODLB);
 
 			that.expectRequest({
 					batchNo : 3,
 					method : "POST",
 					payload : {Note : "Created"},
 					url : "SalesOrderList"
-				}, oCausingError)
+				}, oError)
 				.expectRequest({
 					batchNo : 3,
-					// Because of the transient row in the first context the skip has to be adapted
-					// to 0 => CPOUI5UISERVICESV3-1764
-					url : "SalesOrderList?$select=Note,SalesOrderID&$skip=0&$top=2"
+					url : "SalesOrderList?$select=Note,SalesOrderID&$skip=1&$top=2"
 				}) // no response required
 				.expectMessages([{
-					message : "Communication error: 500 ",
-					persistent : true,
-					technical : true,
-					type : "Error"
-				}, {
-					message : "HTTP request was not processed because $batch failed",
+					code : "CODE",
+					message : "Request intentionally failed",
 					persistent : true,
 					technical : true,
 					type : "Error"
@@ -30134,13 +30389,23 @@ sap.ui.define([
 				// code under test
 				oTableBinding.getHeaderContext().requestSideEffects([{
 					$NavigationPropertyPath : ""
-				}]).then(mustFail(assert), function (oError) {
-					if (!(oCausingError && oError.cause === oCausingError)) {
-						throw oError;
-					}
+				}]).then(mustFail(assert), function (oError0) {
+					assert.strictEqual(oError0.message,
+						"HTTP request was not processed because the previous request failed");
 				}),
-				that.waitForChanges(assert)
+				that.waitForChanges(assert, "repeat POST but fail again")
 			]);
+		}).then(function () {
+			oNewContext.setProperty("Note", "Updated", null); // do not trigger POST again
+			assert.strictEqual(oNewContext.getProperty("Note"), "Updated");
+
+			that.expectChange("id", ["", "0500000001"])
+				.expectChange("note", ["Updated", "Test 1"]);
+
+			// scroll up
+			oTable.setFirstVisibleRow(0);
+
+			return that.waitForChanges(assert, "scroll up");
 		});
 	});
 
@@ -30175,13 +30440,10 @@ sap.ui.define([
 			.expectChange("note", ["Test"]);
 
 		return this.createView(assert, sView, oModel).then(function () {
+			that.oLogMock.expects("error").withArgs("$batch failed");
 			that.oLogMock.expects("error")
 				.withExactArgs("POST on 'BusinessPartnerList('4711')/BP_2_SO' failed; "
-					+ "will be repeated automatically", sinon.match.string,
-					"sap.ui.model.odata.v4.ODataListBinding");
-			that.oLogMock.expects("error")
-				.withExactArgs("$batch failed", sinon.match.string,
-					"sap.ui.model.odata.v4.ODataModel");
+					+ "will be repeated automatically", sinon.match.string, sODLB);
 
 			that.expectRequest({
 					method : "POST",
@@ -30863,7 +31125,7 @@ sap.ui.define([
 	// added to the queue and ODataModel#hasPendingChanges and ODataListBinding#hasPendingChanges
 	// work as expected.
 	// JIRA: CPOUI5UISERVICESV3-1994
-	QUnit.test("create an entity and immediately reset changes (no UI)", function (assert) {
+	QUnit.test("create an entity and immediately reset changes (no UI) V3-1994", function (assert) {
 		var // use autoExpandSelect so that the cache is created asynchronously
 			oModel = createSalesOrdersModel({autoExpandSelect : true}),
 			that = this;
@@ -31044,14 +31306,12 @@ sap.ui.define([
 			that = this;
 
 		function securityTokenHandler0(sServiceUrl) {
-			assert.strictEqual(sServiceUrl,
-				"/sap/opu/odata4/IWBEP/TEA/default/IWBEP/TEA_BUSI/0001/");
+			assert.strictEqual(sServiceUrl, sTeaBusi);
 			return undefined; // not responsible
 		}
 
 		function securityTokenHandler1(sServiceUrl) {
-			assert.strictEqual(sServiceUrl,
-				"/sap/opu/odata4/IWBEP/TEA/default/IWBEP/TEA_BUSI/0001/");
+			assert.strictEqual(sServiceUrl, sTeaBusi);
 			return Promise.resolve({
 				SomeSecurityTokenHeader : "foo",
 				SomeOtherSecurityTokenHeader : "bar"
@@ -31401,6 +31661,7 @@ sap.ui.define([
 
 			that.expectCanceledError("Failed to create cache for binding " + sODLB + ": /|TEAMS",
 					"Cache discarded as a new cache has been created")
+				.expectCanceledError("Cache discarded as a new cache has been created")
 				.expectCanceledError(sODLB + ": /|TEAMS: Failed to enhance query options for"
 						+ " auto-$expand/$select for child Team_Id",
 					"Cache discarded as a new cache has been created")
@@ -31810,7 +32071,7 @@ sap.ui.define([
 				oSideEffectsPromise;
 
 			// refresh via side effect fails
-			that.expectRequest("TEAMS?$select=Name,Team_Id&$skip=0&$top=100", oError)
+			that.expectRequest("TEAMS?$select=Name,Team_Id&$skip=0&$top=99", oError)
 				.expectMessages([{
 					message : oError.message,
 					persistent : true,
@@ -31820,7 +32081,7 @@ sap.ui.define([
 			that.oLogMock.expects("error")
 				.withExactArgs("Failed to get contexts for " + sTeaBusi
 						+ "TEAMS with start index 0 and length 100",
-					sinon.match.string, "sap.ui.model.odata.v4.ODataListBinding");
+					sinon.match.string, sODLB);
 
 			oSideEffectsPromise = oListBinding.getHeaderContext()
 				.requestSideEffects([{$NavigationPropertyPath : ""}], "$direct");
@@ -32321,8 +32582,7 @@ sap.ui.define([
 			// Note: this error message is a bit misleading ;-)
 			that.oLogMock.expects("error")
 				.withExactArgs("POST on 'People' failed; will be repeated automatically",
-					sinon.match("Could not load metadata: 500 Internal Server Error"),
-					"sap.ui.model.odata.v4.ODataListBinding");
+					sinon.match("Could not load metadata: 500 Internal Server Error"), sODLB);
 			that.expectRequest({
 					method : "POST",
 					url : "People",
@@ -32531,11 +32791,10 @@ sap.ui.define([
 					+ "com.sap.gateway.default.zui5_epm_sample.v0002.SalesOrder_Confirm(...)",
 					sinon.match(
 						"All requests with strict handling must belong to the same change set"),
-					"sap.ui.model.odata.v4.ODataContextBinding");
+					sODCB);
 			that.oLogMock.expects("error")
 				.withExactArgs("Failed to execute /GetProductStock(...)",
-					sinon.match("Not an action: /GetProductStock(...)"),
-					"sap.ui.model.odata.v4.ODataContextBinding");
+					sinon.match("Not an action: /GetProductStock(...)"), sODCB);
 			that.expectRequest({
 					headers : {
 						Prefer : "handling=strict"
@@ -33507,7 +33766,7 @@ sap.ui.define([
 
 			that.oLogMock.expects("error")
 				.withExactArgs("Failed to execute /ChangeTeamBudgetByID(...)",
-					sinon.match(sMessage), "sap.ui.model.odata.v4.ODataContextBinding");
+					sinon.match(sMessage), sODCB);
 
 			oAction.execute().then(mustFail(assert), function (oError) {
 				assert.strictEqual(oError.message, sMessage);
@@ -33590,7 +33849,8 @@ sap.ui.define([
 		this.expectChange("name", []);
 
 		return this.createView(assert, sView, oModel).then(function () {
-			that.expectRequest("EMPLOYEES?$count=true&$select=ID,Name&$skip=0&$top=2", {
+			// Note: GET triggered by 1st #create - one transient taken into account for prefetch
+			that.expectRequest("EMPLOYEES?$count=true&$select=ID,Name&$skip=0&$top=3", {
 					"@odata.count" : "1",
 					value : [{ID : "1", Name : "Frederic Fall"}]
 				})
@@ -33720,8 +33980,7 @@ sap.ui.define([
 			that.oLogMock.expects("error")
 				.withExactArgs("POST on 'SalesOrderList('42')/SO_2_SOITEM' failed; "
 					+ "will be repeated automatically",
-					sinon.match("Request intentionally failed"),
-					"sap.ui.model.odata.v4.ODataListBinding");
+					sinon.match("Request intentionally failed"), sODLB);
 			that.expectChange("count", "2")
 				.expectChange("note", [, "Note 1"])
 				.expectChange("inactive", [, false])
@@ -33834,25 +34093,30 @@ sap.ui.define([
 	//*********************************************************************************************
 	// Scenario: Multiple creation rows, grid table
 	//
-	// Create contexts at different insert positions:
+	// Create contexts at different insert positions (CPOUI5ODATAV4-1379):
 	//   "end of end", "end of start", "start of end" (not allowed), "start of start"
+	// Switch parent context via setContext (CPOUI5ODATAV4-1450)
 	//
 	// (1) read items
-	// (2) add multiple inline creation rows (and expect the "start of end" exception)
-	// (3) delete inline creation rows
-	//
-	// JIRA: CPOUI5ODATAV4-1379
+	// (2a) add three inline creation rows (ICR)
+	// (2b) try to add two ICRs and expect the "start of end" exception at the second creation
+	// (3) switch parent context via setContext
+	// (4) switch parent context back, ICRs are still present
+	// (5) cleanup test: delete all ICRs
 [{
 	title : "end of end",
 	firstInsertAtEnd : true,
 	secondInsertAtEnd : true,
-	secondExpectChange : [, "First", "Second", "Third"]
+	secondExpectChange : [, "First", "Second", "Third"],
+	fourthExpectChange : ["Note 10", "First", "Second", "Third"],
+	fifthExpectChange : []
 }, {
 	title : "end of start",
 	firstInsertAtEnd : false,
 	secondInsertAtEnd : true,
 	secondExpectChange : ["First", "Second", "Third", "Note 10"],
-	thirdExpectChange : ["Note 10"]
+	fourthExpectChange : ["First", "Second", "Third", "Note 10"],
+	fifthExpectChange : ["Note 10"]
 }, {
 	title : "start of end (not allowed)",
 	firstInsertAtEnd : true,
@@ -33863,12 +34127,14 @@ sap.ui.define([
 	firstInsertAtEnd : false,
 	secondInsertAtEnd : false,
 	secondExpectChange : ["Third", "Second", "First", "Note 10"],
-	thirdExpectChange : ["Note 10"]
+	fourthExpectChange : ["Third", "Second", "First", "Note 10"],
+	fifthExpectChange : ["Note 10"]
 }].forEach(function (oFixture) {
 	var sTitle = "Multiple inline creation rows, grid table; insert position: " + oFixture.title;
 
 	QUnit.test(sTitle, function (assert) {
 		var oBinding,
+			oBindingContext,
 			oContext0,
 			oContext1,
 			oContext2,
@@ -33889,8 +34155,9 @@ sap.ui.define([
 					value : [{SalesOrderID : "42", Note : "Note 10"}]
 				});
 
+			oBindingContext = oModel.createBindingContext("/SalesOrderList('42')");
 			oBinding = that.oView.byId("table").getBinding("rows");
-			oBinding.setContext(oModel.createBindingContext("/SalesOrderList('42')"));
+			oBinding.setContext(oBindingContext);
 
 			return that.waitForChanges(assert, "(1) read SOITEMs");
 		}).then(function () {
@@ -33904,40 +34171,128 @@ sap.ui.define([
 					// code under test
 					oBinding.create({Note : "Second"}, true, oFixture.secondInsertAtEnd, true);
 				}, new Error("Cannot create at the start after creation at end"));
-			} else {
-				// code under test
-				oContext1 = oBinding.create({Note : "Second"}, true, oFixture.secondInsertAtEnd,
-					true);
-				oContext2 = oBinding.create({Note : "Third"}, true, oFixture.secondInsertAtEnd,
-					true);
+
+				assert.strictEqual(oBinding.iCreatedContexts, 1);
+
+				return that.waitForChanges(assert, "(2a) add ICRs (throws)");
 			}
+			// code under test
+			oContext1 = oBinding.create({Note : "Second"}, true, oFixture.secondInsertAtEnd, true);
+			oContext2 = oBinding.create({Note : "Third"}, true, oFixture.secondInsertAtEnd, true);
+
+			assert.strictEqual(oBinding.iCreatedContexts, 3);
 
 			// code under test
 			assert.strictEqual(oBinding.isFirstCreateAtEnd(), oFixture.firstInsertAtEnd);
 
-			return that.waitForChanges(assert, "(2) add inline creation rows");
-		}).then(function () {
-			if (oFixture.thirdExpectChange) {
-				that.expectChange("note", oFixture.thirdExpectChange);
-			}
+			return that.waitForChanges(assert, "(2b) add ICRs").then(function () {
+				that.expectChange("note", ["Note 43"])
+					.expectRequest("SalesOrderList('43')/SO_2_SOITEM?"
+						+ "$select=ItemPosition,Note,SalesOrderID&$skip=0&$top=110", {
+						value : [{SalesOrderID : "43", Note : "Note 43"}]
+					});
 
-			oContext0.delete();
-			if (oContext1) {
+				// code under test
+				oBinding.setContext(oModel.createBindingContext("/SalesOrderList('43')"));
+
+				assert.strictEqual(oBinding.iCreatedContexts, 0);
+
+				return that.waitForChanges(assert, "(3) switch binding context");
+			}).then(function () {
+				that.expectChange("note", oFixture.fourthExpectChange);
+
+				// code under test
+				oBinding.setContext(oBindingContext);
+
+				return that.waitForChanges(assert, "(4) switch binding context back");
+			}).then(function () {
+				that.expectChange("note", oFixture.fifthExpectChange);
+
+				assert.strictEqual(oBinding.iCreatedContexts, 3);
+
+				oContext0.delete();
 				oContext1.delete();
-			}
-			if (oContext2) {
 				oContext2.delete();
-			}
 
-			return Promise.all([
-				checkCanceled(assert, oContext0.created()),
-				oContext1 && checkCanceled(assert, oContext1.created()),
-				oContext2 && checkCanceled(assert, oContext2.created()),
-				that.waitForChanges(assert, "(3) delete inline creation rows")
-			]);
+				assert.strictEqual(oBinding.iCreatedContexts, 0);
+
+				return Promise.all([
+					checkCanceled(assert, oContext0.created()),
+					checkCanceled(assert, oContext1.created()),
+					checkCanceled(assert, oContext2.created()),
+					that.waitForChanges(assert, "(5) delete inline creation rows")
+				]);
+			});
 		});
 	});
 });
+
+	//*********************************************************************************************
+	// Scenario: relative ODLB w/o own cache; switch binding context via setContext with transient
+	// rows present. Switch back and expect that transient rows survived.
+	//
+	// JIRA: CPOUI5ODATAV4-1450
+	QUnit.test("ODLB w/o own cache: setContext with transient rows", function (assert) {
+		var oModel = createSalesOrdersModel({autoExpandSelect : true}),
+			oFirstBindingContext,
+			oListBinding,
+			sView = '\
+<FlexBox id="flexbox" binding="{/SalesOrderList(\'42\')}">\
+	<t:Table id="table" rows="{path : \'SO_2_SOITEM\', \
+			parameters : {$$updateGroupId : \'update\', $count: true}}">\
+		<Text id="note" text="{Note}"/>\
+	</t:Table>\
+</FlexBox>',
+			that = this;
+
+		this.expectRequest("SalesOrderList('42')/SO_2_SOITEM?"
+				+ "$count=true&$select=ItemPosition,Note,SalesOrderID&$skip=0&$top=110", {
+				"@odata.count" : "1",
+				value : [{SalesOrderID : "42", Note : "Note 10"}]
+			})
+			.expectChange("note", ["Note 10"]);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			oListBinding = that.oView.byId("table").getBinding("rows");
+			oFirstBindingContext = that.oView.byId("table").getBindingContext();
+
+			that.expectChange("note", ["First", "Note 10"]);
+
+			oListBinding.create({Note : "First"}, true, false, false);
+
+			assert.strictEqual(oListBinding.aContexts[0].isTransient(), true);
+			assert.strictEqual(oListBinding.aContexts.length, 2);
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectChange("note", ["Note 43"])
+				.expectRequest("SalesOrderList('43')/SO_2_SOITEM?"
+					+ "$count=true&$select=ItemPosition,Note,SalesOrderID&$skip=0&$top=110", {
+					"@odata.count" : "1",
+					value : [{SalesOrderID : "43", Note : "Note 43"}]
+				});
+
+			// code under test
+			that.oView.byId("table").setBindingContext(
+				oModel.createBindingContext("/SalesOrderList('43')"));
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			assert.strictEqual(oListBinding.aContexts[0].isTransient(), undefined);
+			assert.strictEqual(oListBinding.aContexts.length, 1);
+
+			that.expectChange("note", ["First", "Note 10"]);
+
+			// code under test
+			that.oView.byId("table").setBindingContext(oFirstBindingContext);
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			assert.strictEqual(oListBinding.aContexts[0].isTransient(), true);
+			assert.strictEqual(oListBinding.aContexts.length, 2);
+		});
+	});
+
 	//*********************************************************************************************
 	// Scenario: Create a row and delete it again. Then request more data and check the count.
 	//
@@ -34512,9 +34867,8 @@ sap.ui.define([
 				return that.waitForChanges(assert, "await rendering").then(function () {
 					sinon.assert.called(fnOnBeforeDestroy);
 				});
-			} else {
-				sinon.assert.called(fnOnBeforeDestroy);
 			}
+			sinon.assert.called(fnOnBeforeDestroy);
 		});
 	});
 });
@@ -35729,7 +36083,7 @@ sap.ui.define([
 					.withExactArgs("Failed to get contexts for "
 						+ sSalesOrderService + "SalesOrderList('1')/SO_2_SOITEM"
 						+ " with start index 0 and length 100",
-						sinon.match("Not found"), "sap.ui.model.odata.v4.ODataListBinding");
+						sinon.match("Not found"), sODLB);
 
 				that.expectRequest({
 						batchNo : 3,
@@ -35786,47 +36140,102 @@ sap.ui.define([
 	// Scenario: Flexible Column Layout, ODataModel#getKeepAliveContext
 	// A list report and an object page are set up in different ways such that the object page shows
 	// an active entity visible in the list report, including a manually requested late property for
-	// the object-page.
-	// Afterwards the object page switches to the draft, a property is changed in the object page
-	// and side effects including messages are requested. The result must not be influenced by the
-	// different setups.
+	// the object-page. The result must not be influenced by the different scenarios.
+	// Scenarios:
 	// (1) Read the entities in the list and afterwards get an existing kept-alive context for the
 	//     object page from it.
 	//     Context#setKeepAlive (called indirectly) must request messages (JIRA: CPOUI5ODATAV4-981).
 	//     JIRA: CPOUI5ODATAV4-1405
-	// (...) To be continued.
+	// (2) Initially get the kept-alive context for the object page from the then-empty list and see
+	//     that the page is set up using one $batch.
+	//     JIRA: CPOUI5ODATAV4-1406
+	// (3) Get the kept-alive context for the object page while the list is still unresolved, then
+	//     resolve the list and perform the tests.
+	//     JIRA: CPOUI5ODATAV4-1407
+	// (4) Get the kept-alive context for the object page and perform the tests while the list is
+	//     still unresolved. The object page must be useable nevertheless. In the end resolve the
+	//     list and see that it is in sync with the object page.
+	//     JIRA: CPOUI5ODATAV4-1407
+	// Steps:
+	// (1) and (2) initialization in different order
+	// (3) edit action
+	// (4) setBindingContext for the draft
+	// (5) change a property and request side effects
+	// (6) cancel the draft
+	// (7) resolve list if not done in (1) or (2)
 	// The properties Name and defaultChannel are in both bindings and have to be kept in sync,
 	// lastUsedChannel is only in the object page and must be requested as late property,
 	// HasDraftEntity is the manually requested late property, sendsAutographs is only in the list
 	// report and must be inherited by the action.
-[{
-	description : "(1) first list, then object page",
-	setup : function (assert, oListBinding) {
-		var that = this;
+// list, page: the step number in which they are initialized;
+// patchNo: the batchNo of the $batch with the PATCH and the side effect request
+[
+	{list : 1, page : 2, patchNo : 5, title : "(1) first list, then object page"},
+	{list : 1, page : 1, patchNo : 4, title : "(2) list and object page in the same batch"},
+	{list : 2, page : 1, patchNo : 5, title : "(3) first object page, then list, then tests"},
+	{list : 7, page : 1, patchNo : 4, title : "(4) first object page, then tests, then list"}
+].forEach(function (oFixture) {
+	QUnit.test("getKeepAliveContext: " + oFixture.title, function (assert) {
+		var oActiveContext,
+			oDraftContext,
+			bListResolved = false,
+			oModel = createSpecialCasesModel({autoExpandSelect : true}),
+			oObjectPage,
+			sView = '\
+<Table id="listReport"\ items="{path : \'Artists\', \
+		parameters : {$$getKeepAliveContext : true, $$patchWithoutSideEffects : true,\
+			$$ownRequest : true}}">\
+	<Text id="listName" text="{Name}"/>\
+	<Text id="listChannel" text="{defaultChannel}"/>\
+	<Text id="sendsAutographs" text="{sendsAutographs}"/>\
+</Table>\
+<FlexBox id="objectPage">\
+	<Text id="name" text="{Name}"/>\
+	<Input id="defaultChannel" value="{defaultChannel}"/>\
+	<Text id="lastUsedChannel" text="{lastUsedChannel}"/>\
+	<Table items="{path : \'_Publication\', parameters : {$$ownRequest : true}}">\
+		<Text id="publication" text="{PublicationID}"/>\
+	</Table>\
+</FlexBox>',
+			that = this;
 
-		this.expectRequest("Artists"
-				+ "?$select=ArtistID,IsActiveEntity,Name,defaultChannel,sendsAutographs"
-				+ "&$skip=0&$top=100", {
-				value : [{
-					"@odata.etag" : "etag.active1",
-					ArtistID : "A1",
-					IsActiveEntity : true,
-					Name : "Artist 1",
-					defaultChannel : "Channel 1",
-					sendsAutographs : true
-				}]
-			})
-			.expectChange("listName", ["Artist 1"])
-			.expectChange("listChannel", ["Channel 1"])
-			.expectChange("sendsAutographs", ["Yes"]);
+		/*
+		 * Resolves the list report and expects the corresponding request and changes.
+ 		 * @param {number} iBatchNo - The number of the $batch for the request
+		 */
+		function initializeList(iBatchNo) {
+			that.expectRequest({
+					batchNo : iBatchNo,
+					url : "Artists"
+						+ "?$select=ArtistID,IsActiveEntity,Name,defaultChannel,sendsAutographs"
+						+ "&$skip=0&$top=100"
+				}, {
+					value : [{
+						"@odata.etag" : "etag.active1",
+						ArtistID : "A1",
+						IsActiveEntity : true,
+						Name : "Artist 1",
+						defaultChannel : "Channel 1",
+						sendsAutographs : true
+					}]
+				})
+				.expectChange("listName", ["Artist 1"])
+				.expectChange("listChannel", ["Channel 1"])
+				.expectChange("sendsAutographs", ["Yes"]);
 
-		oListBinding.resume();
+			that.oView.byId("listReport").setBindingContext(oModel.createBindingContext("/"));
+			bListResolved = true;
+		}
 
-		return this.waitForChanges(assert, "initialize list").then(function () {
-			var oContext;
-
-			that.expectRequest("Artists(ArtistID='A1',IsActiveEntity=true)"
-					+ "?$select=HasDraftEntity,Messages,lastUsedChannel", {
+		/*
+		 * Gets a context for the active entity, binds the object page to it and expects the
+		 * corresponding requests and changes.
+		 * @param {number} iBatchNo - The number of the $batch for the entity request
+		 * @param {boolean} bLate - Whether it is late, i.e. the list data is already there
+		 * @returns {Promise} - The promise of the requestProperty for "HasDraftEntity"
+		 */
+		function initializeObjectPage(iBatchNo, bLate) {
+			var oResponse = {
 					"@odata.etag" : "etag.active1",
 					HasDraftEntity : false,
 					Messages : [{
@@ -35835,13 +36244,31 @@ sap.ui.define([
 						target : "defaultChannel"
 					}],
 					lastUsedChannel : "Channel 2"
-				})
-				.expectRequest("Artists(ArtistID='A1',IsActiveEntity=true)/_Publication"
+				};
+
+			if (bLate) {
+				that.expectRequest("Artists(ArtistID='A1',IsActiveEntity=true)"
+						+ "?$select=HasDraftEntity,Messages,lastUsedChannel",
+						oResponse);
+			} else { // if not late, the list's properties are also part of the request
+				that.expectRequest({
+						batchNo : iBatchNo,
+						url : "Artists(ArtistID='A1',IsActiveEntity=true)"
+							+ "?$select=ArtistID,HasDraftEntity,IsActiveEntity,Messages,Name,"
+							+ "defaultChannel,lastUsedChannel"
+					}, Object.assign(oResponse, {
+						ArtistID : "A1",
+						IsActiveEntity : true,
+						Name : "Artist 1",
+						defaultChannel : "Channel 1"
+					}));
+			}
+			that.expectRequest("Artists(ArtistID='A1',IsActiveEntity=true)/_Publication"
 					+ "?$select=PublicationID&$skip=0&$top=100",
 					{value : [{PublicationID : "P1"}]}
 				)
 				.expectChange("name", "Artist 1")
-				.expectChange("channel", "Channel 1")
+				.expectChange("defaultChannel", "Channel 1")
 				.expectChange("lastUsedChannel", "Channel 2")
 				.expectChange("publication", ["P1"])
 				.expectMessages([{
@@ -35850,66 +36277,44 @@ sap.ui.define([
 					target : "/Artists(ArtistID='A1',IsActiveEntity=true)/defaultChannel"
 				}]);
 
-			oContext = that.oModel.getKeepAliveContext(
-				"/Artists(ArtistID='A1',IsActiveEntity=true)", true);
-			that.oView.byId("objectPage").setBindingContext(oContext);
+			oActiveContext = that.oModel.getKeepAliveContext(
+				"/Artists(ArtistID='A1',IsActiveEntity=true)", true,
+				{$$patchWithoutSideEffects : true});
+			oObjectPage.setBindingContext(oActiveContext);
 
-			return Promise.all([
-				oContext.requestProperty("HasDraftEntity"),
-				that.waitForChanges(assert, "initialize object page")
-			]);
-		});
-	}
-}].forEach(function (oFixture) {
-	QUnit.test("getKeepAliveContext: " + oFixture.description, function (assert) {
-		var oListBinding,
-			oModel = createSpecialCasesModel({autoExpandSelect : true}),
-			oObjectPage,
-			sView = '\
-<Table id="listReport"\ items="{path : \'/Artists\', \
-		parameters : {$$getKeepAliveContext : true, $$patchWithoutSideEffects : true}, \
-		suspended : true}">\
-	<Text id="listName" text="{Name}"/>\
-	<Text id="listChannel" text="{defaultChannel}"/>\
-	<Text id="sendsAutographs" text="{sendsAutographs}"/>\
-</Table>\
-<FlexBox id="objectPage">\
-	<Text id="name" text="{Name}"/>\
-	<Input id="channel" value="{defaultChannel}"/>\
-	<Text id="lastUsedChannel" text="{lastUsedChannel}"/>\
-	<Table items="{path : \'_Publication\', parameters : {$$ownRequest : true}}">\
-		<Text id="publication" text="{PublicationID}"/>\
-	</Table>\
-</FlexBox>',
-			that = this;
+			return oActiveContext.requestProperty("HasDraftEntity");
+		}
 
 		this.expectChange("listName", [])
 			.expectChange("listChannel", [])
 			.expectChange("sendsAutographs", [])
 			.expectChange("name")
-			.expectChange("channel")
+			.expectChange("defaultChannel")
 			.expectChange("lastUsedChannel")
 			.expectChange("publication", []);
 
 		return this.createView(assert, sView, oModel).then(function () {
-			oListBinding = that.oView.byId("listReport").getBinding("items");
 			oObjectPage = that.oView.byId("objectPage");
 
-			return oFixture.setup.call(that, assert, oListBinding);
+			if (oFixture.list === 1) {
+				initializeList(1);
+			}
+			return Promise.all([
+				oFixture.page === 1 && initializeObjectPage(1, false),
+				that.waitForChanges(assert, "(1) initialization")
+			]);
 		}).then(function () {
-			return that.checkValueState(assert, "channel", "Information", "Active message");
+			if (oFixture.list === 2) {
+				initializeList(2);
+			}
+			return Promise.all([
+				oFixture.page === 2 && initializeObjectPage(2, true),
+				that.waitForChanges(assert, "(2) initialization")
+			]);
 		}).then(function () {
 			var oActionBinding = that.oModel.bindContext("special.cases.EditAction(...)",
-					oObjectPage.getBindingContext(), {$$inheritExpandSelect : true});
-
-			that.expectRequest({
-					method : "POST",
-					url : "Artists(ArtistID='A1',IsActiveEntity=true)/special.cases.EditAction"
-						+ "?$select=ArtistID,HasDraftEntity,IsActiveEntity,Messages,Name,"
-						+ "defaultChannel,lastUsedChannel,sendsAutographs",
-					headers : {"If-Match" : "etag.active1"},
-					payload : {}
-				}, {
+					oObjectPage.getBindingContext(), {$$inheritExpandSelect : true}),
+				oResponse = {
 					"@odata.etag" : "etag.draft1",
 					ArtistID : "A1",
 					HasDraftEntity : false,
@@ -35921,9 +36326,22 @@ sap.ui.define([
 					}],
 					Name : "Artist 1",
 					defaultChannel : "Channel 1",
-					lastUsedChannel : "Channel 2",
-					sendsAutographs : true
-				})
+					lastUsedChannel : "Channel 2"
+				},
+				sUrl = "Artists(ArtistID='A1',IsActiveEntity=true)/special.cases.EditAction"
+					+ "?$select=ArtistID,HasDraftEntity,IsActiveEntity,Messages,Name,"
+					+ "defaultChannel,lastUsedChannel";
+
+			if (bListResolved) {
+				sUrl += ",sendsAutographs";
+				oResponse.sendsAutographs = true;
+			}
+			that.expectRequest({
+					method : "POST",
+					url : sUrl,
+					headers : {"If-Match" : "etag.active1"},
+					payload : {}
+				}, oResponse)
 				.expectMessages([{
 					message : "Active message",
 					type : "Information",
@@ -35936,27 +36354,25 @@ sap.ui.define([
 
 			return Promise.all([
 				oActionBinding.execute(undefined, undefined, undefined, /*bReplaceWithRVC*/true),
-				that.waitForChanges(assert)
+				that.waitForChanges(assert, "(3) edit action")
 			]);
 		}).then(function (aResults) {
-			var oReturnValueContext = aResults[0];
-
 			that.expectRequest("Artists(ArtistID='A1',IsActiveEntity=false)/_Publication"
 					+ "?$select=PublicationID&$skip=0&$top=100",
 					{value : [{PublicationID : "P1"}]}
 				)
 				.expectChange("publication", ["P1"]);
 
-			oObjectPage.setBindingContext(oReturnValueContext);
+			oDraftContext = aResults[0];
+			oObjectPage.setBindingContext(oDraftContext);
 
-			return that.waitForChanges(assert);
+			return that.waitForChanges(assert, "(4) setBindingContext");
 		}).then(function () {
-			return that.checkValueState(assert, "channel", "Information", "Draft message");
+			return that.checkValueState(assert, "defaultChannel", "Information", "Draft message");
 		}).then(function () {
-			that.expectChange("channel", "Channel 3")
-				.expectChange("listChannel", ["Channel 3"])
+			that.expectChange("defaultChannel", "Channel 3")
 				.expectRequest({
-					batchNo : 5,
+					batchNo : oFixture.patchNo,
 					headers : {
 						"If-Match" : "etag.draft1",
 						Prefer : "return=minimal"
@@ -35968,7 +36384,7 @@ sap.ui.define([
 					url : "Artists(ArtistID='A1',IsActiveEntity=false)"
 				}) // 204 No Content - no need to update the ETag when requesting side effects
 				.expectRequest({
-					batchNo : 5,
+					batchNo : oFixture.patchNo,
 					url : "Artists?$select=ArtistID,IsActiveEntity,Messages,defaultChannel"
 						+ "&$filter=ArtistID eq 'A1' and IsActiveEntity eq false"
 				}, {
@@ -35984,8 +36400,7 @@ sap.ui.define([
 						defaultChannel : "Channel 3*"
 					}]
 				})
-				.expectChange("channel", "Channel 3*")
-				.expectChange("listChannel", ["Channel 3*"])
+				.expectChange("defaultChannel", "Channel 3*")
 				.expectMessages([{
 					message : "Active message",
 					type : "Information",
@@ -35995,40 +36410,46 @@ sap.ui.define([
 					type : "Information",
 					target : "/Artists(ArtistID='A1',IsActiveEntity=false)/defaultChannel"
 				}]);
+			if (bListResolved) {
+				that.expectChange("listChannel", ["Channel 3"])
+					.expectChange("listChannel", ["Channel 3*"]);
+			}
 
-			that.oView.byId("channel").getBinding("value").setValue("Channel 3");
+			that.oView.byId("defaultChannel").getBinding("value").setValue("Channel 3");
 
 			return Promise.all([
 				oObjectPage.getBindingContext().requestSideEffects(["defaultChannel", "Messages"]),
-				that.waitForChanges(assert)
+				that.waitForChanges(assert, "(5) set property and request side effects")
 			]);
 		}).then(function () {
-			return that.checkValueState(assert, "channel", "Information", "Updated message");
+			return that.checkValueState(assert, "defaultChannel", "Information", "Updated message");
 		}).then(function () {
-			that.expectRequest("Artists?$select=ArtistID,HasDraftEntity,IsActiveEntity,Messages"
-					+ "&$filter=ArtistID eq 'A1' and IsActiveEntity eq false"
-					+ " or ArtistID eq 'A1' and IsActiveEntity eq true&$top=2", {
-					value : [{
-						"@odata.etag" : "etag.draft2",
-						ArtistID : "A1",
-						HasDraftEntity : false,
-						IsActiveEntity : false,
-						Messages : []
-					}, {
-						"@odata.etag" : "etag.active1",
-						ArtistID : "A1",
-						HasDraftEntity : true,
-						IsActiveEntity : true,
-						Messages : []
-					}]
-				})
-				.expectMessages([]);
+			that.expectChange("defaultChannel", "Channel 1")
+				.expectChange("publication", ["P1"])
+				.expectMessages([{
+					message : "Active message",
+					type : "Information",
+					target : "/Artists(ArtistID='A1',IsActiveEntity=true)/defaultChannel"
+				}])
+				.expectRequest({
+					method : "DELETE",
+					url : "Artists(ArtistID='A1',IsActiveEntity=false)"
+				});
+			if (bListResolved) {
+				that.expectChange("listChannel", ["Channel 1"]);
+			}
 
-			return Promise.all([
-				// code under test - these properties may only be requested by kept-alive contexts
-				oListBinding.getHeaderContext().requestSideEffects(["HasDraftEntity", "Messages"]),
-				that.waitForChanges(assert)
-			]);
+			oDraftContext.replaceWith(oActiveContext);
+			oDraftContext.delete("$auto", true);
+			oObjectPage.setBindingContext(oActiveContext);
+
+			return that.waitForChanges(assert, "(6) cancel");
+		}).then(function () {
+			if (oFixture.list === 7) {
+				initializeList(6);
+			}
+
+			return that.waitForChanges(assert, "(7) resolve list if not done yet");
 		});
 	});
 });
@@ -36107,6 +36528,307 @@ sap.ui.define([
 		});
 	});
 });
+
+	//*********************************************************************************************
+	// Scenario: Flexible Column Layout, ODataModel#getKeepAliveContext
+	// List report with $$getKeepAliveContext. Object page requests a kept-alive context (incl.
+	// messages) from the initial list. The list merges this entity later when requesting more
+	// items. The property defaultChannel is only used in the list, lastUsedChannel only in the
+	// object page and name is used in both.
+	// JIRA: CPOUI5ODATAV4-1406
+	QUnit.test("getKeepAliveContext: create context, merge later", function (assert) {
+		var oContext,
+			oModel = createSpecialCasesModel({autoExpandSelect : true}),
+			oTable,
+			sView = '\
+<Table id="list" growing="true" growingThreshold="2" \
+		items="{path : \'/Artists\', parameters : {$$getKeepAliveContext : true},\
+		suspended : true}">\
+	<Text id="listName" text="{Name}"/>\
+	<Text id="defaultChannel" text="{defaultChannel}"/>\
+</Table>\
+<FlexBox id="objectPage">\
+	<Input id="name" value="{Name}"/>\
+	<Text id="lastUsedChannel" text="{lastUsedChannel}"/>\
+</FlexBox>',
+			that = this;
+
+		this.expectChange("listName", [])
+			.expectChange("defaultChannel", [])
+			.expectChange("name")
+			.expectChange("lastUsedChannel");
+
+		return this.createView(assert, sView, oModel).then(function () {
+			that.expectRequest("Artists?$select=ArtistID,IsActiveEntity,Name,defaultChannel"
+					+ "&$skip=0&$top=2", {
+					value : [{
+						"@odata.etag" : "etag1",
+						ArtistID : "1",
+						IsActiveEntity : true,
+						Name : "The Who",
+						defaultChannel : "01"
+					}, {
+						"@odata.etag" : "etag2",
+						ArtistID : "2",
+						IsActiveEntity : true,
+						Name : "The Rolling Stones",
+						defaultChannel : "02"
+					}]
+				})
+				.expectChange("defaultChannel", ["01", "02"])
+				.expectChange("listName", ["The Who", "The Rolling Stones"])
+				.expectRequest({
+					groupId : "$auto.heroes",
+					url : "Artists(ArtistID='3',IsActiveEntity=false)"
+						+ "?$select=ArtistID,HasDraftEntity,IsActiveEntity,Messages,Name,"
+						+ "lastUsedChannel"
+				}, {
+					"@odata.etag" : "etag3",
+					ArtistID : "3",
+					HasDraftEntity : false,
+					IsActiveEntity : false,
+					Messages : [],
+					Name : "The Beatles",
+					lastUsedChannel : "03"
+				})
+				.expectChange("name", "The Beatles")
+				.expectChange("lastUsedChannel", "03");
+
+			oTable = that.oView.byId("list");
+			oTable.getBinding("items").resume();
+			oContext = oModel.getKeepAliveContext("/Artists(ArtistID='3',IsActiveEntity=false)",
+				true, {$$groupId : "$auto.heroes"});
+			that.oView.byId("objectPage").setBindingContext(oContext);
+
+			return Promise.all([
+				oContext.requestProperty("HasDraftEntity"),
+				that.waitForChanges(assert)
+			]);
+		}).then(function () {
+			assert.strictEqual(oContext.getProperty("@odata.etag"), "etag3");
+
+			that.expectRequest("Artists?$select=ArtistID,IsActiveEntity,Name,defaultChannel"
+					+ "&$skip=2&$top=2", {
+					value : [{
+						"@odata.etag" : "etag3",
+						ArtistID : "3",
+						IsActiveEntity : false,
+						Name : "The Beatles",
+						defaultChannel : "03"
+					}]
+				})
+				.expectChange("listName", [,, "The Beatles"])
+				.expectChange("defaultChannel", [,, "03"]);
+
+			oTable.requestItems();
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectChange("name", "The Beatles (changed)")
+				.expectChange("listName", [,, "The Beatles (changed)"])
+				.expectRequest({
+					method : "PATCH",
+					headers : {"If-Match" : "etag3"},
+					url : "Artists(ArtistID='3',IsActiveEntity=false)",
+					payload : {Name : "The Beatles (changed)"}
+				}, {
+					"@odata.etag" : "etag3.1",
+					ArtistID : "3",
+					IsActiveEntity : false,
+					Name : "The Beatles (from server)"
+				})
+				.expectChange("listName", [,, "The Beatles (from server)"])
+				.expectChange("name", "The Beatles (from server)");
+
+			that.oView.byId("name").getBinding("value").setValue("The Beatles (changed)");
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			assert.strictEqual(oContext.getProperty("@odata.etag"), "etag3.1");
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: Flexible Column Layout, ODataModel#getKeepAliveContext
+	// An object page requests a kept-alive context matching an entity in a relative binding with
+	// $$getKeepAliveContext. This binding has a matching parked cache which must be ignored.
+	// Immediately afterwards resolve the binding. Modify a property and see that list and object
+	// page are in sync.
+	// JIRA: CPOUI5ODATAV4-1407
+	QUnit.test("getKeepAliveContext: immediately release temporary binding", function (assert) {
+		var oModel = createSpecialCasesModel({autoExpandSelect : true}),
+			oTable,
+			sView = '\
+<Table id="list" items="{path : \'Artists\', parameters : {$$getKeepAliveContext : true,\
+ 		$$ownRequest : true, foo : \'bar\', $count : true}}">\
+	<Text id="listName" text="{Name}"/>\
+	<Text id="defaultChannel" text="{defaultChannel}"/>\
+</Table>\
+<FlexBox id="objectPage">\
+	<Input id="name" value="{Name}"/>\
+	<Text id="lastUsedChannel" text="{lastUsedChannel}"/>\
+</FlexBox>',
+			that = this;
+
+		this.expectChange("listName", [])
+			.expectChange("defaultChannel", [])
+			.expectChange("name")
+			.expectChange("lastUsedChannel");
+
+		return this.createView(assert, sView, oModel).then(function () {
+			that.expectRequest("Artists?foo=bar&$count=true"
+					+ "&$select=ArtistID,IsActiveEntity,Name,defaultChannel&$skip=0&$top=100", {
+					"@odata.count" : "1",
+					value : [{
+						ArtistID : "1",
+						IsActiveEntity : false,
+						Name : "n/a", // must be ignored for the object page
+						defaultChannel : "01"
+					}]
+				})
+				.expectChange("listName", ["n/a"])
+				.expectChange("defaultChannel", ["01"]);
+
+			oTable = that.oView.byId("list");
+			oTable.setBindingContext(oModel.createBindingContext("/"));
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			oTable.setBindingContext(undefined);
+
+			assert.strictEqual(oTable.getBinding("items").getLength(), 0);
+
+			return that.waitForChanges(assert); // wait for UI update
+		}).then(function () {
+			that.expectRequest("Artists(ArtistID='1',IsActiveEntity=false)?foo=bar"
+					+ "&$select=ArtistID,IsActiveEntity,Name,lastUsedChannel", {
+					ArtistID : "1",
+					IsActiveEntity : false,
+					Name : "The Beatles",
+					lastUsedChannel : "02"
+				})
+				.expectRequest("Artists?foo=bar&$count=true"
+					+ "&$select=ArtistID,IsActiveEntity,Name,defaultChannel&$skip=0&$top=100", {
+					"@odata.count" : "1",
+					value : [{
+						ArtistID : "1",
+						IsActiveEntity : false,
+						Name : "The Beatles",
+						defaultChannel : "01"
+					}]
+				})
+				.expectChange("name", "The Beatles")
+				.expectChange("lastUsedChannel", "02")
+				.expectChange("listName", ["The Beatles"])
+				.expectChange("defaultChannel", ["01"]);
+
+			that.oView.byId("objectPage").setBindingContext(
+				oModel.getKeepAliveContext("/Artists(ArtistID='1',IsActiveEntity=false)",
+					false, {foo : "bar"})
+			);
+			oTable.setBindingContext(oModel.createBindingContext("/"));
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectChange("name", "The Beatles (changed)")
+				.expectChange("listName", ["The Beatles (changed)"])
+				.expectRequest({
+					method : "PATCH",
+					url : "Artists(ArtistID='1',IsActiveEntity=false)?foo=bar",
+					payload : {Name : "The Beatles (changed)"}
+				}, {
+					ArtistID : "1",
+					IsActiveEntity : false,
+					Name : "The Beatles (changed*)"
+				})
+				.expectChange("name", "The Beatles (changed*)")
+				.expectChange("listName", ["The Beatles (changed*)"]);
+
+			that.oView.byId("name").getBinding("value").setValue("The Beatles (changed)");
+
+			return that.waitForChanges(assert);
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: Flexible Column Layout, ODataModel#getKeepAliveContext
+	// An object page requests a kept-alive context matching an entity in a suspended list binding
+	// with $$getKeepAliveContext. Modify a property. Resume the list and see that list and object
+	// page are in sync.
+	// JIRA: CPOUI5ODATAV4-1525
+	QUnit.test("getKeepAliveContext: suspended", function (assert) {
+		var oContext,
+			oListBinding,
+			oModel = createSpecialCasesModel({autoExpandSelect : true}),
+			sView = '\
+<Table id="list" items="{path : \'/Artists\', parameters : {$$getKeepAliveContext : true},\
+		suspended : \'true\'}">\
+	<Text id="listName" text="{Name}"/>\
+	<Text id="defaultChannel" text="{defaultChannel}"/>\
+</Table>\
+<FlexBox id="objectPage">\
+	<Input id="name" value="{Name}"/>\
+	<Text id="lastUsedChannel" text="{lastUsedChannel}"/>\
+</FlexBox>',
+			that = this;
+
+		this.expectChange("listName", [])
+			.expectChange("defaultChannel", [])
+			.expectChange("name")
+			.expectChange("lastUsedChannel");
+
+		return this.createView(assert, sView, oModel).then(function () {
+			that.expectRequest("Artists(ArtistID='1',IsActiveEntity=false)"
+					+ "?$select=ArtistID,IsActiveEntity,Name,lastUsedChannel", {
+					ArtistID : "1",
+					IsActiveEntity : false,
+					Name : "The Beatles",
+					lastUsedChannel : "02"
+				})
+				.expectChange("name", "The Beatles")
+				.expectChange("lastUsedChannel", "02");
+
+			oListBinding = that.oView.byId("list").getBinding("items");
+			oContext = oModel.getKeepAliveContext("/Artists(ArtistID='1',IsActiveEntity=false)");
+			that.oView.byId("objectPage").setBindingContext(oContext);
+
+			return that.waitForChanges(assert, "getKeepAliveContext");
+		}).then(function () {
+			that.expectChange("name", "The Beatles (changed)")
+				.expectRequest({
+					method : "PATCH",
+					url : "Artists(ArtistID='1',IsActiveEntity=false)",
+					payload : {Name : "The Beatles (changed)"}
+				}); // no response required
+
+			that.oView.byId("name").getBinding("value").setValue("The Beatles (changed)");
+
+			return that.waitForChanges(assert, "change name");
+		}).then(function () {
+			that.expectRequest("Artists?$select=ArtistID,IsActiveEntity,Name,defaultChannel"
+					+ "&$skip=0&$top=100", {
+					value : [{
+						ArtistID : "1",
+						IsActiveEntity : false,
+						Name : "The Beatles (changed)",
+						defaultChannel : "01"
+					}]
+				})
+				.expectChange("listName", ["The Beatles (changed)"])
+				.expectChange("defaultChannel", ["01"]);
+
+			oListBinding.resume();
+
+			return that.waitForChanges(assert, "resume");
+		}).then(function () {
+			oListBinding.suspend();
+
+			assert.throws(function () {
+				oModel.getKeepAliveContext("/Artists(ArtistID='1',IsActiveEntity=false)");
+			}, new Error("Must not call method when the binding's root binding is suspended: "
+				+ oListBinding));
+		});
+	});
 
 	//*********************************************************************************************
 	// Scenario: List report with absolute binding, object page with a late property. Ensure that
@@ -36277,6 +36999,19 @@ sap.ui.define([
 			assert.strictEqual(oListBinding.hasPendingChanges(), bWithPendingChanges);
 			assert.notOk(oListBinding.hasPendingChanges(/*bIgnoreKeptAlive*/true));
 
+			if (!bWithPendingChanges) {
+				sNewNote = "Note 2.4";
+				that.expectRequest("SalesOrderList?$select=GrossAmount,Note,NoteLanguage"
+						+ ",SalesOrderID&$filter=SalesOrderID eq '2'", {
+						value : [{
+							GrossAmount : "2.40",
+							Note : sNewNote, // not shown on "keptAlivePage"
+							NoteLanguage : "EN", // not shown on "keptAlivePage"
+							SalesOrderID : "2"
+						}]
+					})
+					.expectChange("grossAmount", "2.40");
+			}
 			that.expectRequest("SalesOrderList?$select=Note,SalesOrderID&$skip=0&$top=100", {
 					value : [{
 						Note : "Note 1.4",
@@ -36306,7 +37041,6 @@ sap.ui.define([
 
 			if (!bWithPendingChanges) {
 				sNewNote = "Note 2.5";
-				//TODO why is this request missing above in (4)?! --> CPOUI5ODATAV4-1180
 				that.expectRequest("SalesOrderList?$select=GrossAmount,Note,NoteLanguage"
 						+ ",SalesOrderID&$filter=SalesOrderID eq '2'", {
 						value : [{
@@ -36380,9 +37114,10 @@ sap.ui.define([
 				oCreationRowContext.setProperty("Note", "alive & kicking");
 				assert.strictEqual(oCreationRowContext.getProperty("Note"), "alive & kicking");
 
-				oCreationRowContext.delete(); // clean up
-
-				return checkCanceled(assert, oCreationRowContext.created());
+				return Promise.all([
+					checkCanceled(assert, oCreationRowContext.created()),
+					oCreationRowContext.delete() // clean up
+				]);
 			}
 		}).then(function () {
 			assert.notOk(oModel.hasPendingChanges("never"));
@@ -36398,8 +37133,12 @@ sap.ui.define([
 	//
 	// A transient item must also not be ignored by the list report (JIRA: CPOUI5ODATAV4-1409)
 	// Also check with refresh (JIRA: CPOUI5ODATAV4-1382)
+	//
+	// A refresh of the list report must not destroy inactive creation rows in the items table.
+	// JIRA: CPOUI5ODATAV4-1566
 	QUnit.test("JIRA: CPOUI5ODATAV4-1104 - do not ignore indirect kept-alive", function (assert) {
-		var oItemsTableBinding,
+		var oInactiveCreationRow,
+			oItemsTableBinding,
 			oKeptAliveItem,
 			oListReportBinding,
 			oModel = createSalesOrdersModel({autoExpandSelect : true, updateGroupId : "update"}),
@@ -36470,6 +37209,8 @@ sap.ui.define([
 
 			return that.waitForChanges(assert);
 		}).then(function () {
+			oKeptAliveItem.setKeepAlive(false);
+
 			that.expectChange("itemPosition", ["0010"])
 				.expectCanceledError("Failed to update path /SalesOrderList('42')"
 					+ "/SO_2_SOITEM(SalesOrderID='42',ItemPosition='0010')/ItemPosition",
@@ -36481,7 +37222,7 @@ sap.ui.define([
 
 			return Promise.all([
 				checkCanceled(assert, oSetPropertyPromise),
-				that.waitForChanges(assert)
+				that.waitForChanges(assert, "reset changes")
 			]);
 		}).then(function () {
 			var oTransientItem = oItemsTableBinding.create({ItemPosition : "0000"});
@@ -36495,7 +37236,60 @@ sap.ui.define([
 
 			return Promise.all([
 				oTransientItem.delete(), // cleanup
-				checkCanceled(assert, oTransientItem.created())
+				checkCanceled(assert, oTransientItem.created()),
+				that.waitForChanges(assert, "do not ignore transient")
+			]);
+		}).then(function () {
+			that.expectChange("itemPosition", ["", "0010"]);
+
+			oInactiveCreationRow = oItemsTableBinding.create({/*oInitialData*/},
+				/*bSkipRefresh*/true, /*bAtEnd*/false, /*bInactive*/true);
+
+			assert.strictEqual(oInactiveCreationRow.hasPendingChanges(), true,
+				"This includes the context itself being transient");
+			assert.strictEqual(oItemsTableBinding.hasPendingChanges(), false);
+			assert.strictEqual(oListReportBinding.hasPendingChanges(), false);
+
+			that.expectRequest("SalesOrderList?$select=Note,SalesOrderID&$skip=0&$top=100", {
+					value : [{
+						Note : "1st SalesOrder",
+						SalesOrderID : "42"
+					}]
+				})
+				.expectChange("note", ["1st SalesOrder"])
+				.expectRequest("SalesOrderList('42')/SO_2_SOITEM?$select=ItemPosition,SalesOrderID"
+					+ "&$skip=0&$top=99", {
+					value : [{
+						ItemPosition : "0011",
+						SalesOrderID : "42"
+					}]
+				})
+				.expectChange("itemPosition", [, "0011"]);
+
+			return Promise.all([
+				// code under test (JIRA: CPOUI5ODATAV4-1566)
+				oListReportBinding.requestRefresh(),
+				that.waitForChanges(assert, "JIRA: CPOUI5ODATAV4-1566")
+			]);
+		}).then(function () {
+			assert.strictEqual(oItemsTableBinding.getAllCurrentContexts()[0], oInactiveCreationRow);
+
+			that.expectChange("itemPosition", ["0111"])
+				.expectRequest({
+					method : "POST",
+					payload : {
+						ItemPosition : "0111"
+					},
+					url : "SalesOrderList('42')/SO_2_SOITEM"
+				}); // response does not matter here
+
+			// code under test
+			oInactiveCreationRow.setProperty("ItemPosition", "0111");
+
+			return Promise.all([
+				oModel.submitBatch("update"),
+				oInactiveCreationRow.created(),
+				that.waitForChanges(assert, "activate")
 			]);
 		});
 	});
@@ -37292,7 +38086,7 @@ sap.ui.define([
 	// Show that the transient ones properly survive.
 	// JIRA: CPOUI5ODATAV4-1362
 	//
-	// Add refresh (JIRA: CPOUI5ODATAV4-1382)
+	// Add refresh (JIRA: CPOUI5ODATAV4-1382) and side-effects refresh (JIRA: CPOUI5ODATAV4-1384)
 	QUnit.test("CPOUI5ODATAV4-1362", function (assert) {
 		var oBinding,
 			oContextA,
@@ -37399,6 +38193,25 @@ sap.ui.define([
 
 			return that.waitForChanges(assert, "change parameters");
 		}).then(function () {
+			that.expectRequest("TEAMS?$count=true&$select=Name,Team_Id&$orderby=Team_Id desc"
+					+ "&$filter=MANAGER_ID ne '666'&$search=TDOP&$skip=0&$top=3", {
+					"@odata.count" : "2",
+					value : [{
+						Name : "Team #3 *** TDO",
+						Team_Id : "TEAM_03"
+					}, {
+						Name : "Team #1 * T",
+						Team_Id : "TEAM_01"
+					}]
+				})
+				.expectChange("name", ["Team #3 *** TDO", "Team #1 * T"]);
+
+			return Promise.all([
+				// code under test (JIRA: CPOUI5ODATAV4-1384)
+				oBinding.getHeaderContext().requestSideEffects([""], "$auto"),
+				that.waitForChanges(assert, "request side effects")
+			]);
+		}).then(function () {
 			that.expectRequest("TEAMS?$count=true&$select=Name,Team_Id&$filter=MANAGER_ID ne '666'"
 					+ "&$skip=0&$top=3", {
 					"@odata.count" : "2",
@@ -37499,11 +38312,15 @@ sap.ui.define([
 	// rows on suspend.
 	// JIRA: CPOUI5ODATAV4-1409
 	//
-	// Add refresh (JIRA: CPOUI5ODATAV4-1382)
-["changeParameters", "filter", "refresh", "resume", "sort"].forEach(function (sMethod) {
+	// Add refresh (JIRA: CPOUI5ODATAV4-1382) and side-effects refresh (JIRA: CPOUI5ODATAV4-1384)
+	//
+	// Show that a created persisted can stay kept-alive during refresh (JIRA: CPOUI5ODATAV4-1386)
+[
+	"changeParameters", "filter", "refresh", "resume", "sideEffectsRefresh", "sort"
+].forEach(function (sMethod) {
 	[false, true].forEach(function (bRelative) {
-	var sTitle = "CPOUI5ODATAV4-1362: created persisted, " + sMethod
-			+ ", $$ownRequest = " + bRelative;
+		var sTitle = "CPOUI5ODATAV4-1362: created persisted, " + sMethod
+				+ ", $$ownRequest = " + bRelative;
 
 	QUnit.test(sTitle, function (assert) {
 		var oBinding,
@@ -37517,16 +38334,14 @@ sap.ui.define([
 			sView = bRelative ? '\
 <FlexBox binding="{/Departments(Sector=\'EMEA\',ID=\'UI5\')}" id="objectPage">\
 	<FlexBox binding="{}">\
-		<t:Table id="table"\
-			rows="{parameters : {$$ownRequest : true}, path : \'DEPARTMENT_2_TEAMS\'}"\
-			threshold="0" visibleRowCount="4">\
+		<t:Table id="table" threshold="0" visibleRowCount="4"\
+			rows="{parameters : {$$ownRequest : true}, path : \'DEPARTMENT_2_TEAMS\'}">\
 			<Text id="id" text="{Team_Id}"/>\
 			<Text id="name" text="{Name}"/>\
 		</t:Table>\
 	</FlexBox>\
 </FlexBox>' : '\
-<t:Table id="table" rows="{/TEAMS}" threshold="0"\
-	visibleRowCount="4">\
+<t:Table id="table" rows="{/TEAMS}" threshold="0" visibleRowCount="4">\
 	<Text id="id" text="{Team_Id}"/>\
 	<Text id="name" text="{Name}"/>\
 </t:Table>',
@@ -37587,13 +38402,21 @@ sap.ui.define([
 						Name : "Team #2",
 						Team_Id : "TEAM_02"
 					}, {
-						Name : "Team #1",
-						Team_Id : "TEAM_01"
+						Name : "updateNonExisting ignores changes here!",
+						Team_Id : "TEAM_A"
+					}]
+				},
+				oResultA = {
+					value : [{
+						Name : "'A' Team",
+						Team_Id : "TEAM_A"
 					}]
 				};
 
 			assert.strictEqual(oBinding.hasPendingChanges(), true);
 			assert.strictEqual(oBinding.hasPendingChanges(true), false);
+
+			oContextA.setKeepAlive(true); // JIRA: CPOUI5ODATAV4-1386
 
 			switch (sMethod) {
 				case "changeParameters":
@@ -37621,7 +38444,11 @@ sap.ui.define([
 					}
 
 					// Note: expect no request for "objectPage" as there's no ODPrB there!
-					that.expectRequest(sTeams + "?$select=Name,Team_Id&$skip=0&$top=2", oResult);
+					that.expectRequest(sTeams + "?$select=Name,Team_Id&$filter=Team_Id eq 'TEAM_A'",
+							oResultA)
+						// Note: GET not yet processed, binding still "empty"
+						.expectChange("name", [, "'A' Team"])
+						.expectRequest(sTeams + "?$select=Name,Team_Id&$skip=0&$top=2", oResult);
 
 					// code under test
 					oPromise = (bRelative
@@ -37643,6 +38470,17 @@ sap.ui.define([
 					oPromise = oBinding.getRootBinding().resumeAsync();
 					break;
 
+				case "sideEffectsRefresh":
+					that.expectRequest(sTeams + "?$select=Name,Team_Id&$filter=Team_Id eq 'TEAM_A'",
+							oResultA)
+						// Note: GET not yet processed, binding still "empty"
+						.expectChange("name", [, "'A' Team"])
+						.expectRequest(sTeams + "?$select=Name,Team_Id&$skip=0&$top=2", oResult);
+
+					// code under test (JIRA: CPOUI5ODATAV4-1384)
+					oPromise = oBinding.getHeaderContext().requestSideEffects([""], "$auto");
+					break;
+
 				case "sort":
 					that.expectRequest(sTeams + "?$select=Name,Team_Id&$orderby=Team_Id desc"
 							+ "&$skip=0&$top=2", oResult);
@@ -37654,8 +38492,8 @@ sap.ui.define([
 				// no default
 			}
 
-			that.expectChange("id", [,, "TEAM_02", "TEAM_01"])
-				.expectChange("name", [,, "Team #2", "Team #1"]);
+			that.expectChange("id", [,, "TEAM_02"])
+				.expectChange("name", [,, "Team #2"]);
 
 			return Promise.all([
 				oPromise,
@@ -37686,10 +38524,490 @@ sap.ui.define([
 				that.oModel.submitBatch("update"),
 				that.waitForChanges(assert, "submit")
 			]);
+		}).then(function () {
+			var aAllCurrentContexts = oBinding.getAllCurrentContexts();
+
+			assert.deepEqual(aAllCurrentContexts.map(getPath), [
+				"/" + sTeams + "('TEAM_D')",
+				"/" + sTeams + "('TEAM_C')",
+				"/" + sTeams + "('TEAM_02')",
+				"/" + sTeams + "('TEAM_A')"
+			]);
+			assert.strictEqual(aAllCurrentContexts[0], oContextD, "D");
+			assert.strictEqual(aAllCurrentContexts[1], oContextC, "C");
+			assert.strictEqual(oContextB.getBinding(), undefined, "B already destroyed");
+			assert.strictEqual(aAllCurrentContexts[3], oContextA, "A");
 		});
 	});
 	});
 });
+
+	//*********************************************************************************************
+	// Scenario: A table shows a visible area with five persisted rows. Three transient ones are
+	// added at the start, inside the visible area (two of them as inline creation rows, that is,
+	// initially inactive). A side-effects refresh takes place and the GET is in the same $batch as
+	// those POSTs. Show that the inline creation rows are kept in place and the persisted ones are
+	// properly refreshed. Expect no "short read" - length remains unknown!
+	// A 2nd side-effects refresh takes place, keeping the inline creation rows in place and
+	// refreshing them separately, but one of them has been deleted on the server.
+	// JIRA: CPOUI5ODATAV4-1384
+	//
+	// Prefetch compensates for exclusive filter, so that no extra GET is needed to replace the
+	// deleted one inside the table's visible area.
+	// JIRA: CPOUI5ODATAV4-1521
+	QUnit.test("CPOUI5ODATAV4-1384: side-effects refresh at top", function (assert) {
+		var oBinding,
+			oContextA,
+			oContextB,
+			oContextC,
+			oModel = createTeaBusiModel({autoExpandSelect : true, updateGroupId : "update"}),
+			// Note: threshold is either 0 or at least visibleRowCount
+			sView = '\
+<t:Table id="table" rows="{/TEAMS}" threshold="0" visibleRowCount="5">\
+	<Text id="id" text="{Team_Id}"/>\
+	<Text id="name" text="{Name}"/>\
+</t:Table>',
+			that = this;
+
+		this.expectRequest("TEAMS?$select=Name,Team_Id&$skip=0&$top=5", {
+				value : [
+					{Name : "Team #1", Team_Id : "TEAM_01"},
+					{Name : "Team #2", Team_Id : "TEAM_02"},
+					{Name : "Team #3", Team_Id : "TEAM_03"},
+					{Name : "Team #4", Team_Id : "TEAM_04"},
+					{Name : "Team #5", Team_Id : "TEAM_05"}
+				]
+			})
+			.expectChange("id", ["TEAM_01", "TEAM_02", "TEAM_03", "TEAM_04", "TEAM_05"])
+			.expectChange("name", ["Team #1", "Team #2", "Team #3", "Team #4", "Team #5"]);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			oBinding = that.oView.byId("table").getBinding("rows");
+
+			assert.strictEqual(oBinding.getCount(), undefined);
+			assert.strictEqual(oBinding.getLength(), 15);
+			assert.notOk(oBinding.isLengthFinal());
+
+			that.expectChange("id", ["TEAM_C", "TEAM_B", "TEAM_A", "TEAM_01", "TEAM_02"])
+				.expectChange("name",
+					["New Team C", "New Team B", "New Team A", "Team #1", "Team #2"]);
+
+			oContextA = oBinding.create({Team_Id : "TEAM_A"}, true, false, /*bInactive*/true);
+			oContextA.setProperty("Name", "New Team A"); // activate
+			oContextB = oBinding.create({Team_Id : "TEAM_B"}, true, false, /*bInactive*/true);
+			oContextB.setProperty("Name", "New Team B"); // activate
+			oContextC = oBinding.create({Name : "New Team C", Team_Id : "TEAM_C"}, true);
+
+			return that.waitForChanges(assert, "3x transient");
+		}).then(function () {
+			assert.strictEqual(oBinding.getCount(), undefined);
+			assert.strictEqual(oBinding.getLength(), 18);
+			assert.notOk(oBinding.isLengthFinal());
+			assert.deepEqual(oBinding.getAllCurrentContexts().map(getNormalizedPath), [
+				"/TEAMS($uid=...)",
+				"/TEAMS($uid=...)",
+				"/TEAMS($uid=...)",
+				"/TEAMS('TEAM_01')",
+				"/TEAMS('TEAM_02')",
+				"/TEAMS('TEAM_03')",
+				"/TEAMS('TEAM_04')",
+				"/TEAMS('TEAM_05')"
+			]);
+
+			that.expectRequest({
+					batchNo : 2,
+					method : "POST",
+					url : "TEAMS",
+					payload : {Name : "New Team A", Team_Id : "TEAM_A"}
+				}, {Name : "New 'A' Team", Team_Id : "TEAM_A"})
+				.expectChange("name", [, "New 'A' Team"])
+				.expectRequest({
+					batchNo : 2,
+					method : "POST",
+					url : "TEAMS",
+					payload : {Name : "New Team B", Team_Id : "TEAM_B"}
+				}, {"@odata.etag" : "b", Name : "New 'B' Team", Team_Id : "TEAM_B"})
+				.expectChange("name", ["New 'B' Team"])
+				.expectRequest({
+					batchNo : 2,
+					method : "POST",
+					url : "TEAMS",
+					payload : {Name : "New Team C", Team_Id : "TEAM_C"}
+				}, {Name : "n/c", Team_Id : "TEAM_C"})
+				.expectChange("name", "New 'C' Team", -1)
+				.expectRequest({
+					batchNo : 2,
+					url : "TEAMS?$select=Name,Team_Id&$skip=0&$top=5"
+				}, {
+					value : [
+						{Name : "n/a", Team_Id : "TEAM_A"},
+						{Name : "'#1' Team", Team_Id : "TEAM_01"},
+						{"@odata.etag" : "b", Name : "n/b", Team_Id : "TEAM_B"},
+						{Name : "'#2' Team", Team_Id : "TEAM_02"},
+						{Name : "New 'C' Team", Team_Id : "TEAM_C"}
+					]
+				})
+				.expectChange("id", ["TEAM_B", "TEAM_A", "TEAM_01", "TEAM_02", "TEAM_C"])
+				.expectChange("name",
+					["New 'B' Team", "New 'A' Team", "'#1' Team", "'#2' Team", "New 'C' Team"])
+				.expectRequest({ //TODO how to avoid this artefact?
+					// _CollectionCache#read computes iCreatedPersisted = 2 because oBackup has not
+					// yet been deleted (because oRefreshPromise not yet resolved); this extends
+					// the prefetch unnecessarily here :-(
+					batchNo : 3,
+					url : "TEAMS?$select=Name,Team_Id"
+						+ "&$filter=not (Team_Id eq 'TEAM_A' or Team_Id eq 'TEAM_B')&$skip=3&$top=2"
+				}, {
+					value : [
+						{Name : "'#3' Team", Team_Id : "TEAM_03"},
+						{Name : "'#4' Team", Team_Id : "TEAM_04"}
+					]
+				});
+
+			return Promise.all([
+				// code under test
+				oBinding.getHeaderContext().requestSideEffects([""]),
+				that.oModel.submitBatch("update"),
+				oContextA.created(),
+				oContextB.created(),
+				oContextC.created(),
+				that.waitForChanges(assert, "1st side-effects refresh")
+			]);
+		}).then(function () {
+			assert.strictEqual(oBinding.getCount(), undefined);
+			assert.strictEqual(oBinding.getLength(), 15);
+			assert.notOk(oBinding.isLengthFinal());
+			assert.deepEqual(oBinding.getAllCurrentContexts().map(getPath), [
+				"/TEAMS('TEAM_B')",
+				"/TEAMS('TEAM_A')",
+				"/TEAMS('TEAM_01')",
+				"/TEAMS('TEAM_02')",
+				"/TEAMS('TEAM_C')",
+				"/TEAMS('TEAM_03')",
+				"/TEAMS('TEAM_04')"
+			]);
+
+			that.expectRequest("TEAMS?$select=Name,Team_Id"
+					+ "&$filter=Team_Id eq 'TEAM_A' or Team_Id eq 'TEAM_B'&$top=2", {
+					value : [
+						{Name : "'A' Team", Team_Id : "TEAM_A"}
+						// {Name : "'B' Team", Team_Id : "TEAM_B"} // deleted on server
+					]
+				})
+				.expectChange("name", [, "'A' Team"]) // #refreshKeptElements updates "on the fly"
+				// prefetch compensates for exclusive filter (JIRA: CPOUI5ODATAV4-1521)
+				.expectRequest("TEAMS?$select=Name,Team_Id"
+					+ "&$filter=not (Team_Id eq 'TEAM_A' or Team_Id eq 'TEAM_B')&$skip=0&$top=5", {
+					value : [
+						{Name : "'#1' Team *", Team_Id : "TEAM_01"},
+						{Name : "'#2' Team **", Team_Id : "TEAM_02"},
+						{Name : "'#3' Team ***", Team_Id : "TEAM_03"},
+						{Name : "'#4' Team ****", Team_Id : "TEAM_04"},
+						{Name : "'#5' Team *****", Team_Id : "TEAM_05"}
+					]
+				})
+				.expectChange("name",
+					["'A' Team", "'#1' Team *", "'#2' Team **", "'#3' Team ***", "'#4' Team ****"])
+				.expectChange("id", ["TEAM_A", "TEAM_01", "TEAM_02", "TEAM_03", "TEAM_04"]);
+
+			return Promise.all([
+				// code under test
+				oBinding.getHeaderContext().requestSideEffects([""], "$auto"),
+				that.waitForChanges(assert, "2nd side-effects refresh")
+			]);
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: A table shows a visible area with five persisted rows. Three transient ones are
+	// added at the end, inside the visible area (two of them as inline creation rows, that is,
+	// initially inactive). A side-effects refresh takes place and the GET is in the same $batch as
+	// those POSTs. Show that the inline creation rows are kept in place and the persisted ones are
+	// properly refreshed. Expect no "short read" - count remains accurate!
+	// A 2nd side-effects refresh takes place, keeping the inline creation rows in place and
+	// refreshing them separately, but one of them has been deleted on the server.
+	// JIRA: CPOUI5ODATAV4-1384
+	//
+	// Do not sent GET in same $batch as POSTs (JIRA: CPOUI5ODATAV4-1515)
+	//
+	// Prefetch compensates for exclusive filter, so that no extra GET is needed to replace the
+	// deleted one inside the table's visible area.
+	// JIRA: CPOUI5ODATAV4-1521
+	QUnit.test("CPOUI5ODATAV4-1384: side-effects refresh at bottom", function (assert) {
+		var oBinding,
+			oContextA,
+			oContextB,
+			oContextC,
+			oModel = createTeaBusiModel({autoExpandSelect : true, updateGroupId : "update"}),
+			oTable,
+			// Note: threshold is either 0 or at least visibleRowCount
+			sView = '\
+<Text id="count" text="{headerContext>$count}"/>\
+<t:Table id="table" rows="{path : \'/TEAMS\', parameters : {$count : true}}" threshold="0"\
+		visibleRowCount="5">\
+	<Text id="id" text="{Team_Id}"/>\
+	<Text id="name" text="{Name}"/>\
+</t:Table>',
+			that = this;
+
+		this.expectRequest("TEAMS?$count=true&$select=Name,Team_Id&$skip=0&$top=5", {
+				"@odata.count" : "9",
+				value : [
+					{Name : "Team #1", Team_Id : "TEAM_01"},
+					{Name : "Team #2", Team_Id : "TEAM_02"},
+					{Name : "Team #3", Team_Id : "TEAM_03"},
+					{Name : "Team #4", Team_Id : "TEAM_04"},
+					{Name : "Team #5", Team_Id : "TEAM_05"}
+				]
+			})
+			.expectChange("count")
+			.expectChange("id", ["TEAM_01", "TEAM_02", "TEAM_03", "TEAM_04", "TEAM_05"])
+			.expectChange("name", ["Team #1", "Team #2", "Team #3", "Team #4", "Team #5"]);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			oTable = that.oView.byId("table");
+			oBinding = oTable.getBinding("rows");
+
+			that.expectChange("count", "9");
+
+			// code under test
+			that.oView.setModel(that.oView.getModel(), "headerContext");
+			that.oView.byId("count").setBindingContext(oBinding.getHeaderContext(),
+				"headerContext");
+
+			return that.waitForChanges(assert, "$count");
+		}).then(function () {
+			assert.strictEqual(oBinding.getCount(), 9);
+			assert.strictEqual(oBinding.getLength(), 9);
+			assert.ok(oBinding.isLengthFinal());
+			assert.strictEqual(oBinding.isFirstCreateAtEnd(), undefined);
+
+			that.expectChange("count", "10");
+			oContextA = oBinding.create({Team_Id : "TEAM_A"}, true, true, /*bInactive*/true);
+			oContextA.setProperty("Name", "New A"); // activate
+			that.expectChange("count", "11");
+			oContextB = oBinding.create({Team_Id : "TEAM_B"}, true, true, /*bInactive*/true);
+			oContextB.setProperty("Name", "New B"); // activate
+			that.expectChange("count", "12");
+			oContextC = oBinding.create({Name : "New C", Team_Id : "TEAM_C"}, true, true);
+
+			assert.strictEqual(oBinding.getCount(), 12);
+			assert.strictEqual(oBinding.getLength(), 12);
+			assert.ok(oBinding.isLengthFinal());
+			assert.strictEqual(oBinding.isFirstCreateAtEnd(), true);
+
+			that.expectRequest("TEAMS?$count=true&$select=Name,Team_Id&$skip=7&$top=2", {
+					"@odata.count" : "9",
+					value : [
+						{Name : "Team #8", Team_Id : "TEAM_08"},
+						{Name : "Team #9", Team_Id : "TEAM_09"}
+					]
+				})
+				.expectChange("id", [,,,,,,, "TEAM_08", "TEAM_09", "TEAM_A", "TEAM_B", "TEAM_C"])
+				.expectChange("name", [,,,,,,, "Team #8", "Team #9", "New A", "New B", "New C"]);
+			oTable.setFirstVisibleRow(7);
+
+			return that.waitForChanges(assert, "3x transient at bottom");
+		}).then(function () {
+			assert.strictEqual(oBinding.getCount(), 12);
+			assert.strictEqual(oBinding.getLength(), 12);
+			assert.ok(oBinding.isLengthFinal());
+			assert.strictEqual(oBinding.isFirstCreateAtEnd(), true);
+			assert.deepEqual(oBinding.getAllCurrentContexts().map(getNormalizedPath), [
+				// Note: created ones are at the top here
+				"/TEAMS($uid=...)",
+				"/TEAMS($uid=...)",
+				"/TEAMS($uid=...)",
+				"/TEAMS('TEAM_01')",
+				"/TEAMS('TEAM_02')",
+				"/TEAMS('TEAM_03')",
+				"/TEAMS('TEAM_04')",
+				"/TEAMS('TEAM_05')",
+				// Note: the gap is not visible here
+				"/TEAMS('TEAM_08')",
+				"/TEAMS('TEAM_09')"
+			]);
+
+			that.expectRequest({
+					batchNo : 3,
+					changeSetNo : 1,
+					groupId : "update",
+					method : "POST",
+					url : "TEAMS",
+					payload : {Name : "New A", Team_Id : "TEAM_A"}
+				}, {Name : "'A' Team", Team_Id : "TEAM_A"})
+				// Note: GET not yet processed, binding still "empty"
+				.expectChange("name", ["'A' Team"])
+				.expectRequest({
+					batchNo : 3,
+					changeSetNo : 1,
+					groupId : "update",
+					method : "POST",
+					url : "TEAMS",
+					payload : {Name : "New B", Team_Id : "TEAM_B"}
+				}, {"@odata.etag" : "b", Name : "'B' Team", Team_Id : "TEAM_B"})
+				.expectChange("name", [, "'B' Team"])
+				.expectRequest({
+					batchNo : 3,
+					changeSetNo : 1,
+					groupId : "update",
+					method : "POST",
+					url : "TEAMS",
+					payload : {Name : "New C", Team_Id : "TEAM_C"}
+				}, {Name : "n/c", Team_Id : "TEAM_C"})
+				.expectChange("name", [,, "'C' Team"])
+				.expectRequest({
+					batchNo : 4,
+					groupId : "$auto",
+					// Note: expect no separate refresh immediately after creation
+					// Note: TEAM_C is not an inline creation row!
+					url : "TEAMS?$count=true&$select=Name,Team_Id"
+						+ "&$filter=not (Team_Id eq 'TEAM_A' or Team_Id eq 'TEAM_B')&$skip=5&$top=9"
+				}, {
+					"@odata.count" : "10",
+					value : [
+						{Name : "'#6' Team", Team_Id : "TEAM_06"},
+						{Name : "'#7' Team", Team_Id : "TEAM_07"},
+						{Name : "'#8' Team", Team_Id : "TEAM_08"},
+						{Name : "'C' Team", Team_Id : "TEAM_C"}, // this position matters!
+						{Name : "'#9' Team", Team_Id : "TEAM_09"}
+					]
+				})
+				.expectChange("id", [,,,,,,,, "TEAM_C", "TEAM_09", "TEAM_A", "TEAM_B"])
+				.expectChange("name",
+					[,,,,,,, "'#8' Team", "'C' Team", "'#9' Team", "'A' Team", "'B' Team"]);
+
+			return Promise.all([
+				// code under test
+				oBinding.getHeaderContext().requestSideEffects([""]),
+				that.oModel.submitBatch("update"),
+				oContextA.created(),
+				oContextB.created(),
+				oContextC.created(),
+				that.waitForChanges(assert, "1st side-effects refresh")
+			]);
+		}).then(function () {
+			assert.strictEqual(oBinding.getCount(), 12);
+			assert.strictEqual(oBinding.getLength(), 12);
+			assert.ok(oBinding.isLengthFinal());
+			assert.strictEqual(oBinding.isFirstCreateAtEnd(), true);
+			assert.deepEqual(oBinding.getAllCurrentContexts().map(getNormalizedPath), [
+				// Note: created ones are at the top here
+				"/TEAMS('TEAM_B')",
+				"/TEAMS('TEAM_A')",
+				// Note: the gap is not visible here
+				"/TEAMS('TEAM_06')",
+				"/TEAMS('TEAM_07')",
+				"/TEAMS('TEAM_08')",
+				"/TEAMS('TEAM_C')",
+				"/TEAMS('TEAM_09')"
+			]);
+			assert.deepEqual(oTable.getRows().map(getBindingContextPath), [
+				"/TEAMS('TEAM_08')",
+				"/TEAMS('TEAM_C')",
+				"/TEAMS('TEAM_09')",
+				"/TEAMS('TEAM_A')",
+				"/TEAMS('TEAM_B')"
+			]);
+
+			that.expectRequest({
+					batchNo : 5,
+					groupId : "$auto",
+					url : "TEAMS?$select=Name,Team_Id"
+					+ "&$filter=Team_Id eq 'TEAM_A' or Team_Id eq 'TEAM_B'&$top=2"
+				}, {
+					value : [
+						{Name : "Team 'A'", Team_Id : "TEAM_A"}
+						// {Name : "Team 'B'", Team_Id : "TEAM_B"} // deleted on server
+					]
+				})
+				// prefetch compensates for exclusive filter (JIRA: CPOUI5ODATAV4-1521)
+				.expectRequest({
+					batchNo : 5,
+					groupId : "$auto",
+					url : "TEAMS?$count=true&$select=Name,Team_Id"
+					+ "&$filter=not (Team_Id eq 'TEAM_A' or Team_Id eq 'TEAM_B')&$skip=5&$top=9"
+				}, {
+					"@odata.count" : "10",
+					value : [
+						{Name : "Team no. 6", Team_Id : "TEAM_06"},
+						{Name : "Team no. 7", Team_Id : "TEAM_07"},
+						{Name : "Team no. 8", Team_Id : "TEAM_08"},
+						{Name : "Team 'C'", Team_Id : "TEAM_C"},
+						{Name : "Team no. 9", Team_Id : "TEAM_09"}
+					]
+				})
+				.expectChange("count", "11")
+				.expectChange("id", [,,,,,, "TEAM_07", "TEAM_08", "TEAM_C", "TEAM_09", "TEAM_A"])
+				.expectChange("name",
+					[,,,,,, "Team no. 7", "Team no. 8", "Team 'C'", "Team no. 9", "Team 'A'"]);
+
+			return Promise.all([
+				// code under test
+				oBinding.getHeaderContext().requestSideEffects([""], "$auto"),
+				that.waitForChanges(assert, "2nd side-effects refresh")
+			]);
+		}).then(function () {
+			assert.strictEqual(oBinding.getCount(), 11);
+			assert.strictEqual(oBinding.getLength(), 11);
+			assert.ok(oBinding.isLengthFinal());
+			assert.strictEqual(oBinding.isFirstCreateAtEnd(), true);
+			assert.deepEqual(oBinding.getAllCurrentContexts().map(getNormalizedPath), [
+				// Note: created ones are at the top here
+				"/TEAMS('TEAM_A')",
+				// Note: the gap is not visible here
+				"/TEAMS('TEAM_06')",
+				"/TEAMS('TEAM_07')",
+				"/TEAMS('TEAM_08')",
+				"/TEAMS('TEAM_C')",
+				"/TEAMS('TEAM_09')"
+			]);
+			assert.deepEqual(oTable.getRows().map(getBindingContextPath), [
+				"/TEAMS('TEAM_07')",
+				"/TEAMS('TEAM_08')",
+				"/TEAMS('TEAM_C')",
+				"/TEAMS('TEAM_09')",
+				"/TEAMS('TEAM_A')"
+			]);
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: side effects request on a SingleCache that failed to load its data.
+	// BCP: 2280078004
+	QUnit.test("requestSideEffects: broken SingleCache", function (assert) {
+		var sView = '\
+<FlexBox id="form" binding="{/TEAMS(\'TEAM_01\')}">\
+	<Text text="{Name}"/>\
+</FlexBox>',
+			that = this;
+
+		this.oLogMock.expects("error").withArgs("Failed to read path /TEAMS('TEAM_01')/Name");
+		this.oLogMock.expects("error").withArgs("Failed to read path /TEAMS('TEAM_01')");
+		this.expectRequest("TEAMS('TEAM_01')", createErrorInsideBatch())
+			.expectMessages([{
+				code : "CODE",
+				message : "Request intentionally failed",
+				persistent : true,
+				technical : true,
+				type : "Error"
+			}]);
+
+		return this.createView(assert, sView).then(function () {
+			// expect no request
+
+			return Promise.all([
+				that.oView.byId("form").getBindingContext().requestSideEffects(["Name"])
+					.catch(function (oError) {
+						assert.strictEqual(oError.message,
+							sTeaBusi + "TEAMS('TEAM_01')"
+							+ ": Cannot call requestSideEffects, cache is broken:"
+							+ " Request intentionally failed");
+					}),
+				that.waitForChanges(assert)
+			]);
+		});
+	});
 
 	//*********************************************************************************************
 	// Scenario: #getAllCurrentContexts returns contexts for all records that are available in the
@@ -37869,5 +39187,412 @@ sap.ui.define([
 			.expectChange("on", true);
 
 		return this.createView(assert, sView, createSalesOrdersModel({autoExpandSelect : true}));
+	});
+
+	//*********************************************************************************************
+	// Scenario: A message target contains a not normalized message target (the sort order of the
+	// key predicate differs and the target has different percent encoding, for example with respect
+	// to upper versus lower case). The UI5 message has to contain the normalized target and should
+	// influence the value state of the corresponding control.
+	//
+	// JIRA: CPOUI5ODATAV4-1431
+	// BCP: 2180384047
+	QUnit.test("CPOUI5ODATAV4-1431: Normalize the message target", function (assert) {
+		var oModel = createSalesOrdersModel({autoExpandSelect : true}),
+			sView = '\
+<FlexBox id="form" binding="{path : \'/SalesOrderList(\\\'42\\\')\', \
+		parameters : {$select : \'Messages\'}}">\
+	<Table id="productTable" items="{path : \'SO_2_BP/BP_2_PRODUCT\'}">\
+		<Input id="height" value="{Height}"/>\
+		<Input id="width" value="{Width}"/>\
+	</Table>\
+	<Table id="itemsTable" items="{path : \'SO_2_SOITEM\'}">\
+		<Input id="note" value="{Note}"/>\
+		<Input id="quantity" value="{Quantity}"/>\
+	</Table>\
+</FlexBox>',
+			that = this;
+
+		this.expectRequest("SalesOrderList('42')?$select=Messages,SalesOrderID&$expand="
+			+ "SO_2_BP($select=BusinessPartnerID;"
+				+ "$expand=BP_2_PRODUCT($select=Height,ProductID,Width)),"
+			+ "SO_2_SOITEM($select=ItemPosition,Note,Quantity,SalesOrderID)", {
+				Messages : [{
+					// sort order of key properties
+					code : "code 1",
+					message : "Enter a minimum quantity of 2",
+					numericSeverity : 3,
+					target : "SO_2_SOITEM(ItemPosition='0010',SalesOrderID='42')/Quantity",
+					additionalTargets : [
+						"SO_2_SOITEM(ItemPosition='0010',SalesOrderID='42')/Note"
+					]
+				}, {
+					// percent encoding (e.g. normalize upper- and lower-case)
+					code : "code 2",
+					message : "Some additional message",
+					numericSeverity : 3,
+					target : "SO_2_SOITEM(ItemPosition='0010',SalesOrderID='42%2f')/Quantity",
+					additionalTargets : [
+						"SO_2_SOITEM(ItemPosition='0010',SalesOrderID='42%2f')/Note"
+					]
+				}, { // only one key property (changing BO is intended, due insufficient meta data)
+					code : "code 3",
+					message : "Not more than twice as high as wide",
+					numericSeverity : 3,
+					target : "SO_2_BP/BP_2_PRODUCT(ProductID='HT-1024')/Height",
+					additionalTargets : [
+						"SO_2_BP/BP_2_PRODUCT('HT-1024')/Width"
+					]
+				}, { // percent encoding (with navigation property)
+					code : "code 4",
+					message : "some message",
+					numericSeverity : 3,
+					target : "SO_2_SOITEM(ItemPosition='0010',SalesOrderID='42%2f')"
+						+ "/SOITEM_2_PRODUCT(ProductID='HT-1024')/Height",
+					additionalTargets : [
+						"SO_2_SOITEM(ItemPosition='0010',SalesOrderID='42%2f')"
+							+ "/SOITEM_2_PRODUCT(ProductID='HT-1024')"
+							+ "/PRODUCT_2_BP/BP_2_SO(SalesOrderID='42%2f')"
+							+ "/SO_2_SOITEM(ItemPosition='0010',SalesOrderID='42%2f')"
+					]
+				}],
+				SalesOrderID : "42",
+				SO_2_BP : {
+					BusinessPartnerID : "23",
+					BP_2_PRODUCT : [{
+						Height : "5",
+						ProductID : "HT-1024",
+						Width : "2"
+					}]
+				},
+				SO_2_SOITEM : [{
+					ItemPosition : "0010",
+					Note : "some note",
+					Quantity : "1",
+					SalesOrderID : "42"
+				}]
+			})
+			.expectChange("height", ["5.000"])
+			.expectChange("width", ["2.000"])
+			.expectChange("note", ["some note"])
+			.expectChange("quantity", ["1.000"])
+			.expectMessages([{
+				code : "code 1",
+				message : "Enter a minimum quantity of 2",
+				targets : [
+					"/SalesOrderList('42')/SO_2_SOITEM(SalesOrderID='42',ItemPosition='0010')"
+						+ "/Quantity",
+					"/SalesOrderList('42')/SO_2_SOITEM(SalesOrderID='42',ItemPosition='0010')"
+						+ "/Note"
+				],
+				type : "Warning"
+			}, {
+				code : "code 2",
+				message : "Some additional message",
+				targets : [
+					"/SalesOrderList('42')/SO_2_SOITEM(SalesOrderID='42%2F',ItemPosition='0010')"
+						+ "/Quantity",
+					"/SalesOrderList('42')/SO_2_SOITEM(SalesOrderID='42%2F',ItemPosition='0010')"
+						+ "/Note"
+				],
+				type : "Warning"
+			}, {
+				code : "code 3",
+				message : "Not more than twice as high as wide",
+				targets : [
+					"/SalesOrderList('42')/SO_2_BP/BP_2_PRODUCT('HT-1024')/Height",
+					"/SalesOrderList('42')/SO_2_BP/BP_2_PRODUCT('HT-1024')/Width"
+				],
+				type : "Warning"
+			}, {
+				code : "code 4",
+				message : "some message",
+				targets : [
+					"/SalesOrderList('42')/SO_2_SOITEM(SalesOrderID='42%2F',ItemPosition='0010')"
+						+ "/SOITEM_2_PRODUCT('HT-1024')/Height",
+					"/SalesOrderList('42')/SO_2_SOITEM(SalesOrderID='42%2F',ItemPosition='0010')"
+						+ "/SOITEM_2_PRODUCT('HT-1024')/PRODUCT_2_BP/BP_2_SO('42%2F')"
+						+ "/SO_2_SOITEM(SalesOrderID='42%2F',ItemPosition='0010')"
+				],
+				type : "Warning"
+			}]);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			var oProductTable = that.oView.byId("productTable"),
+				oInputHeight = oProductTable.getItems()[0].getCells()[0],
+				oInputWidth = oProductTable.getItems()[0].getCells()[1],
+				oItemsTable = that.oView.byId("itemsTable"),
+				oInputNote = oItemsTable.getItems()[0].getCells()[0],
+				oInputQuantity = oItemsTable.getItems()[0].getCells()[1];
+
+			return Promise.all([
+				that.checkValueState(assert, oInputHeight, "Warning",
+					"Not more than twice as high as wide"),
+				that.checkValueState(assert, oInputWidth, "Warning",
+					"Not more than twice as high as wide"),
+				that.checkValueState(assert, oInputNote, "Warning",
+					"Enter a minimum quantity of 2"),
+				that.checkValueState(assert, oInputQuantity, "Warning",
+					"Enter a minimum quantity of 2")
+			]);
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: A header message target contains a not normalized message target (the sort order of
+	// the key predicate differs). The UI5 message has to contain the normalized target.
+	//
+	// JIRA: CPOUI5ODATAV4-1431
+	// BCP: 2180384047
+	QUnit.test("CPOUI5ODATAV4-1431: Header messages normalize targets", function (assert) {
+		var aMessages = [{
+				code : "foo-42",
+				message : "text",
+				numericSeverity : 1,
+				target : "TEAM_2_EMPLOYEES(ID='1')"
+					+ "/EMPLOYEE_2_EQUIPMENTS(ID='33',Category='Electronics')/Name"
+			}],
+			oModel = createTeaBusiModel({autoExpandSelect : true}),
+			sView = '\
+<FlexBox binding="{/TEAMS(\'42\')}">\
+<Text id="id" text="{Team_Id}"/>\
+</FlexBox>';
+
+		function withTransition(oObject) {
+			return Object.assign({}, {transition : true}, oObject);
+		}
+
+		this.expectRequest("TEAMS('42')?$select=Team_Id", {Team_Id : "23"}, {
+				"sap-messages" : JSON.stringify(aMessages)
+			})
+			.expectMessages([{
+				code : "foo-42",
+				message : "text",
+				persistent : true,
+				target : "/TEAMS('42')/TEAM_2_EMPLOYEES('1')"
+					+ "/EMPLOYEE_2_EQUIPMENTS(Category='Electronics',ID='33')/Name",
+				technicalDetails : {
+					originalMessage : withTransition(aMessages[0])
+				},
+				type : "Success"
+			}])
+			.expectChange("id", "23");
+
+		return this.createView(assert, sView, oModel);
+	});
+
+	//*********************************************************************************************
+	// Scenario: While a POST request is in flight, a property is updated. For an inline creation
+	// row, data is entered in one field, sending the POST, and then in another before that POST has
+	// returned. No error must happen and user input must win over server's default value. This
+	// must also work if the 1st POST fails (PATCH is then still merged).
+	// JIRA: CPOUI5ODATAV4-1583
+[false, true].forEach(function (bSkipRefresh) {
+	QUnit.test("JIRA: CPOUI5ODATAV4-1583, bSkipRefresh=" + bSkipRefresh, function (assert) {
+		var oBinding,
+			oContext,
+			oModel = createTeaBusiModel({autoExpandSelect : true}),
+			fnRespond0,
+			fnRespond1,
+			sView = '\
+<t:Table id="table" rows="{/TEAMS}">\
+	<Text id="id" text="{Team_Id}"/>\
+	<Text id="name" text="{Name}"/>\
+	<Text id="budget" text="{Budget}"/>\
+	<Text id="budgetCurency" text="{BudgetCurrency}"/>\
+</t:Table>',
+			that = this;
+
+		this.expectRequest("TEAMS?$select=Budget,BudgetCurrency,Name,Team_Id&$skip=0&$top=110",
+				{value : []})
+			.expectChange("id", [])
+			.expectChange("name", [])
+			.expectChange("budget", [])
+			.expectChange("budgetCurency", []);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			oBinding = that.oView.byId("table").getBinding("rows");
+			oContext = oBinding.create({}, bSkipRefresh, /*bAtEnd*/false, /*bInactive*/true);
+
+			that.expectChange("id", [""])
+				.expectChange("name", ["New A"])
+				.expectChange("budget", [null])
+				.expectChange("budgetCurency", [""])
+				.expectRequest({
+					method : "POST",
+					payload : {Name : "New A"},
+					url : "TEAMS"
+				}, new Promise(function (_resolve, reject) {
+					fnRespond0 = reject.bind(null, createError()); // take care of timing
+				}));
+
+			oContext.setProperty("Name", "New A"); // activate
+
+			return that.waitForChanges(assert, "activate");
+		}).then(function () {
+			that.expectChange("budgetCurency", ["GBP"]);
+
+			// code under test
+			oContext.setProperty("BudgetCurrency", "GBP");
+
+			return that.waitForChanges(assert, "1st update");
+		}).then(function () {
+			that.oLogMock.expects("error").withArgs("$batch failed");
+			that.oLogMock.expects("error")
+				.withArgs("POST on 'TEAMS' failed; will be repeated automatically");
+			that.expectMessages([{
+					message : "Communication error: 500 ",
+					persistent : true,
+					technical : true,
+					type : "Error"
+				}, {
+					message : "HTTP request was not processed because $batch failed",
+					persistent : true,
+					technical : true,
+					type : "Error"
+				}])
+				.expectRequest({
+					method : "POST",
+					// Note: PATCH is merged into POST
+					payload : {BudgetCurrency : "GBP", Name : "New A"},
+					url : "TEAMS"
+				}, new Promise(function (resolve) {
+					fnRespond1 = resolve.bind(null, {
+						"@odata.etag" : "etag0",
+						Budget : "0",
+						BudgetCurrency : "EUR",
+						Name : "New A Team",
+						Team_Id : "TEAM_A"
+					});
+				}));
+
+			fnRespond0();
+
+			return that.waitForChanges(assert, "1st response");
+		}).then(function () {
+			that.expectChange("budget", ["1,234"]);
+
+			// code under test
+			oContext.setProperty("Budget", "1234");
+
+			return that.waitForChanges(assert, "2nd update");
+		}).then(function () {
+			that.expectChange("id", ["TEAM_A"])
+				.expectChange("name", ["New A Team"])
+				.expectChange("budget", ["0"]) //TODO
+				.expectChange("budgetCurency", ["EUR"]);
+			if (!bSkipRefresh) {
+				that.expectRequest("TEAMS('TEAM_A')?$select=Budget,BudgetCurrency,Name,Team_Id", {
+						"@odata.etag" : "etag1",
+						Budget : "1",
+						BudgetCurrency : "DEM",
+						Name : "New 'A' Team",
+						Team_Id : "TEAM_A"
+					})
+					.expectChange("name", ["New 'A' Team"])
+					.expectChange("budget", ["1"])
+					.expectChange("budgetCurency", ["DEM"]);
+			}
+			that.expectChange("budget", ["1,234"]) //TODO much too late, there's a GET in between!
+				.expectRequest({
+					headers : {"If-Match" : bSkipRefresh ? "etag0" : "etag1"},
+					method : "PATCH",
+					// Note: up-to-date currency value is used!
+					payload : {Budget : "1234", BudgetCurrency : bSkipRefresh ? "EUR" : "DEM"},
+					url : "TEAMS('TEAM_A')"
+				}, {
+					"@odata.etag" : "etag2",
+					Budget : "4321",
+					BudgetCurrency : "USD",
+					Name : "'A' Team",
+					Team_Id : "TEAM_A"
+				})
+				.expectChange("name", ["'A' Team"])
+				.expectChange("budget", ["4,321"])
+				.expectChange("budgetCurency", ["USD"]);
+
+			fnRespond1();
+
+			return that.waitForChanges(assert, "2nd response");
+		}).then(function () {
+			assert.strictEqual(oContext.getProperty("@odata.etag"), "etag2");
+		});
+	});
+});
+
+	//*********************************************************************************************
+	// Scenario: Main & dependent detail table. Create inactive rows for the detail table.
+	// Deleting the parent contexts works although there are inactive rows in dependent binding.
+	// JIRA: CPOUI5ODATAV4-1468
+	QUnit.test("delete parent context, inactive rows are in dependent binding", function (assert) {
+		var oContext,
+			oDetailTable,
+			oDetailBinding,
+			oModel = createSalesOrdersModel({autoExpandSelect : true}),
+			sView = '\
+<Table id="mainTable" items="{/SalesOrderList}">\
+	<Text id="salesOrderId" text="{SalesOrderID}"/>\
+</Table>\
+<Table id="detailTable" items="{path: \'SO_2_SOITEM\', parameters : {$$ownRequest : true}}">\
+	<Text id="itemPosition" text="{ItemPosition}"/>\
+	<Text id="note" text="{Note}"/>\
+</Table>',
+			that = this;
+
+		this.expectRequest("SalesOrderList?$select=SalesOrderID&$skip=0&$top=100", {
+			value : [{
+				SalesOrderID : "42"
+			}]
+		})
+			.expectChange("salesOrderId", ["42"])
+			.expectChange("itemPosition", [])
+			.expectChange("note", []);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			oContext = that.oView.byId("mainTable").getItems()[0].getBindingContext();
+			oDetailTable = that.oView.byId("detailTable");
+
+			that.expectRequest("SalesOrderList('42')/SO_2_SOITEM?"
+					+ "$select=ItemPosition,Note,SalesOrderID&$skip=0&$top=100", {
+				value : [{
+					SalesOrderID : "42",
+					ItemPosition : "1",
+					Note : "Foohoo"
+				}]
+			})
+				.expectChange("itemPosition", ["1"])
+				.expectChange("note", ["Foohoo"]);
+
+			oDetailTable.setBindingContext(oContext);
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			oDetailBinding = oDetailTable.getBinding("items");
+
+			that.expectChange("itemPosition", [, "", ""])
+				.expectChange("note", [, "First", "Second"]);
+
+			oDetailBinding.create({Note : "First"}, true, true, true);
+			oDetailBinding.create({Note : "Second"}, true, true, true);
+
+			assert.deepEqual(oDetailBinding.getCurrentContexts().length, 3);
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest({
+					method : "DELETE",
+					url : "SalesOrderList('42')"
+				})
+				.expectChange("salesOrderId", []);
+
+			return Promise.all([
+				// code under test
+				that.oView.byId("mainTable").getBinding("items").getCurrentContexts()[0].delete(),
+				that.waitForChanges(assert)
+			]);
+		}).then(function () {
+			assert.strictEqual(oContext.oBinding, undefined);
+			assert.deepEqual(oDetailBinding.getCurrentContexts(), []);
+		});
 	});
 });

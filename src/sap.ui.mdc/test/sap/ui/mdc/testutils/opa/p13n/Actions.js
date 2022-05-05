@@ -17,7 +17,8 @@ sap.ui.define([
 	"./Util",
 	"sap/base/Log",
 	"sap/base/util/UriParameters",
-	"sap/ui/core/Core"
+	"sap/ui/core/Core",
+	"sap/ui/Device"
 ], function(
 	Opa5,
 	Matcher,
@@ -33,7 +34,8 @@ sap.ui.define([
 	Util,
 	Log,
 	UriParameters,
-	oCore
+	oCore,
+	Device
 ) {
 	"use strict";
 
@@ -48,88 +50,39 @@ sap.ui.define([
 			success: function(oControlInstance) {
 				Opa5.assert.ok(oControlInstance);
 
-				if (oControlInstance.isA("sap.m.Link")) {
-					// mdc.Link handling
+				aButtonMatchers.push(new Ancestor(oControlInstance));
 
-					new Press().executeOn(oControlInstance);
-					this.waitFor({
-						controlType: "sap.ui.mdc.link.Panel",
-						success: function(aPanels) {
-							Opa5.assert.equal(aPanels.length, 1, "mdc.link.Panel found");
-							var oPanel = aPanels[0];
-
-							waitForP13nButtonWithMatchers.call(this, {
-								actions: new Press(),
-								matchers: [
-									new Ancestor(oPanel, false),
-									new PropertyStrictEquals({
-										name: "text",
-										value: oMDCBundle.getText("info.POPOVER_DEFINE_LINKS")
-									})
-								],
-								success: function() {
-									waitForP13nDialog.call(this, {
-										matchers: new PropertyStrictEquals({
-											name: "title",
-											value: oMDCBundle.getText("info.SELECTION_DIALOG_ALIGNEDTITLE")
-										}),
-										success:  function(oP13nDialog) {
-											if (oSettings && typeof oSettings.success === "function") {
-												oSettings.success.call(this, oP13nDialog);
-											}
-										}
-									});
-								}
-							});
-						}
+				if (oControlInstance.isA("sap.ui.comp.smartchart.SmartChart")) {
+					aDialogMatchers.push(function(oP13nDialog) {
+						return oP13nDialog.getParent().getChart() === oControlInstance.getChart().getId();
 					});
 				} else {
-					aButtonMatchers.push(new Ancestor(oControlInstance));
-
-					if (oControlInstance.isA("sap.ui.comp.smartchart.SmartChart")) {
-						aDialogMatchers.push(function(oP13nDialog) {
-							return oP13nDialog.getParent().getChart() === oControlInstance.getChart().getId();
-						});
-					} else {
-						aDialogMatchers.push(new Ancestor(oControlInstance, false));
-					}
-
-					if (oControlInstance.isA("sap.ui.mdc.FilterBar")) {
-						// Add matcher for p13n button text
-						var oMatcher = new Matcher();
-						oMatcher.isMatching = function(oButton) {
-							return oButton.getText().includes(oMDCBundle.getText("filterbar.ADAPT"));
-						};
-						aButtonMatchers.push(oMatcher);
-						aDialogMatchers.push(new Properties({
-							title: oMDCBundle.getText("filterbar.ADAPT_TITLE")
-						}));
-					} else {
-						// Add matcher for p13n button icon
-						aButtonMatchers.push(new Properties({
-							icon: Util.icons.settings
-						}));
-						aDialogMatchers.push(new Properties({
-							title: oMDCBundle.getText("p13nDialog.VIEW_SETTINGS")
-						}));
-					}
-
-					waitForP13nButtonWithMatchers.call(this, {
-						actions: new Press(),
-						matchers: aButtonMatchers,
-						success: function() {
-							waitForP13nDialog.call(this, {
-								matchers: aDialogMatchers,
-								success:  function(oP13nDialog) {
-									if (oSettings && typeof oSettings.success === "function") {
-										oSettings.success.call(this, oP13nDialog);
-									}
-								}
-							});
-						},
-						errorMessage: "Control '" + sControlId + "' has no P13n button"
-					});
+					aDialogMatchers.push(new Ancestor(oControlInstance, false));
 				}
+
+				// Add matcher for p13n button icon
+				aButtonMatchers.push(new Properties({
+					icon: Util.icons.settings
+				}));
+				aDialogMatchers.push(new Properties({
+					title: oMDCBundle.getText("p13nDialog.VIEW_SETTINGS")
+				}));
+
+				waitForP13nButtonWithMatchers.call(this, {
+					actions: new Press(),
+					matchers: aButtonMatchers,
+					success: function() {
+						waitForP13nDialog.call(this, {
+							matchers: aDialogMatchers,
+							success:  function(oP13nDialog) {
+								if (oSettings && typeof oSettings.success === "function") {
+									oSettings.success.call(this, oP13nDialog);
+								}
+							}
+						});
+					},
+					errorMessage: "Control '" + sControlId + "' has no P13n button"
+				});
 			},
 			errorMessage: "Control '" + sControlId + "' not found."
 		});
@@ -264,8 +217,8 @@ sap.ui.define([
 		});
 	};
 
-	var iPersonalize = function(oControl, sPanelName, oSettings) {
-		return iOpenThePersonalizationDialog.call(this, oControl, {
+	var iPersonalize = function(oControl, sPanelName, fnOpenThePersonalizationDialog, oSettings) {
+		return fnOpenThePersonalizationDialog.call(this, oControl, {
 			success:  function(oP13nDialog) {
 				iNavigateToPanel.call(this, oP13nDialog, sPanelName, {
 					success: function() {
@@ -308,33 +261,34 @@ sap.ui.define([
 	};
 
 	var iChangeSelectSelection = function(oSelect, sNew) {
-		new Press().executeOn(oSelect);
-		this.waitFor({
-			controlType: "sap.m.Popover",
-			matchers: new Ancestor(oSelect),
-			success: function(aPopovers) {
-				Opa5.assert.ok(aPopovers.length === 1, "Selection popover found");
-				var oPopover = aPopovers[0];
-				this.waitFor({
-					controlType: "sap.ui.core.Item",
-					matchers: [
-						new Ancestor(oPopover, false),
-						new PropertyStrictEquals({
-							name: "text",
-							value: sNew
-						})
-					],
-					actions: new Press(),
-					errorMessage: "Selection Item with text '" + sNew + "' not found"
-				});
-			}
-		});
+		// if (oSelect.isA("sap.m.Select")) {
+			new Press().executeOn(oSelect);
+			this.waitFor({
+				controlType: "sap.m.Popover",
+				matchers: new Ancestor(oSelect),
+				success: function(aPopovers) {
+					Opa5.assert.ok(aPopovers.length === 1, "Selection popover found");
+					var oPopover = aPopovers[0];
+					this.waitFor({
+						controlType: "sap.ui.core.Item",
+						matchers: [
+							new Ancestor(oPopover, false),
+							new PropertyStrictEquals({
+								name: "text",
+								value: sNew
+							})
+						],
+						actions: new Press(),
+						errorMessage: "Selection Item with text '" + sNew + "' not found"
+					});
+				}
+			});
 	};
 
-	var iChangeSelectOnPanel = function(oGroupPanel, sOld, sNew, oSettings) {
-		waitForSelectWithSelectedTextOnPanel.call(this, sOld, oGroupPanel, {
+	var iChangeSelectOnPanel = function(oGroupPanel, sNew, oSettings) {
+		waitForSelectWithSelectedTextOnPanel.call(this, "", oGroupPanel, {
 			actions: function (oSelect) {
-				iChangeSelectSelection.call(this, oSelect, sNew);
+				iChangeComboBoxSelection.call(this, oSelect, sNew);
 			}.bind(this),
 			success: function(oSelect) {
 				if (oSettings && typeof oSettings.success === "function") {
@@ -345,7 +299,7 @@ sap.ui.define([
 	};
 
 	var iAddGroupConfiguration = function(oGroupPanel, oGroupConfiguration) {
-		return iChangeSelectOnPanel.call(this, oGroupPanel, Util.texts.none, oGroupConfiguration.key, {
+		return iChangeSelectOnPanel.call(this, oGroupPanel, oGroupConfiguration.key, {
 			success: function(oSelect) {
 				if (oGroupConfiguration.showFieldAsColumn !== undefined) {
 					this.waitFor({
@@ -370,7 +324,7 @@ sap.ui.define([
 	};
 
 	var iAddSortConfiguration = function(oSortPanel, oSortConfiguration) {
-		return iChangeSelectOnPanel.call(this, oSortPanel, Util.texts.none, oSortConfiguration.key, {
+		return iChangeSelectOnPanel.call(this, oSortPanel, oSortConfiguration.key, {
 			success: function(oSelect) {
 				if (oSortConfiguration.descending !== undefined) {
 					this.waitFor({
@@ -495,7 +449,7 @@ sap.ui.define([
 
 	var iPersonalizeListViewItems = function(oP13nDialog, aItems) {
 		this.waitFor({
-			controlType: oP13nDialog.getContent()[0].getView("columns") && oP13nDialog.getContent()[0].getView("columns").getContent().isA("sap.ui.mdc.p13n.panels.ListView") ? "sap.ui.mdc.p13n.panels.ListView" : "sap.m.p13n.SelectionPanel",
+			controlType: oP13nDialog.getContent()[0].getView("columns") && oP13nDialog.getContent()[0].getView("columns").getContent().isA("sap.m.p13n.SelectionPanel") ? "sap.m.p13n.SelectionPanel" : "sap.m.p13n.SelectionPanel",
 			matchers: new Ancestor(oP13nDialog, false),
 			success: function(aListViews) {
 				var oListView = aListViews[0];
@@ -740,17 +694,22 @@ sap.ui.define([
 		 * 2. Selects a chart type given by <code>sChartType</code>.
 		 * 3. Executes the given <code>ChartPersonalizationConfiguration</code>.
 		 * 4. Closes the personalization dialog.
-		 * @param {sap.ui.core.Control | string} oChart Instance / ID of the <code>SmartChart</code> that is personalized
+		 * @param {sap.ui.core.Control | string} oControl Instance / ID of the <code>SmartChart</code> that is personalized
 		 * @param {string} sChartType String containing the type of chart that is displayed
-		 * @param {ChartPersonalizationConfiguration[]} aConfigurations Array containing the chart personalization configuration objects
+		 * @param {ChartPersonalizationConfiguration[]} aItems Array containing the chart personalization configuration objects
+		 * @param {bool} bIsMDC indicates, that the action is called by the MDC framework instead of comp
+		 * @param {function} fnOpenThePersonalizationDialog a function which opens the personalization dialog of the given control
 		 * @returns {Promise} OPA waitFor
 		 */
-		iPersonalizeChart: function(oControl, sChartType, aItems) {
-			return iPersonalize.call(this, oControl, Util.texts.chart, {
+		iPersonalizeChart: function(oControl, sChartType, aItems, bIsMDC, fnOpenThePersonalizationDialog) {
+			fnOpenThePersonalizationDialog = fnOpenThePersonalizationDialog ? fnOpenThePersonalizationDialog : iOpenThePersonalizationDialog;
+			return iPersonalize.call(this, oControl, Util.texts.chart, fnOpenThePersonalizationDialog, {
 				success: function(oP13nDialog) {
 
-					//oP13nDialog.getContent()[0].getView("item") && oP13nDialog.getContent()[0].getView("item").getContent().isA("sap.ui.mdc.p13n.panels.ListView")
-					if (oP13nDialog.getContent()[0].getView("dimeasure").getContent().isA("sap.m.P13nDimMeasurePanel")){
+					var sViewName = bIsMDC ? "Item" : "dimeasure";
+
+					//oP13nDialog.getContent()[0].getView("item") && oP13nDialog.getContent()[0].getView("item").getContent().isA("sap.m.p13n.SelectionPanel")
+					if (oP13nDialog.getContent()[0].getView(sViewName).getContent().isA("sap.m.P13nDimMeasurePanel")){
 						iPersonalizeOldChartP13n.call(this, oControl, sChartType, aItems, oP13nDialog);
 					} else {
 						this.waitFor({
@@ -817,9 +776,20 @@ sap.ui.define([
 
 										var fnAddAllItems = function(oCurrentItem, aItems, fnFollowUp){
 											if (oCurrentItem.kind) {
+
+												var sKind = oCurrentItem.kind;
+
+												if (bIsMDC) {
+													if (sKind === "Dimension") {
+														sKind = "Groupable";
+													} else if (sKind === "Measure") {
+														sKind = "Aggregatable";
+													}
+												}
+
 												this.waitFor({
 													controlType: "sap.m.ComboBox",
-													id: "p13nPanel-templateComboBox-" + oCurrentItem.kind,
+													id: "p13nPanel-templateComboBox-" + sKind,
 													matchers: new Ancestor(oP13nDialog, false),
 													actions: function(oComboBox) {
 														iChangeComboBoxSelection.call(this, oComboBox, oCurrentItem.key);
@@ -908,18 +878,21 @@ sap.ui.define([
 		 * 3. Closes the personalization dialog.
 		 * @param {sap.ui.core.Control | string} oControl Instance / ID of the control which is to be personalized
 		 * @param {string[]} aColumns Array containing the labels of the columns that are the result of the personalization
+		 * @param {function} fnOpenThePersonalizationDialog a function which opens the personalization dialog of the given control
 		 * @returns {Promise} Opa waitFor
 		 */
-		 iPersonalizeColumns: function(oControl, aColumns) {
-			return iPersonalize.call(this, oControl, Util.texts.column, {
+		 iPersonalizeColumns: function(oControl, aColumns, fnOpenThePersonalizationDialog) {
+			fnOpenThePersonalizationDialog = fnOpenThePersonalizationDialog ? fnOpenThePersonalizationDialog : iOpenThePersonalizationDialog;
+			return iPersonalize.call(this, oControl, Util.texts.column, fnOpenThePersonalizationDialog, {
 				success: function(oP13nDialog) {
 					iPersonalizeListViewItems.call(this, oP13nDialog, aColumns);
 				}
 			});
 		},
-		iPersonalizeFilterBar: function(oControl, mSettings) {
+		iPersonalizeFilterBar: function(oControl, mSettings, fnOpenThePersonalizationDialog) {
+			fnOpenThePersonalizationDialog = fnOpenThePersonalizationDialog ? fnOpenThePersonalizationDialog : iOpenThePersonalizationDialog;
 			var sIcon = Util.icons.group;
-			return iOpenThePersonalizationDialog.call(this, oControl, {
+			return fnOpenThePersonalizationDialog.call(this, oControl, {
 				success: function(oP13nDialog) {
 					this.waitFor({
 						controlType: "sap.m.Button",
@@ -972,10 +945,12 @@ sap.ui.define([
 		/**
 		 * @param {sap.ui.core.Control | string} oControl Instance / ID of the control which is to be personalized
 		 * @param {string[]} aLinks an array containing the names of the links that should be result of the personalisation
+		 * @param {function} fnOpenThePersonalizationDialog a function which opens the personalization dialog of the <code>mdc.Link</code>
 		 * @returns {Promise} Opa waitFor
 		 */
-		iPersonalizeLink: function(oControl, aLinks) {
-			return iOpenThePersonalizationDialog.call(this, oControl, {
+		iPersonalizeLink: function(oControl, aLinks, fnOpenThePersonalizationDialog) {
+			fnOpenThePersonalizationDialog = fnOpenThePersonalizationDialog ? fnOpenThePersonalizationDialog : iOpenThePersonalizationDialog;
+			return fnOpenThePersonalizationDialog.call(this, oControl, {
 				success: function(oP13nDialog) {
 					this.waitFor({
 						controlType: "sap.ui.mdc.p13n.panels.LinkSelectionPanel",
@@ -1030,10 +1005,12 @@ sap.ui.define([
 		 * 3. Closes the personalization dialog.
 		 * @param {sap.ui.core.Control | string} oControl Instance / ID of the <code>Control</code> that is filtered
 		 * @param {FilterPersonalizationConfiguration[]} aConfigurations Array containing the filter personalization configuration objects
+		 * @param {function} fnOpenThePersonalizationDialog a function which opens the personalization dialog of the given control
 		 * @returns {Promise} OPA waitFor
 		 */
-		iPersonalizeFilter: function(oControl, aConfigurations) {
-			return iPersonalize.call(this, oControl, Util.texts.filter, {
+		iPersonalizeFilter: function(oControl, aConfigurations, fnOpenThePersonalizationDialog) {
+			fnOpenThePersonalizationDialog = fnOpenThePersonalizationDialog ? fnOpenThePersonalizationDialog : iOpenThePersonalizationDialog;
+			return iPersonalize.call(this, oControl, Util.texts.filter, fnOpenThePersonalizationDialog, {
 				success: function(oP13nDialog) {
 					this.waitFor({
 						controlType: "sap.ui.comp.p13n.P13nFilterPanel",
@@ -1087,10 +1064,12 @@ sap.ui.define([
 		 * 3. Closes the personalization dialog.
 		 * @param {sap.ui.core.Control | string} oControl Instance / ID of the control which is to be reset
 		 * @param {GroupPersonalizationConfiguration[]} aConfigurations an array containing the group personalization configuration objects
+		 * @param {function} fnOpenThePersonalizationDialog a function which opens the personalization dialog of the given control
 		 * @returns {Promise} Opa waitFor
 		 */
-		iPersonalizeGroup: function(oControl, aConfigurations) {
-			return iPersonalize.call(this, oControl, Util.texts.group, {
+		iPersonalizeGroup: function(oControl, aConfigurations, fnOpenThePersonalizationDialog) {
+			fnOpenThePersonalizationDialog = fnOpenThePersonalizationDialog ? fnOpenThePersonalizationDialog : iOpenThePersonalizationDialog;
+			return iPersonalize.call(this, oControl, Util.texts.group, fnOpenThePersonalizationDialog, {
 				success: function(oP13nDialog) {
 					this.waitFor({
 						controlType: oP13nDialog.getContent()[0].getView("group") && oP13nDialog.getContent()[0].getView("group").getContent().isA("sap.ui.mdc.p13n.panels.GroupPanel") ? "sap.ui.mdc.p13n.panels.GroupPanel" : "sap.m.p13n.GroupPanel",
@@ -1132,10 +1111,12 @@ sap.ui.define([
 		 * 3. Closes the personalization dialog.
 		 * @param {sap.ui.core.Control | string} oControl Instance / ID of the <code>Control</code> that is sorted
 		 * @param {SortPersonalizationConfiguration[]} aConfigurations Array containing the sort personalization configuration objects
+		 * @param {function} fnOpenThePersonalizationDialog a function which opens the personalization dialog of the given control
 		 * @returns {Promise} OPA waitFor
 		 */
-		iPersonalizeSort: function(oControl, aConfigurations) {
-			return iPersonalize.call(this, oControl, Util.texts.sort, {
+		iPersonalizeSort: function(oControl, aConfigurations, fnOpenThePersonalizationDialog) {
+			fnOpenThePersonalizationDialog = fnOpenThePersonalizationDialog ? fnOpenThePersonalizationDialog : iOpenThePersonalizationDialog;
+			return iPersonalize.call(this, oControl, Util.texts.sort, fnOpenThePersonalizationDialog, {
 				success: function(oP13nDialog) {
 					this.waitFor({
 						controlType: oP13nDialog.getContent()[0].getView("sort") && oP13nDialog.getContent()[0].getView("sort").getContent().isA("sap.ui.mdc.p13n.panels.SortQueryPanel") ? "sap.ui.mdc.p13n.panels.SortQueryPanel" : "sap.m.p13n.SortPanel",
@@ -1172,10 +1153,12 @@ sap.ui.define([
 		 * 3. Confirms the reset dialog.
 		 * 4. Closes the personalization dialog.
 		 * @param {sap.ui.core.Control | string} oControl Instance / ID of the <code>Control</code> that is reset
+		 * @param {function} fnOpenThePersonalizationDialog a function which opens the personalization dialog of the <code>mdc.Link</code>
 		 * @returns {Promise} OPA waitFor
 		 */
-		iResetThePersonalization: function (oControl) {
-			return iOpenThePersonalizationDialog.call(this, oControl, {
+		iResetThePersonalization: function (oControl, fnOpenThePersonalizationDialog) {
+			fnOpenThePersonalizationDialog = fnOpenThePersonalizationDialog ? fnOpenThePersonalizationDialog : iOpenThePersonalizationDialog;
+			return fnOpenThePersonalizationDialog.call(this, oControl, {
 				success: function(oP13nDialog) {
 					iPressTheResetButtonOnTheDialog.call(this, oP13nDialog, {
 						success: function() {

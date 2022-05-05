@@ -15,8 +15,18 @@ sap.ui.define([
 
 		"use strict";
 
-		// delegate further initialization of this library to the Core
-		sap.ui.getCore().initLibrary({
+		/**
+		 * SAPUI5 library with controls based on UI5 Web Components
+		 *
+		 * @namespace
+		 * @alias sap.ui.webc.main
+		 * @author SAP SE
+		 * @version ${version}
+		 * @public
+		 * @since 1.92.0
+		 * @experimental Since 1.92.0 This API is experimental and might change significantly.
+		 */
+		var thisLib = sap.ui.getCore().initLibrary({
 			name: "sap.ui.webc.main",
 			version: "${version}",
 			dependencies: ["sap.ui.core", "sap.ui.webc.common"],
@@ -33,6 +43,7 @@ sap.ui.define([
 				"sap.ui.webc.main.IInput",
 				"sap.ui.webc.main.IInputSuggestionItem",
 				"sap.ui.webc.main.IListItem",
+				"sap.ui.webc.main.IMenuItem",
 				"sap.ui.webc.main.IMultiComboBoxItem",
 				"sap.ui.webc.main.ISegmentedButtonItem",
 				"sap.ui.webc.main.ISelectOption",
@@ -112,6 +123,8 @@ sap.ui.define([
 				"sap.ui.webc.main.Label",
 				"sap.ui.webc.main.Link",
 				"sap.ui.webc.main.List",
+				"sap.ui.webc.main.Menu",
+				"sap.ui.webc.main.MenuItem",
 				"sap.ui.webc.main.MessageStrip",
 				"sap.ui.webc.main.MultiComboBox",
 				"sap.ui.webc.main.MultiComboBoxItem",
@@ -154,19 +167,42 @@ sap.ui.define([
 			elements: [],
 			extensions: {
 				flChangeHandlers: {
+					"sap.ui.webc.main.Badge": "sap/ui/webc/main/flexibility/Badge",
+					"sap.ui.webc.main.BusyIndicator": {
+						"hideControl": "default",
+						"unhideControl": "default"
+					},
+					"sap.ui.webc.main.Button": "sap/ui/webc/main/flexibility/Button",
+					"sap.ui.webc.main.Card": {
+						"hideControl": "default",
+						"unhideControl": "default"
+					},
+					"sap.ui.webc.main.Carousel": {
+						"hideControl": "default",
+						"unhideControl": "default"
+					},
+					"sap.ui.webc.main.DatePicker": {
+						"hideControl": "default",
+						"unhideControl": "default"
+					},
+					"sap.ui.webc.main.DateTimePicker": {
+						"hideControl": "default",
+						"unhideControl": "default"
+					},
+					"sap.ui.webc.main.Dialog": "sap/ui/webc/main/flexibility/Dialog",
 					"sap.ui.webc.main.Input": {
 						"hideControl": "default",
 						"unhideControl": "default"
 					},
+					"sap.ui.webc.main.Label": "sap/ui/webc/main/flexibility/Label",
+					"sap.ui.webc.main.Link": "sap/ui/webc/main/flexibility/Link",
 					"sap.ui.webc.main.MultiInput": {
 						"hideControl": "default",
 						"unhideControl": "default"
 					},
-					"sap.ui.webc.main.Panel": {
-						"hideControl": "default",
-						"unhideControl": "default",
-						"moveControls": "default"
-					},
+					"sap.ui.webc.main.Panel": "sap/ui/webc/main/flexibility/Panel",
+					"sap.ui.webc.main.Popover": "sap/ui/webc/main/flexibility/Popover",
+					"sap.ui.webc.main.RadioButton": "sap/ui/webc/main/flexibility/RadioButton",
 					"sap.ui.webc.main.RangeSlider": {
 						"hideControl": "default",
 						"unhideControl": "default"
@@ -175,27 +211,21 @@ sap.ui.define([
 						"hideControl": "default",
 						"unhideControl": "default"
 					},
+					"sap.ui.webc.main.ResponsivePopover": "sap/ui/webc/main/flexibility/ResponsivePopover",
 					"sap.ui.webc.main.Slider": {
 						"hideControl": "default",
 						"unhideControl": "default"
-					}
+					},
+					"sap.ui.webc.main.Tab": "sap/ui/webc/main/flexibility/Tab",
+					"sap.ui.webc.main.TabContainer": "sap/ui/webc/main/flexibility/TabContainer",
+					"sap.ui.webc.main.Table": {
+						"hideControl": "default",
+						"unhideControl": "default"
+					},
+					"sap.ui.webc.main.Title": "sap/ui/webc/main/flexibility/Title"
 				}
 			}
 		});
-
-		/**
-		 * SAPUI5 library with controls based on UI5 Web Components
-		 *
-		 * @namespace
-		 * @alias sap.ui.webc.main
-		 * @author SAP SE
-		 * @version ${version}
-		 * @public
-		 * @since 1.92.0
-		 * @experimental Since 1.92.0 This API is experimental and might change significantly.
-		 */
-		var thisLib = sap.ui.webc.main;
-
 
 		/**
 		 * Interface for components that represent an avatar and may be slotted in numerous higher-order components such as <code>ui5-avatar-group</code>
@@ -242,7 +272,7 @@ sap.ui.define([
 		 */
 
 		/**
-		 * Interface for components that may be used inside a <code>ui5-color-palette</code>
+		 * Interface for components that may be used inside a <code>ui5-color-palette</code> or <code>ui5-color-palette-popover</code>
 		 *
 		 * @name sap.ui.webc.main.IColorPaletteItem
 		 * @interface
@@ -304,6 +334,17 @@ sap.ui.define([
 		 * @public
 		 * @since 1.92.0
 		 * @experimental Since 1.92.0 This API is experimental and might change significantly.
+		 * @ui5-metamodel This enumeration also will be described in the UI5 (legacy) designtime metamodel
+		 */
+
+		/**
+		 * Interface for components that may be slotted inside <code>ui5-menu</code> as items
+		 *
+		 * @name sap.ui.webc.main.IMenuItem
+		 * @interface
+		 * @public
+		 * @since 1.102.0
+		 * @experimental Since 1.102.0 This API is experimental and might change significantly.
 		 * @ui5-metamodel This enumeration also will be described in the UI5 (legacy) designtime metamodel
 		 */
 
@@ -943,7 +984,7 @@ sap.ui.define([
 
 
 		/**
-		 * Defines the growing mode, used in the <code>ui5-List</code>.
+		 * Defines the growing mode, used in the <code>ui5-list</code>.
 		 *
 		 * @enum {string}
 		 * @public
@@ -951,7 +992,26 @@ sap.ui.define([
 		 * @experimental Since 1.92.0 This API is experimental and might change significantly.
 		 * @ui5-metamodel This enumeration also will be described in the UI5 (legacy) designtime metamodel
 		 */
-		thisLib.ListGrowingMode = {};
+		thisLib.ListGrowingMode = {
+
+			/**
+			 * Component's <code>load-more</code> is fired upon pressing a "More" button. at the bottom.
+			 * @public
+			 */
+			Button: "Button",
+
+			/**
+			 * Component's growing is not enabled.
+			 * @public
+			 */
+			None: "None",
+
+			/**
+			 * Component's <code>load-more</code> is fired upon scroll.
+			 * @public
+			 */
+			Scroll: "Scroll"
+		};
 
 
 		/**
@@ -1389,7 +1449,26 @@ sap.ui.define([
 		 * @experimental Since 1.92.0 This API is experimental and might change significantly.
 		 * @ui5-metamodel This enumeration also will be described in the UI5 (legacy) designtime metamodel
 		 */
-		thisLib.TableGrowingMode = {};
+		thisLib.TableGrowingMode = {
+
+			/**
+			 * Component's <code>load-more</code> is fired upon pressing a "More" button. at the bottom.
+			 * @public
+			 */
+			Button: "Button",
+
+			/**
+			 * Component's growing is not enabled.
+			 * @public
+			 */
+			None: "None",
+
+			/**
+			 * Component's <code>load-more</code> is fired upon scroll.
+			 * @public
+			 */
+			Scroll: "Scroll"
+		};
 
 
 		/**

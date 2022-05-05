@@ -200,11 +200,12 @@ sap.ui.define([
 			navigationMode : {type : "sap.ui.table.NavigationMode", group : "Behavior", defaultValue : NavigationMode.Scrollbar, deprecated: true},
 
 			/**
-			 * The <code>threshold</code> defines how many additional (not yet visible records) shall be pre-fetched to enable smooth
-			 * scrolling. The threshold is always added to the <code>visibleRowCount</code>. If the <code>visibleRowCount</code> is 10 and the
+			 * Defines how many additional (not yet visible) data records from the back-end system are pre-fetched to enable smooth scrolling.
+			 * The threshold is always added to the <code>visibleRowCount</code>. If the <code>visibleRowCount</code> is 10 and the
 			 * <code>threshold</code> is 100, there will be 110 records fetched with the initial load.
-			 * If the <code>threshold</code> is lower than the <code>visibleRowCount</code>, the <code>visibleRowCount</code> will be used as
-			 * the <code>threshold</code>. If the value is 0 then the thresholding is disabled.
+			 * If the <code>threshold</code> is lower than the number of rows in the scrollable area (<code>visibleRowCount</code> minus number of
+			 * fixed rows), this number is used as the <code>threshold</code>.
+			 * If the value is 0, thresholding is disabled.
 			 */
 			threshold : {type : "int", group : "Appearance", defaultValue : 100},
 
@@ -446,6 +447,14 @@ sap.ui.define([
 			 * value this will simply replace the no data text.
 			 */
 			noData : {type : "sap.ui.core.Control", altTypes : ["string"], multiple : false},
+
+			/**
+			 * The control that is shown in case the Table has no visible columns.
+			 *
+			 * @private
+			 * @ui5-restricted sap.ui.mdc, sap.ui.comp
+			 */
+			_noColumnsMessage: {type : "sap.ui.core.Control", multiple : false, visibility: "hidden"},
 
 			/**
 			 * Template for row actions. A template is decoupled from the row or table. Each time
@@ -868,7 +877,7 @@ sap.ui.define([
 			}
 		},
 		designtime:  "sap/ui/table/designtime/Table.designtime"
-	}});
+	}, renderer: TableRenderer});
 
 	/**
 	 * Gets content of aggregation <code>dragDropConfig</code> which defines the drag-and-drop configuration.
@@ -1267,7 +1276,7 @@ sap.ui.define([
 
 		var oSapUiTableCtrlScroll = oDomRef.querySelector(".sapUiTableCtrlScroll:not(.sapUiTableCHT)");
 		if (oSapUiTableCtrlScroll) {
-			oSizes.tableCtrlScrollWidth = oSapUiTableCtrlScroll.clientWidth;
+			oSizes.tableCtrlScrollWidth = oSapUiTableCtrlScroll.getBoundingClientRect().width;
 		}
 
 		var oSapUiTableRowHdrScr = oDomRef.querySelector(".sapUiTableRowHdrScr");
@@ -1277,7 +1286,7 @@ sap.ui.define([
 
 		var oCtrlScrDomRef = oDomRef.querySelector(".sapUiTableCtrlScr:not(.sapUiTableCHA)");
 		if (oCtrlScrDomRef) {
-			oSizes.tableCtrlScrWidth = oCtrlScrDomRef.clientWidth;
+			oSizes.tableCtrlScrWidth = oCtrlScrDomRef.getBoundingClientRect().width;
 		}
 
 		var oCtrlFixed = oDomRef.querySelector(".sapUiTableCtrlScrFixed:not(.sapUiTableCHA) > .sapUiTableCtrlFixed");
@@ -1346,6 +1355,7 @@ sap.ui.define([
 
 	/**
 	 * Synchronizes the row heights.
+	 * @param {float[]} aRowItemHeights
 	 * @param {boolean} bHeader update of column headers if true, otherwise update data rows.
 	 * @private
 	 */
@@ -3515,7 +3525,7 @@ sap.ui.define([
 	 *
 	 * @returns {int} The actual fixed column count computed based on the column spans of the header, the width of the
 	 * table and the width of the columns.
-	 * @protected
+	 * @private
 	 */
 	Table.prototype.getComputedFixedColumnCount = function() {
 		if (this._bIgnoreFixedColumnCount) {
@@ -3644,7 +3654,7 @@ sap.ui.define([
 	Table.prototype._invalidateColumnMenus = function() {
 		var aCols = this.getColumns();
 		for (var i = 0, l = aCols.length; i < l; i++) {
-			aCols[i].invalidateMenu();
+			aCols[i]._invalidateMenu();
 		}
 	};
 
@@ -3765,6 +3775,16 @@ sap.ui.define([
 		var sOldNoDataText = TableUtils.getNoDataText(this);
 		this.setAggregation("noData", vNoData, true);
 		var sNewNoDataText = TableUtils.getNoDataText(this);
+
+		if (TableUtils.isA(vNoData, "sap.m.IllustratedMessage")) {
+			var oNoColumnsMessage = this.getAggregation("_noColumnsMessage");
+			if (!oNoColumnsMessage) {
+				sap.ui.require(["sap/m/table/Util"], function(MTableUtil) {
+					oNoColumnsMessage = MTableUtil.getNoColumnsIllustratedMessage();
+					this.setAggregation("_noColumnsMessage", oNoColumnsMessage);
+				}.bind(this));
+			}
+		}
 
 		// Avoid table re-rendering if only the text is changed. If the NoData text was, or will be a control, the table must be re-rendered.
 		if (sOldNoDataText != null && sNewNoDataText != null) {

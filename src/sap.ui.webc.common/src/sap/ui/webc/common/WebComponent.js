@@ -116,11 +116,24 @@ sap.ui.define([
 			metadata : {
 				stereotype : "webcomponent",
 				"abstract" : true,
-				library : "sap.ui.core"
+				library : "sap.ui.core",
+				properties: {
+					__isBusy: {
+						type: "boolean",
+						visibility: "hidden",
+						defaultValue: false,
+						mapping: {
+							type: "attribute",
+							to: "__is-busy"
+						}
+					}
+				}
 			},
 
 			constructor : function(sId, mSettings) {
 				Control.apply(this, arguments);
+
+				this.__busyIndicatorTimeout = null;
 
 				this.__onInvalidationBound = this.__onInvalidation.bind(this);
 				this.__handleCustomEventBound = this.__handleCustomEvent.bind(this);
@@ -144,7 +157,8 @@ sap.ui.define([
 		 * @private
 		 */
 		WebComponent.prototype._setSlot = function(oElement, sAggregationName) {
-			if (oElement) {
+			var aDenyList = ["tooltip", "customData", "layoutData", "dependents", "dragDropConfig"];
+			if (oElement && !aDenyList.includes(sAggregationName)) {
 				var sSlot = this.getMetadata().getAggregationSlot(sAggregationName);
 				oElement.__slot = sSlot;
 			}
@@ -272,6 +286,10 @@ sap.ui.define([
 		WebComponent.prototype.__updateObjectProperties = function(oDomRef) {
 			var oAttrProperties = this.getMetadata().getPropertiesByMapping("attribute");
 			for (var sPropName in oAttrProperties) {
+				if (this.isPropertyInitial(sPropName)) {
+					continue; // do not set properties that were not explicitly set/bound
+				}
+
 				var oPropData = oAttrProperties[sPropName];
 				var vPropValue = oPropData.get(this);
 
@@ -280,6 +298,25 @@ sap.ui.define([
 					oDomRef[sWebComponentPropName] = vPropValue;
 				}
 			}
+		};
+
+		WebComponent.prototype.setBusy = function(bBusy) {
+			var bCurrentBusyState = this.getBusy();
+
+			this.setProperty("busy", bBusy, true);
+
+			if (bCurrentBusyState !== bBusy) {
+				if (bBusy) {
+					this.__busyIndicatorTimeout = setTimeout(function() {
+						this.setProperty("__isBusy", bBusy);
+					}.bind(this), this.getBusyIndicatorDelay());
+				} else {
+					this.setProperty("__isBusy", bBusy);
+					clearTimeout(this.__busyIndicatorTimeout);
+				}
+			}
+
+			return this;
 		};
 
 		/**
@@ -293,7 +330,7 @@ sap.ui.define([
 				var vNewValue = oChangeInfo.newValue;
 				var oPropData = this.getMetadata().getProperty(sPropName);
 				if (oPropData) {
-					oPropData.set(this, vNewValue);
+					this.setProperty(sPropName, vNewValue, true); // must suppress invalidation as this is intended to only sync the managed object state, not to trigger a rerender
 				}
 			}
 		};
@@ -358,7 +395,12 @@ sap.ui.define([
 				return arg;
 			});
 
-			return this.getDomRef()[name].apply(this.getDomRef(), converted);
+			var vResult = this.getDomRef()[name].apply(this.getDomRef(), converted);
+			if (typeof vResult === "object") {
+				vResult = fnConvert(vResult);
+			}
+
+			return vResult;
 		};
 
 		WebComponent.prototype.__callPublicGetter = function(name) {
@@ -366,7 +408,12 @@ sap.ui.define([
 				throw new Error("Getter called before custom element has been created by: " + this.getId());
 			}
 
-			return this.getDomRef()[name];
+			var vResult = this.getDomRef()[name];
+			if (typeof vResult === "object") {
+				vResult = fnConvert(vResult);
+			}
+
+			return vResult;
 		};
 
 		WebComponent.prototype.destroy = function() {
@@ -376,9 +423,18 @@ sap.ui.define([
 				oDomRef.detachInvalidate(this.__onInvalidationBound);
 			}
 
-			return Control.prototype.destroy.call(this, arguments);
+			return Control.prototype.destroy.apply(this, arguments);
 		};
 
+		/**
+		 * Maps the "enabled" property to the "disabled" attribute
+		 * @param bEnabled
+		 * @returns {boolean}
+		 * @private
+		 */
+		WebComponent.prototype._mapEnabled = function(bEnabled) {
+			return !bEnabled;
+		};
 
 		/**
 		 * Maps the "textDirection" property to the "dir" attribute

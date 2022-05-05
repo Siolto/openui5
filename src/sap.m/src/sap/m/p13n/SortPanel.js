@@ -28,6 +28,9 @@ sap.ui.define([
 	 */
 
 	var SortPanel = QueryPanel.extend("sap.m.p13n.SortPanel", {
+		metadata: {
+			library: "sap.m"
+		},
 		renderer: {
 			apiVersion: 2
 		}
@@ -101,7 +104,7 @@ sap.ui.define([
 		return oSortOrderSwitch;
 	};
 
-	SortPanel.prototype._createSortOrderText = function (bDesc) {
+	SortPanel.prototype._createSortOrderText = function (sKey, bDesc) {
 		return new Text({
 			layoutData: new GridData({
 				span: "XL3 L3 M3 S3",
@@ -115,7 +118,7 @@ sap.ui.define([
 		//Enhance row with sort specific controls (Segmented Button + sort order text)
 		var oSelect = this._createKeySelect(oItem.name);
 		var oSortOrderSwitch = this._createOrderSwitch(oItem.name, oItem.descending);
-		var oSortOrderText = this._createSortOrderText(oItem.descending);
+		var oSortOrderText = this._createSortOrderText(oItem.name, oItem.descending);
 
 		return new Grid({
 			containerQuery: true,
@@ -128,16 +131,25 @@ sap.ui.define([
 		}).addStyleClass("sapUiTinyMargin");
 	};
 
-	SortPanel.prototype._selectKey = function(oEvt) {
+	SortPanel.prototype._getPlaceholderText = function () {
+		return this._getResourceText("p13n.SORT_PLACEHOLDER");
+	};
+
+	SortPanel.prototype._getRemoveButtonTooltipText = function () {
+		return this._getResourceText("p13n.SORT_REMOVEICONTOOLTIP");
+	};
+
+	SortPanel.prototype._selectKey = function(oComboBox) {
 		QueryPanel.prototype._selectKey.apply(this, arguments);
 
 		//Enable SegmentedButton
-		var oListItem = oEvt.getSource().getParent().getParent();
-		var sNewKey = oEvt.getParameter("selectedItem").getKey();
-		oListItem.getContent()[0].getContent()[1].setEnabled(sNewKey !== this.NONE_KEY);
+		var oListItem = oComboBox.getParent().getParent();
+		var sNewKey = oComboBox.getSelectedKey();
+		var aContent = oListItem.getContent()[0].getContent();
+		aContent[1].setEnabled(!!sNewKey);
 
 		//keep existing 'sortorder' selection
-		var bDescending = oListItem.getContent()[0].getContent()[1].getSelectedKey() === "desc";
+		var bDescending = aContent[1].getSelectedKey() === "desc";
 		this._changeOrder(sNewKey, bDescending);
 	};
 
@@ -150,12 +162,14 @@ sap.ui.define([
 			return oItem.name === sKey;
 		});
 
-		aItems[0].descending = bDesc;
+		if (aItems.length > 0) {
+			aItems[0].descending = bDesc;
 
-		this.fireChange({
-			reason: this.CHANGE_REASON_SORTORDER,
-			item: aItems[0]
-		});
+			this.fireChange({
+				reason: this.CHANGE_REASON_SORTORDER,
+				item: aItems[0]
+			});
+		}
 	};
 
 	return SortPanel;

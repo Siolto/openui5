@@ -4,20 +4,18 @@
 
 sap.ui.define([
 	"../util/PropertyHelper",
-	"sap/ui/core/Core",
 	"sap/m/table/Util"
 ], function(
 	PropertyHelperBase,
-	Core,
 	TableUtil
 ) {
 	"use strict";
 
 	/**
-	 * @typedef {object} sap.ui.mdc.table.PropertyInfo
+	 * @typedef {Object} sap.ui.mdc.table.PropertyInfo
 	 * @extends sap.ui.mdc.util.PropertyInfo
 	 *
-	 * @property {object} [exportSettings]
+	 * @property {Object} [exportSettings]
 	 *   Object that contains information about the export settings, see {@link sap.ui.export.Spreadsheet}.
 	 * @property {int} [maxConditions]
 	 *   Defines the maximum number of filter conditions for the property. Possible values that can be used:
@@ -41,8 +39,24 @@ sap.ui.define([
 	 *   Name of the text property that is related to this property in a 1:1 relation.
 	 * @property {boolean} [required]
 	 *   Defines whether a filter condition for this property is required.
-	 * @property {object} [visualSettings]
+	 * @property {Object} [visualSettings]
 	 *   This object contains all relevant properties for visual adjustments.
+	 * @property {Object} [visualSettings.widthCalculation]
+	 *   This object contains all properties and their default values for the column width calculation
+	 * @property {integer} [visualSettings.widthCalculation.minWidth]
+	 *   The minimum content width in rem
+	 * @property {integer} [visualSettings.widthCalculation.maxWidth]
+	 *   The maximum content width in rem
+	 * @property {integer} [visualSettings.widthCalculation.defaultWidth]
+	 *   The default column content width when type check fails
+	 * @property {float} [visualSettings.widthCalculation.gap]
+	 *   The additional content width in rem
+	 * @property {boolean} [visualSettings.widthCalculation.includeLabel]
+	 *   Whether the label should be taken into account
+	 * @property {boolean} [visualSettings.widthCalculation.verticalArrangement]
+	 *   Whether the referenced properties are arranged vertically
+	 * @property {sap.ui.mdc.util.PropertyHelper[]} [visualSettings.widthCalculation.excludeProperties]
+	 *   A list of invisible referenced property names
 	 *
 	 * @private
 	 * @experimental
@@ -53,15 +67,15 @@ sap.ui.define([
 	/**
 	 * Constructor for a new table property helper.
 	 *
-	 * @param {object[]} aProperties
+	 * @param {Object[]} aProperties
 	 *     The properties to process in this helper
-	 * @param {Object<string, object>} [mExtensions]
+	 * @param {Object<string, Object>} [mExtensions]
 	 *     Key-value map, where the key is the name of the property and the value is the extension containing mode-specific information.
 	 *     The extension of a property is stored in a reserved <code>extension</code> attribute, and its attributes must be specified with
 	 *     <code>mExtensionAttributeMetadata</code>.
 	 * @param {sap.ui.base.ManagedObject} [oParent]
 	 *     A reference to an instance that will act as the parent of this helper
-	 * @param {object} [mExtensionAttributeMetadata]
+	 * @param {Object} [mExtensionAttributeMetadata]
 	 *     The attribute metadata for the model-specific property extension
 	 *
 	 * @class
@@ -116,120 +130,77 @@ sap.ui.define([
 	 *
 	 * @param {sap.ui.mdc.table.Column} oColumn The column for which to get the export settings
 	 * @param {boolean} [bSplitCells=false] Whether the <code>splitCells</code> configuration is enabled
-	 * @returns {null|object} Export setting object for the provided column
+	 * @returns {Object[]} Array of export setting objects for the provided column. Will return more than one object if it is complex property and if <code>splitCells=true</code>
 	 * @public
 	 */
-	PropertyHelper.prototype.getColumnExportSettings = function(oColumn, bSplitCells) {
+	PropertyHelper.prototype.getColumnExportSettings = function(oColumn) {
+		var aColumnExportSettings = [];
+
 		if (!isMdcColumnInstance(oColumn)) {
-			return null;
+			return aColumnExportSettings;
 		}
 
 		var oProperty = this.getProperty(oColumn.getDataProperty());
 
 		if (!oProperty) {
-			return null;
+			return aColumnExportSettings;
 		}
 
-		bSplitCells = bSplitCells === true;
-
-		var	aColumnExportSettings = [];
-		var aPropertiesFromComplexProperty;
 		var oExportSettings = oProperty.exportSettings;
-		var oColumnExportSettings;
-		var aPaths = [];
-		var sAdditionalPath;
-		var oAdditionalProperty;
-		var oAdditionExportSettings;
-		var oAdditionalColumnExportSettings;
 
-		if (oProperty.isComplex()) {
-			aPropertiesFromComplexProperty = oProperty.getReferencedProperties();
-			if (!bSplitCells && oExportSettings) {
-				oColumnExportSettings = getColumnExportSettingsObject(oColumn, oProperty, oExportSettings, bSplitCells);
-				aPropertiesFromComplexProperty.forEach(function(oProperty) {
-					aPaths.push(oProperty.path);
-				});
-				oColumnExportSettings.property = aPaths;
-				aColumnExportSettings.push(oColumnExportSettings);
-			} else {
-				// when there are no exportSettings given for a ComplexProperty or when the splitCells=true
-				aPropertiesFromComplexProperty.forEach(function(oProperty, iIndex) {
-					var oPropertyInfoExportSettings = oProperty.exportSettings,
-						oCurrentColumnExportSettings = getColumnExportSettingsObject(oColumn, oProperty, oPropertyInfoExportSettings, bSplitCells);
-					oCurrentColumnExportSettings.property = oProperty.path;
-					if (iIndex > 0) {
-						oCurrentColumnExportSettings.columnId = oColumn.getId() + "-additionalProperty" + iIndex;
-					}
-					if (oPropertyInfoExportSettings || oCurrentColumnExportSettings.property) {
-						aColumnExportSettings.push(oCurrentColumnExportSettings);
-					}
-				}, this);
-			}
-		} else if (!bSplitCells && oExportSettings) {
-			// called for basic PropertyInfo having exportSettings
-			oColumnExportSettings = getColumnExportSettingsObject(oColumn, oProperty, oExportSettings, bSplitCells);
+		// exportSettings have been set explicitly to null by the application for this column to exclude it from the export
+		if (oExportSettings === null) {
+			return aColumnExportSettings;
+		}
+
+		var aPaths = [];
+		var oColumnExportSettings;
+		var aPropertiesFromComplexProperty;
+
+		if (!oProperty.isComplex()) {
+			oColumnExportSettings = getColumnExportSettingsObject(oColumn, oProperty, oExportSettings);
 			oColumnExportSettings.property = oProperty.path;
 			aColumnExportSettings.push(oColumnExportSettings);
+
+			return aColumnExportSettings;
+		}
+
+		aPropertiesFromComplexProperty = oProperty.getReferencedProperties();
+		if (Object.keys(oExportSettings).length) {
+			oColumnExportSettings = getColumnExportSettingsObject(oColumn, oProperty, oExportSettings);
+			aPropertiesFromComplexProperty.forEach(function(oProperty) {
+				aPaths.push(oProperty.path);
+			});
+			oColumnExportSettings.property = aPaths;
+			aColumnExportSettings.push(oColumnExportSettings);
 		} else {
-			oColumnExportSettings = getColumnExportSettingsObject(oColumn, oProperty, oExportSettings, bSplitCells);
-			oColumnExportSettings.property = oProperty.path;
-			if (oColumnExportSettings.property) {
-				aColumnExportSettings.push(oColumnExportSettings);
-			}
-
-			// get Additional path in case of split cells
-			sAdditionalPath = bSplitCells && oExportSettings && oExportSettings.unitProperty ? oExportSettings.unitProperty : null;
-
-			if (sAdditionalPath) {
-				oAdditionalProperty = getAdditionalProperty(this, sAdditionalPath);
-				oAdditionExportSettings = oAdditionalProperty.exportSettings;
-				oAdditionalColumnExportSettings = getColumnExportSettingsObject(oColumn, oAdditionalProperty, oAdditionExportSettings, bSplitCells);
-				oAdditionalColumnExportSettings.property = oAdditionalProperty.path;
-				oAdditionalColumnExportSettings.columnId = oColumn.getId() + "-additionalProperty";
-				if (oAdditionExportSettings || oAdditionalColumnExportSettings.property) {
-					aColumnExportSettings.push(oAdditionalColumnExportSettings);
+			// when there are no exportSettings given for a ComplexProperty
+			aPropertiesFromComplexProperty.forEach(function(oProperty, iIndex) {
+				var oPropertyInfoExportSettings = oProperty.exportSettings,
+					oCurrentColumnExportSettings = getColumnExportSettingsObject(oColumn, oProperty, oPropertyInfoExportSettings);
+				oCurrentColumnExportSettings.property = oProperty.path;
+				if (iIndex > 0) {
+					oCurrentColumnExportSettings.columnId = oColumn.getId() + "-additionalProperty" + iIndex;
 				}
-			}
+				if (oPropertyInfoExportSettings || oCurrentColumnExportSettings.property) {
+					aColumnExportSettings.push(oCurrentColumnExportSettings);
+				}
+			});
 		}
 
 		return aColumnExportSettings;
 	};
 
 	/**
-	 * Gets the property that is identified by a <code>path</code>.
-	 *
-	 * @param {sap.ui.mdc.table.PropertyHelper} oPropertyHelper Property helper instance
-	 * @param {string} sPath The value of the <code>path</code> attribute of the property
-	 * @returns {object} The property
-	 * @public
-	 */
-	function getAdditionalProperty(oPropertyHelper, sPath) {
-		var oProperty = oPropertyHelper.getProperty(sPath);
-
-		if (!oProperty) {
-			oProperty = oPropertyHelper.getProperties().find(function(oProperty) {
-				return sPath === oProperty.path;
-			});
-		}
-
-		if (oProperty.isComplex()) {
-			throw new Error("The 'unitProperty' points to a complex property");
-		}
-
-		return oProperty;
-	}
-
-	/**
 	 * Sets defaults to export settings and returns a new export settings object.
 	 *
 	 * @param {sap.ui.mdc.table.Column} oColumn The column from which to get default values
-	 * @param {object} oProperty The property from which to get default values
-	 * @param {object} oExportSettings The export settings for which to set defaults
-	 * @param {boolean} bSplitCells Whether the <code>splitCells</code> configuration is enabled
-	 * @returns {object} The new export settings object
+	 * @param {Object} oProperty The property from which to get default values
+	 * @param {Object} oExportSettings The export settings for which to set defaults
+	 * @returns {Object} The new export settings object
 	 * @private
 	 */
-	function getColumnExportSettingsObject(oColumn, oProperty, oExportSettings, bSplitCells) {
+	function getColumnExportSettingsObject(oColumn, oProperty, oExportSettings) {
 	var oExportObj = Object.assign({
 			columnId: oColumn.getId(),
 			label: oProperty.label,
@@ -238,109 +209,67 @@ sap.ui.define([
 			type: "String"
 		}, oExportSettings);
 
-		if (bSplitCells) {
-			oExportObj.displayUnit = false;
-		}
-
 		return oExportObj;
 	}
 
 	/**
-	 * Sets the width of the provided column based on the <code>visualSettings</code> of the relevant <code>PropertyInfo</code>.
+	 * Calculates the width of the provided column based on the <code>visualSettings</code> of the relevant <code>PropertyInfo</code>.
 	 *
 	 * @param {sap.ui.mdc.table.Column} oMDCColumn The <code>Column</code> instance for which to set the width
-	 * @public
-	 * @since 1.95
+	 * @returns {sap.ui.core.CSSSize | null} The calculated width, or <code>null</code> if calculation wasn't possible
 	 */
-	PropertyHelper.prototype.setColumnWidth = function(oMDCColumn) {
+	PropertyHelper.prototype.calculateColumnWidth = function(oMDCColumn) {
 		var sPropertyName = oMDCColumn.getDataProperty();
 		var oProperty = this.getProperty(sPropertyName);
+
 		if (!oProperty) {
-			return;
+			return null;
 		}
 
 		var mPropertyInfoVisualSettings = oProperty.visualSettings;
 		if (mPropertyInfoVisualSettings && mPropertyInfoVisualSettings.widthCalculation === null) {
-			return;
+			return null;
 		}
 
-		var fWidth = this._calcColumnWidth(oProperty) + 1; // add 1rem extra for padding and border
-		oMDCColumn._updateColumnWidth(fWidth + "rem");
+		return this._calcColumnWidth(oProperty);
 	};
 
 	/**
 	 * Calculates the column width based on the provided <code>PropertyInfo</code>.
 	 *
-	 * @param {object} oProperty The properties of <code>PropertyInfo</code> of <code>Column</code> instance for which to set the width
-	 * @param {object} [mWidthCalculation] The configuration object for the width calculation
-	 * @param {int} [mWidthCalculation.minWidth=2] The minimum content width in rem
-	 * @param {int} [mWidthCalculation.maxWidth=19] The maximum content width in rem
-	 * @param {int} [mWidthCalculation.defaultWidth=8] The default column content width when type check fails
-	 * @param {boolean} [mWidthCalculation.includeLabel=true] Whether the label should be taken into account
-	 * @param {float} [mWidthCalculation.gap=0] The additional content width in rem
-	 * @param {boolean} [mWidthCalculation.verticalArrangement=false] Whether the referenced properties are arranged vertically
-	 * @param {string|array[]} [mWidthCalculation.excludeProperties=[]] A list of invisible referenced property names
-	 * @return {float} [fWidth] Calculated width
+	 * @param {Object} oProperty The properties of <code>PropertyInfo</code> of <code>Column</code> instance for which to set the width
+	 * @return {string} The calculated column width
 	 * @since 1.95
 	 * @private
 	 */
-	PropertyHelper.prototype._calcColumnWidth = function (oProperty, mWidthCalculation) {
-		var fWidth = 0;
-		var fLabelWidth = 0;
-		var mPropertyInfoWidthCalculation = oProperty.visualSettings ? oProperty.visualSettings.widthCalculation : {};
-
-		mWidthCalculation = Object.assign({
-			minWidth: 2,
-			maxWidth: 19,
-			defaultWidth: 8,
+	 PropertyHelper.prototype._calcColumnWidth = function (oProperty) {
+		var mWidthCalculation = Object.assign({
 			gap: 0,
 			includeLabel: true,
-			excludeProperties: [],
-			verticalArrangement: false
-		}, mPropertyInfoWidthCalculation, mWidthCalculation || {});
+			excludeProperties: []
+		}, oProperty.visualSettings && oProperty.visualSettings.widthCalculation);
 
-		var iMinWidth = Math.max(1, mWidthCalculation.minWidth);
-		var iMaxWidth = Math.max(iMinWidth, mWidthCalculation.maxWidth);
-
+		var aTypes = [];
 		if (oProperty.isComplex()) {
-			var aRelevantReferencedProperties = oProperty.getReferencedProperties().filter(function(oProp) {
-				return ![].concat(mWidthCalculation.excludeProperties).includes(oProp.name);
+			// for complex properties generate [<TypeInstance>, <TypeSettings>][] structure
+			aTypes = oProperty.getReferencedProperties().flatMap(function(oProp) {
+				var mPropWidthCalculation = oProp.visualSettings ? oProp.visualSettings.widthCalculation : undefined;
+				return mPropWidthCalculation === null || mWidthCalculation.excludeProperties.includes(oProp.name) ? [] : [
+					[oProp.typeConfig.typeInstance, mPropWidthCalculation]
+				];
 			});
-
-			aRelevantReferencedProperties.forEach(function(oReferencedProperty) {
-				var fReferencedPropertyWidth = this._calcColumnWidth(oReferencedProperty, {
-					includeLabel: false
-				});
-
-				if (mWidthCalculation.verticalArrangement || aRelevantReferencedProperties.length == 1) {
-					fWidth = Math.max(fReferencedPropertyWidth, fWidth);
-				} else {
-					fWidth = fWidth + fReferencedPropertyWidth + 0.5; // add 0.5rem for some extra spacing in h-alignment
-				}
-			}, this);
 		} else {
-			var oTypeConfig = oProperty.typeConfig;
-			var oType = oTypeConfig.typeInstance;
-
-			if (oType) {
-				fWidth = TableUtil.calcTypeWidth(oType, mWidthCalculation);
-			}
-			if (oProperty.unit) {
-				fWidth += 2.5;
-			}
+			// for simple properties generate <TypeInstance>[] structure
+			aTypes.push(oProperty.typeConfig.typeInstance);
 		}
 
-		fWidth += mWidthCalculation.gap;
-
-		if (mWidthCalculation.includeLabel) {
-			fLabelWidth = TableUtil.calcHeaderWidth(oProperty.label, fWidth, iMaxWidth, iMinWidth);
+		if (oProperty.unit) {
+			// @TODO: follow the unit property, like a complex property, instead of adding a fix gap
+			mWidthCalculation.gap += 2.5;
 		}
 
-		fWidth = Math.max(iMinWidth, fWidth, fLabelWidth);
-		fWidth = Math.min(fWidth, iMaxWidth);
-		fWidth = Math.round(fWidth * 100) / 100;
-
-		return fWidth;
+		var sHeader = (mWidthCalculation.includeLabel) ? oProperty.label : "";
+		return TableUtil.calcColumnWidth(aTypes, sHeader, mWidthCalculation);
 	};
 
 	return PropertyHelper;

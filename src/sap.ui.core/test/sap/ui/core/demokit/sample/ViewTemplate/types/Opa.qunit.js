@@ -1,7 +1,6 @@
 /*!
  * ${copyright}
  */
-/*global QUnit */
 QUnit.config.autostart = false;
 
 sap.ui.getCore().attachInit(function () {
@@ -30,7 +29,6 @@ sap.ui.getCore().attachInit(function () {
 
 		//*****************************************************************************
 		opaTest("OData Types", function (Given, When, Then) {
-
 			When.onAnyPage.applySupportAssistant();
 
 			Given.iStartMyUIComponent({
@@ -116,6 +114,13 @@ sap.ui.getCore().attachInit(function () {
 			Then.onTheMainPage.checkInputValueState("Identification::String40", ValueState.None, "",
 				"sap.ui.core.sample.ViewTemplate.types.TemplateV4");// no server error on input
 			Then.onTheMainPage.checkInputIsDirty("Identification::String40", false,
+				"sap.ui.core.sample.ViewTemplate.types.TemplateV4");
+
+			// DateTimeOffset with timezone
+			When.onTheMainPage.enterInputValue("Identification::TimezoneID", "Europe/Berlin",
+				"sap.ui.core.sample.ViewTemplate.types.TemplateV4");
+			Then.onTheMainPage.checkInputValue("Identification::DateTimeOffset",
+				"Apr 19, 2029, 8:25:21 AM Europe, Berlin",
 				"sap.ui.core.sample.ViewTemplate.types.TemplateV4");
 
 			Then.onAnyPage.checkLog([{component : "sap.ui.model.odata.v4.ODataMetaModel",

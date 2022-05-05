@@ -358,16 +358,17 @@ sap.ui.define([
 
 		/**
 		 * Creates a UI for this DynamicDateOption.
-		 * @param {*} oOptions some parameters that can adapt the UI from outside
+		 * @param {sap.m.DynamicDateRange} Control to create the UI for
 		 * @param {function} fnControlsUpdated A callback invoked when any of the created controls updates its value
 		 *
-		 * @return {Object[]} Returns an array of controls which is mapped to the parameters of this DynamicDateOption.
+		 * @return {sap.ui.core.Control[]} Returns an array of controls which is mapped to the parameters of this DynamicDateOption.
 		 */
 		StandardDynamicDateOption.prototype.createValueHelpUI = function(oControl, fnControlsUpdated) {
 			var oOptions = oControl._getOptions(),
-				oValue = oControl.getValue(),
+				oValue = oControl.getValue() && Object.assign({}, oControl.getValue()),
 				aParams = this.getValueHelpUITypes(oControl),
-				aControls = [];
+				aControls = [],
+				oCurrentLabel;
 
 			if (!oControl.aControlsByParameters) {
 				oControl.aControlsByParameters = {};
@@ -385,16 +386,26 @@ sap.ui.define([
 				aParams.push(oNextOptionParam);
 			}
 
+			if (oValue && oValue.values) {
+				oValue.values = oValue.values.map(function(val) {
+					if (val instanceof Date) {
+						return oControl._reverseConvertDate(val);
+					}
+
+					return val;
+				});
+			}
+
 			for (var iIndex = 0; iIndex < aParams.length; iIndex++) {
+				oCurrentLabel = null;
 				if (aParams[iIndex].getOptions() && aParams[iIndex].getOptions().length <= 1) {
 					break;
-				} else if (aParams[iIndex].getText()) {
-					aControls.push(
-						new Label({
-							text: aParams[iIndex].getText(),
-							width: "100%"
-						})
-					);
+				} else if (aParams[ iIndex ].getText()) {
+					oCurrentLabel = new Label({
+						text: aParams[ iIndex ].getText(),
+						width: "100%"
+					});
+					aControls.push(oCurrentLabel);
 				}
 
 				var oInputControl;
@@ -436,6 +447,7 @@ sap.ui.define([
 				}
 
 				aControls.push(oInputControl);
+				oCurrentLabel && oCurrentLabel.setLabelFor(oInputControl);
 
 				if (aParams[iIndex].getAdditionalText()) {
 					aControls.push(
@@ -456,7 +468,7 @@ sap.ui.define([
 			var iMin = this.getKey() === "TODAYFROMTO" ? -MAX_VALUE_HELP_INTEGER : MIN_VALUE_HELP_INTEGER;
 			var bUseDefaultValue = !oValue || this.getKey() !== oValue.operator;
 
-			if (this.getKey() === "TODAYFROMTO" && bUseDefaultValue) {
+			if (bUseDefaultValue) {
 				oControl.setValue(1);
 			}
 
@@ -664,7 +676,7 @@ sap.ui.define([
 		};
 
 		StandardDynamicDateOption.prototype.format = function(oObj, oFormatter) {
-			return oFormatter.format(oObj);
+			return oFormatter.format(oObj, true);
 		};
 
 		StandardDynamicDateOption.prototype.parse = function(sValue, oFormatter) {
@@ -704,6 +716,9 @@ sap.ui.define([
 				case "DATETIMERANGE":
 					var oStart = UniversalDate.getInstance(oValue.values[0]);
 					var oEnd = UniversalDate.getInstance(oValue.values[1]);
+
+					oStart.setMilliseconds(0);
+					oEnd.setMilliseconds(999);
 
 					return [oStart, oEnd];
 				case "TODAY":
@@ -773,13 +788,21 @@ sap.ui.define([
 				case "NEXTYEARS":
 					return UniversalDateUtils.ranges.nextYears(iParamLastNext);
 				case "FROM":
-					return [oValue.values[0], oValue.values[0]];
+					return [UniversalDate.getInstance(oValue.values[0])];
 				case "TO":
-					return [oValue.values[0], oValue.values[0]];
+					return [UniversalDate.getInstance(oValue.values[0])];
 				case "FROMDATETIME":
-					return [oValue.values[0], oValue.values[0]];
+					var oDate = UniversalDate.getInstance(oValue.values[0]);
+
+					oDate.setMilliseconds(0);
+
+					return [oDate];
 				case "TODATETIME":
-					return [oValue.values[0], oValue.values[0]];
+					var oDate = UniversalDate.getInstance(oValue.values[0]);
+
+					oDate.setMilliseconds(999);
+
+					return [oDate];
 				case "YEARTODATE":
 					return UniversalDateUtils.ranges.yearToDate();
 				case "DATETOYEAR":

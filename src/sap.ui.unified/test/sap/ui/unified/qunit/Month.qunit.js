@@ -4,7 +4,6 @@ sap.ui.define([
 	"sap/ui/unified/calendar/Month",
 	"sap/ui/unified/calendar/CalendarDate",
 	"sap/ui/unified/CalendarLegend",
-	"sap/ui/unified/CalendarLegendRenderer",
 	"sap/ui/unified/CalendarLegendItem",
 	"sap/m/Button",
 	"sap/ui/unified/DateRange",
@@ -17,7 +16,7 @@ sap.ui.define([
 	"sap/ui/Device",
 	"sap/ui/thirdparty/jquery",
 	"sap/ui/core/Core"
-], function(Month, CalendarDate, CalendarLegend, CalendarLegendRenderer,
+], function(Month, CalendarDate, CalendarLegend,
 	CalendarLegendItem, Button, DateRange, DateTypeRange, CalendarType, InvisibleText, ItemNavigation, unifiedLibrary, KeyCodes, Device, jQuery, oCore) {
 	"use strict";
 
@@ -128,7 +127,7 @@ sap.ui.define([
 			 * @param {sap.ui.unified.calendar.CalendarDate} oFocusDate The first day of the target month.
 			 * @param {sap.ui.unified.calendar.CalendarDate} oFirstVisibleDate Expected first visible day.
 			 * @param {sap.ui.unified.calendar.CalendarDate} oLastVisibleDate Expected last visible day.
-			 * @param {int} iVisibleDaysExpected visible days.
+			 * @param {int} iVisibleDays Expected visible days.
 			 * @param {string} sTargetMonthName Name of the target month used for test description.
 			 * @param {boolean} [bForRendering=false] should days before 0001-01-01 be included in the returned array.
 			 */

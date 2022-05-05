@@ -1,7 +1,6 @@
 /*global QUnit */
 sap.ui.define([
 	"sap/ui/qunit/QUnitUtils",
-	"sap/ui/unified/CalendarLegend",
 	"sap/ui/unified/CalendarLegendRenderer",
 	"sap/ui/unified/CalendarRowRenderer",
 	"sap/ui/unified/CalendarLegendItem",
@@ -14,7 +13,7 @@ sap.ui.define([
 	"sap/ui/Device",
 	"sap/ui/thirdparty/jquery",
 	"sap/ui/core/Core"
-], function(qutils, CalendarLegend, CalendarLegendRenderer, CalendarRowRenderer, CalendarLegendItem, CalendarType, InvisibleText, DateFormat, CalendarRow, CalendarAppointment, unifiedLibrary, Device, jQuery, oCore) {
+], function(qutils, CalendarLegendRenderer, CalendarRowRenderer, CalendarLegendItem, CalendarType, InvisibleText, DateFormat, CalendarRow, CalendarAppointment, unifiedLibrary, Device, jQuery, oCore) {
 	"use strict";
 
 	var CalendarDayType = unifiedLibrary.CalendarDayType;
@@ -206,7 +205,7 @@ sap.ui.define([
 		height: "100px",
 		width: "500px",
 		intervals: 5,
-		intervalType: sap.ui.unified.CalendarIntervalType.Day,
+		intervalType: CalendarIntervalType.Day,
 		tooltip: "Row tooltip",
 		showIntervalHeaders: false,
 		select: handleSelect,
@@ -258,7 +257,7 @@ sap.ui.define([
 		assert.ok(nbItems > 0, "CalendarRow 1: groupAppointments aggregation has " + nbItems + " items.");
 
 		//Act
-		oRow1.setGroupAppointmentsMode(sap.ui.unified.GroupAppointmentsMode.Expanded);
+		oRow1.setGroupAppointmentsMode(GroupAppointmentsMode.Expanded);
 		oCore.applyChanges();
 		assert.ok(true, "Set the groupAppointmentsMode to Expanded");
 

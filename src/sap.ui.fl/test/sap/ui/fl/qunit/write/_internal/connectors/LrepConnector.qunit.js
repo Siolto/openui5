@@ -6,6 +6,8 @@ sap.ui.define([
 	"sap/ui/fl/write/_internal/connectors/LrepConnector",
 	"sap/ui/fl/write/_internal/connectors/Utils",
 	"sap/ui/fl/write/_internal/transport/TransportSelection",
+	"sap/ui/fl/write/api/Version",
+	"sap/ui/fl/registry/Settings",
 	"sap/ui/fl/Layer",
 	"sap/ui/fl/Change",
 	"sap/m/MessageBox",
@@ -17,6 +19,8 @@ sap.ui.define([
 	WriteLrepConnector,
 	WriteUtils,
 	TransportSelection,
+	Version,
+	Settings,
 	Layer,
 	Change,
 	MessageBox,
@@ -207,6 +211,7 @@ sap.ui.define([
 			}).then(function(sMessage) {
 				assert.equal(sMessage, oResourceBundle.getText("MSG_TRANSPORT_SUCCESS"), "the correct message was returned");
 				assert.ok(fnOpenTransportSelectionStub.calledOnce, "then openTransportSelection called once");
+				assert.equal(fnOpenTransportSelectionStub.getCall(0).args.localObjectVisible, undefined, "the local object option is not changed");
 				assert.ok(fnCheckTransportInfoStub.calledOnce, "then checkTransportInfo called once");
 				assert.ok(fnPrepareChangesForTransportStub.calledOnce, "then _prepareChangesForTransport called once");
 				assert.ok(fnPrepareChangesForTransportStub.calledWith(oMockTransportInfo, this.aMockLocalChanges, this.aAppVariantDescriptors, {
@@ -373,7 +378,7 @@ sap.ui.define([
 					{fileName: "2"}
 				]
 			};
-			sandbox.stub(sap.ui.fl.registry.Settings, "getInstance").returns(Promise.resolve(oSetting));
+			sandbox.stub(Settings, "getInstance").returns(Promise.resolve(oSetting));
 			sandbox.spy(BusyIndicator, "hide");
 			sandbox.spy(BusyIndicator, "show");
 			var fnOpenTransportSelectionStub = sandbox.stub(TransportSelection.prototype, "openTransportSelection").returns(Promise.resolve(oMockTransportInfo));
@@ -449,7 +454,7 @@ sap.ui.define([
 				isProductiveSystem: function() {return false;},
 				isAtoEnabled: function() {return false;}
 			};
-			sandbox.stub(sap.ui.fl.registry.Settings, "getInstance").returns(Promise.resolve(oSetting));
+			sandbox.stub(Settings, "getInstance").returns(Promise.resolve(oSetting));
 			var fnOpenTransportSelectionStub = sandbox.stub(TransportSelection.prototype, "openTransportSelection").returns(Promise.resolve(oMockTransportInfo));
 			var sUrl = "/sap/bc/lrep/changes/?reference=flexReference&layer=VENDOR&changelist=transportId&selector=abc123&changeType=labelChange";
 			var oStubSendRequest = sinon.stub(WriteUtils, "sendRequest").resolves({response: []});
@@ -537,7 +542,7 @@ sap.ui.define([
 				isProductiveSystem: function() {return false;},
 				isAtoEnabled: function() {return true;}
 			};
-			sandbox.stub(sap.ui.fl.registry.Settings, "getInstance").returns(Promise.resolve(oSetting));
+			sandbox.stub(Settings, "getInstance").returns(Promise.resolve(oSetting));
 			var fnOpenTransportSelectionStub = sandbox.stub(TransportSelection.prototype, "openTransportSelection").resolves(oMockTransportInfo);
 			var sUrl = "/sap/bc/lrep/changes/?reference=flexReference&layer=CUSTOMER&changelist=ATO_NOTIFICATION&generator=Change.createInitialFileContent";
 			var oStubSendRequest = sinon.stub(WriteUtils, "sendRequest").resolves({response: []});
@@ -567,7 +572,7 @@ sap.ui.define([
 				isProductiveSystem: function() {return false;},
 				isAtoEnabled: function() {return true;}
 			};
-			sandbox.stub(sap.ui.fl.registry.Settings, "getInstance").returns(Promise.resolve(oSetting));
+			sandbox.stub(Settings, "getInstance").returns(Promise.resolve(oSetting));
 			var sUrl = "/sap/bc/lrep/changes/?reference=flexReference&layer=CUSTOMER&selector=view--control1,feview--control2";
 			var oStubSendRequest = sinon.stub(WriteUtils, "sendRequest").resolves({response: []});
 
@@ -600,7 +605,7 @@ sap.ui.define([
 				isProductiveSystem: function() {return false;},
 				isAtoEnabled: function() {return true;}
 			};
-			sandbox.stub(sap.ui.fl.registry.Settings, "getInstance").returns(Promise.resolve(oSetting));
+			sandbox.stub(Settings, "getInstance").returns(Promise.resolve(oSetting));
 			var sUrl = "/sap/bc/lrep/changes/?reference=flexReference&layer=USER&generator=Change.createInitialFileContent&selector=view--control1,feview--control2";
 			var oStubSendRequest = sinon.stub(WriteUtils, "sendRequest").resolves({response: []});
 			var aControlIds = [
@@ -812,6 +817,34 @@ sap.ui.define([
 				transport: "transportID"
 			};
 			var sUrl = "/sap/bc/lrep/variants/myFileName?namespace=level1/level2/level3&layer=VENDOR&changelist=transportID";
+			var oStubSendRequest = sinon.stub(WriteUtils, "sendRequest").resolves();
+
+			return WriteLrepConnector.remove(mPropertyBag).then(function () {
+				assert.ok(oStubSendRequest.calledWith(sUrl, "DELETE", {
+					xsrfToken: InitialLrepConnector.xsrfToken,
+					tokenUrl: "/sap/bc/lrep/actions/getcsrftoken/",
+					initialConnector: InitialLrepConnector,
+					contentType: "application/json; charset=utf-8",
+					dataType: "json"
+				}), "a send request with correct parameters and options is sent");
+				WriteUtils.sendRequest.restore();
+			});
+		});
+
+		QUnit.test("given a mock server, when remove variant is triggered with parentVersion", function (assert) {
+			var oFlexObject = {
+				fileType: "variant",
+				fileName: "myFileName",
+				namespace: "level1/level2/level3",
+				layer: Layer.VENDOR
+			};
+			var mPropertyBag = {
+				flexObject: oFlexObject,
+				url: "/sap/bc/lrep",
+				transport: "transportID",
+				parentVersion: "parentVersionGUID"
+			};
+			var sUrl = "/sap/bc/lrep/variants/myFileName?namespace=level1/level2/level3&layer=VENDOR&changelist=transportID&parentVersion=parentVersionGUID";
 			var oStubSendRequest = sinon.stub(WriteUtils, "sendRequest").resolves();
 
 			return WriteLrepConnector.remove(mPropertyBag).then(function () {
@@ -1311,17 +1344,17 @@ sap.ui.define([
 			var mExpectedPropertyBag = {
 				xsrfToken: undefined,
 				initialConnector: InitialLrepConnector,
-				tokenUrl: "/actions/getcsrftoken/"
+				tokenUrl: "/sap/bc/lrep/actions/getcsrftoken/com.sap.test.app"
 			};
 			var aReturnedVersions = {versions: [{
-				versionId: sap.ui.fl.Versions.Draft
+				versionId: Version.Number.Draft
 			}, {
 				versionId: "versionGUID"
 			}]};
 			var oStubSendRequest = sandbox.stub(WriteUtils, "sendRequest").resolves({response: aReturnedVersions});
 			return WriteLrepConnector.versions.load(mPropertyBag).then(function (oResponse) {
 				assert.deepEqual(oResponse, [{
-					version: sap.ui.fl.Versions.Draft
+					version: Version.Number.Draft
 				}, {
 					version: "versionGUID"
 				}], "the versions list is returned correctly");
@@ -1345,7 +1378,7 @@ sap.ui.define([
 			var mExpectedPropertyBag = {
 				xsrfToken: undefined,
 				initialConnector: InitialLrepConnector,
-				tokenUrl: "/actions/getcsrftoken/"
+				tokenUrl: "/sap/bc/lrep/actions/getcsrftoken/com.sap.test.app"
 			};
 			var oStubSendRequest = sandbox.stub(WriteUtils, "sendRequest").resolves();
 			return WriteLrepConnector.versions.discardDraft(mPropertyBag).then(function () {
@@ -1362,7 +1395,7 @@ sap.ui.define([
 		}
 	}, function () {
 		QUnit.test("activate draft", function (assert) {
-			var sActivateVersion = sap.ui.fl.Versions.Draft;
+			var sActivateVersion = Version.Number.Draft;
 			var mPropertyBag = {
 				url: "/sap/bc/lrep",
 				reference: "com.sap.test.app",
@@ -1374,7 +1407,7 @@ sap.ui.define([
 			var mExpectedPropertyBag = {
 				xsrfToken: undefined,
 				initialConnector: InitialLrepConnector,
-				tokenUrl: "/actions/getcsrftoken/",
+				tokenUrl: "/sap/bc/lrep/actions/getcsrftoken/com.sap.test.app",
 				contentType: "application/json; charset=utf-8",
 				dataType: "json",
 				payload: "{\"title\":\"new Title\"}"
@@ -1406,7 +1439,7 @@ sap.ui.define([
 			var mExpectedPropertyBag = {
 				xsrfToken: undefined,
 				initialConnector: InitialLrepConnector,
-				tokenUrl: "/actions/getcsrftoken/",
+				tokenUrl: "/sap/bc/lrep/actions/getcsrftoken/com.sap.test.app",
 				contentType: "application/json; charset=utf-8",
 				dataType: "json",
 				payload: "{\"title\":\"new reactivate Title\"}"
@@ -1426,7 +1459,7 @@ sap.ui.define([
 		});
 
 		QUnit.test("reactivate original app", function (assert) {
-			var sActivateVersion = sap.ui.fl.Versions.Original;
+			var sActivateVersion = Version.Number.Original;
 			var mPropertyBag = {
 				url: "/sap/bc/lrep",
 				reference: "com.sap.test.app",
@@ -1438,7 +1471,7 @@ sap.ui.define([
 			var mExpectedPropertyBag = {
 				xsrfToken: undefined,
 				initialConnector: InitialLrepConnector,
-				tokenUrl: "/actions/getcsrftoken/",
+				tokenUrl: "/sap/bc/lrep/actions/getcsrftoken/com.sap.test.app",
 				contentType: "application/json; charset=utf-8",
 				dataType: "json",
 				payload: "{\"title\":\"new Title\"}"
@@ -1454,6 +1487,111 @@ sap.ui.define([
 				assert.equal(oStubSendRequest.getCall(0).args[0], sExpectedUrl, "the request has the correct url");
 				assert.equal(oStubSendRequest.getCall(0).args[1], "POST", "the method is correct");
 				assert.deepEqual(oStubSendRequest.getCall(0).args[2], mExpectedPropertyBag, "the propertyBag is passed correct");
+			});
+		});
+	});
+
+	QUnit.module("LrepConnector.versions.publish", {
+		afterEach: function() {
+			sandbox.restore();
+		}
+	}, function () {
+		QUnit.test("when calling publish successfully", function(assert) {
+			var oMockTransportInfo = {
+				transport: "transportId"
+			};
+
+			var fnOpenTransportSelectionStub = sandbox.stub(TransportSelection.prototype, "openTransportSelection").returns(Promise.resolve(oMockTransportInfo));
+			var fnCheckTransportInfoStub = sandbox.stub(TransportSelection.prototype, "checkTransportInfo").returns(true);
+			var oResourceBundle = oCore.getLibraryResourceBundle("sap.ui.fl");
+
+			var sExpectedUrl = "/sap/bc/lrep/flex/versions/publish/sampleComponent?transport=transportId&version=versionToPublish";
+			var mExpectedPropertyBag = {
+				xsrfToken: undefined,
+				initialConnector: InitialLrepConnector,
+				tokenUrl: "/sap/bc/lrep/actions/getcsrftoken/",
+				contentType: "application/json; charset=utf-8",
+				dataType: "json"
+			};
+
+			var oStubSendRequest = sandbox.stub(WriteUtils, "sendRequest").resolves();
+			return WriteLrepConnector.versions.publish({
+				transportDialogSettings: {
+					rootControl: null,
+					styleClass: null
+				},
+				layer: "CUSTOMER",
+				reference: "sampleComponent",
+				version: "versionToPublish"
+			}).then(function(sMessage) {
+				assert.equal(sMessage, oResourceBundle.getText("MSG_TRANSPORT_SUCCESS"), "the correct message was returned");
+				assert.ok(fnOpenTransportSelectionStub.calledOnce, "then openTransportSelection called once");
+				assert.ok(fnCheckTransportInfoStub.calledOnce, "then checkTransportInfo called once");
+				assert.equal(oStubSendRequest.getCall(0).args[0], sExpectedUrl, "the request has the correct url");
+				assert.equal(oStubSendRequest.getCall(0).args[1], "POST", "the method is correct");
+				assert.deepEqual(oStubSendRequest.getCall(0).args[2], mExpectedPropertyBag, "the propertyBag is passed correct");
+			});
+		});
+
+		QUnit.test("when calling publish successfully in S/4 Hana Cloud", function(assert) {
+			var oMockTransportInfo = {
+				transport: "ATO_NOTIFICATION"
+			};
+
+			var fnOpenTransportSelectionStub = sandbox.stub(TransportSelection.prototype, "openTransportSelection").returns(Promise.resolve(oMockTransportInfo));
+			var fnCheckTransportInfoStub = sandbox.stub(TransportSelection.prototype, "checkTransportInfo").returns(true);
+			var oResourceBundle = oCore.getLibraryResourceBundle("sap.ui.fl");
+
+			var sExpectedUrl = "/sap/bc/lrep/flex/versions/publish/sampleComponent?transport=ATO_NOTIFICATION&version=versionToPublish";
+			var mExpectedPropertyBag = {
+				xsrfToken: undefined,
+				initialConnector: InitialLrepConnector,
+				tokenUrl: "/sap/bc/lrep/actions/getcsrftoken/",
+				contentType: "application/json; charset=utf-8",
+				dataType: "json"
+			};
+
+			var oStubSendRequest = sandbox.stub(WriteUtils, "sendRequest").resolves();
+			return WriteLrepConnector.versions.publish({
+				transportDialogSettings: {
+					rootControl: null,
+					styleClass: null
+				},
+				layer: "CUSTOMER",
+				reference: "sampleComponent",
+				version: "versionToPublish"
+			}).then(function(sMessage) {
+				assert.equal(sMessage, oResourceBundle.getText("MSG_ATO_NOTIFICATION"), "the correct message was returned");
+				assert.ok(fnOpenTransportSelectionStub.calledOnce, "then openTransportSelection called once");
+				assert.ok(fnCheckTransportInfoStub.calledOnce, "then checkTransportInfo called once");
+				assert.equal(oStubSendRequest.getCall(0).args[0], sExpectedUrl, "the request has the correct url");
+				assert.equal(oStubSendRequest.getCall(0).args[1], "POST", "the method is correct");
+				assert.deepEqual(oStubSendRequest.getCall(0).args[2], mExpectedPropertyBag, "the propertyBag is passed correct");
+			});
+		});
+
+		QUnit.test("when calling publish unsuccessfully", function(assert) {
+			sandbox.stub(TransportSelection.prototype, "openTransportSelection").rejects();
+			sandbox.stub(MessageBox, "show");
+			return WriteLrepConnector.versions.publish({
+				transportDialogSettings: {
+					rootControl: null,
+					styleClass: null
+				}
+			}).then(function(sResponse) {
+				assert.equal(sResponse, "Error", "then Promise.resolve() with error message is returned");
+			});
+		});
+
+		QUnit.test("when calling publish successfully, but with cancelled transport selection", function(assert) {
+			sandbox.stub(TransportSelection.prototype, "openTransportSelection").resolves();
+			return WriteLrepConnector.versions.publish({
+				transportDialogSettings: {
+					rootControl: null,
+					styleClass: null
+				}
+			}).then(function(sResponse) {
+				assert.equal(sResponse, "Cancel", "then Promise.resolve() with cancel message is returned");
 			});
 		});
 	});

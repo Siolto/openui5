@@ -105,10 +105,28 @@
 		"group": "Card Actions"
 	},
 	{
+		"title": "Show Card Action",
+		"description": "Showing a card in a dialog for Bite and Snack scenario",
+		"route": "showCard",
+		"group": "Card Actions"
+	},
+	{
 		"title": "Min-height of the Card Content",
 		"description": "Examples of cards with no height provided (default value) or with specified height",
 		"route": "minHeight",
 		"group": "Layout Examples"
+	},
+	{
+		"title": "Manifest Resolver",
+		"description": "Play around with manifest resolving",
+		"route": "manifestResolver",
+		"group": "Mobile SDK Examples"
+	},
+	{
+		"title": "Show Card With Resolved Manifest",
+		"description": "The show card action when handled by Mobile SDK",
+		"route": "showCardWithResolvedManifest",
+		"group": "Mobile SDK Examples"
 	},
 	{
 		"title": "Default Header",
@@ -204,12 +222,6 @@
 		"title": "Parameters",
 		"description": "Card Parameters",
 		"route": "parameters",
-		"group": "Other Card Examples"
-	},
-	{
-		"title": "Manifest Resolver",
-		"description": "Play around with manifest resolving",
-		"route": "manifestResolver",
 		"group": "Other Card Examples"
 	},
 	{

@@ -74,12 +74,12 @@ sap.ui.define([
 	};
 
 	Rename.prototype.startEdit = function (oOverlay) {
-		var oElement = oOverlay.getElement();
-		var oDesignTimeMetadata = oOverlay.getDesignTimeMetadata();
-		var vDomRef = oDesignTimeMetadata.getAction("rename", oElement).domRef;
+		var vDomRef = this.getAction(oOverlay).domRef;
+		var fnGetTextMutators = this.getAction(oOverlay).getTextMutators;
 		RenameHandler.startEdit.call(this, {
 			overlay: oOverlay,
 			domRef: vDomRef,
+			getTextMutators: fnGetTextMutators,
 			pluginMethodName: "plugin.Rename.startEdit"
 		});
 	};
@@ -160,20 +160,7 @@ sap.ui.define([
 	 * @private
 	 */
 	Rename.prototype._isEditable = function(oOverlay) {
-		var oElement = oOverlay.getElement();
-		var oRenameAction = this.getAction(oOverlay);
-		if (oRenameAction && oRenameAction.changeType) {
-			if (oRenameAction.changeOnRelevantContainer) {
-				oElement = oOverlay.getRelevantContainer();
-			}
-			return this.hasChangeHandler(oRenameAction.changeType, oElement)
-				.then(function(bHasChangeHandler) {
-					return bHasChangeHandler
-						&& this._checkRelevantContainerStableID(oRenameAction, oOverlay)
-						&& this.hasStableId(oOverlay);
-				}.bind(this));
-		}
-		return false;
+		return this._checkChangeHandlerAndStableId(oOverlay);
 	};
 
 	/**
@@ -192,7 +179,7 @@ sap.ui.define([
 	 */
 	Rename.prototype._emitLabelChangeEvent = function() {
 		var sText = RenameHandler._getCurrentEditableFieldText.call(this);
-		this._$oEditableControlDomRef.text(sText);
+		this._fnSetControlText(sText);
 
 		var oResponsibleElementOverlay = this.getResponsibleElementOverlay(this._oEditedOverlay);
 		var oRenamedElement = oResponsibleElementOverlay.getElement();

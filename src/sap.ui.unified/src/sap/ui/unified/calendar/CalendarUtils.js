@@ -17,9 +17,9 @@ sap.ui.define([
 	'./CalendarDate',
 	'sap/ui/core/Locale',
 	'sap/ui/core/LocaleData',
-	"sap/ui/thirdparty/jquery"
+	'sap/ui/core/format/TimezoneUtil'
 ],
-	function(UniversalDate, CalendarDate, Locale, LocaleData, jQuery) {
+	function(UniversalDate, CalendarDate, Locale, LocaleData, TimezoneUtil) {
 		"use strict";
 
 		// Static class
@@ -33,14 +33,14 @@ sap.ui.define([
 
 		/**
 		 * The maximum ECMAScript Date converted to milliseconds.
-		 * @type {number} milliseconds
+		 * @type {int}
 		 * @private
 		 */
 		CalendarUtils.MAX_MILLISECONDS = 8640000000000000;
 
 		/**
 		 * 24 hours as milliseconds
-		 * @type {number} milliseconds
+		 * @type {int}
 		 * @private
 		 */
 		CalendarUtils.HOURS24 = 1000 * 3600 * 24;
@@ -124,7 +124,7 @@ sap.ui.define([
 		 * @param {Date} oDate in local timezone
 		 * @param {sap.ui.core.CalendarType} sCalendarType the type of the used calendar
 		 * @param {boolean} bTime if set the time part of the date will be used too, otherwise it will be initial
-		 * @return {UniversalDate} in UTC timezone
+		 * @return {sap.ui.core.date.UniversalDate} in UTC timezone
 		 * @private
 		 */
 		CalendarUtils._createUniversalUTCDate = function (oDate, sCalendarType, bTime) {
@@ -146,7 +146,7 @@ sap.ui.define([
 		 * @param {Date} oDate date to get week number
 		 * @param {int} iYear year for the week number. (In en-US the week number for the last Days in December depends on the year.)
 		 * @param {string} sLocale used locale
-		 * @param {object} oLocaleData locale date for used locale
+		 * @param {sap.ui.core.LocaleData} oLocaleData locale date for used locale
 		 * @return {int} week number
 		 * @private
 		 */
@@ -268,8 +268,8 @@ sap.ui.define([
 
 		/**
 		 * Calculates the number of weeks for a given year using the current locale settings
-		 * @param {number} iYear The target year of interest in format (YYYY)
-		 * @returns {number} The number of weeks for the given year
+		 * @param {int} iYear The target year of interest in format (YYYY)
+		 * @returns {int} The number of weeks for the given year
 		 * @private
 		 */
 		CalendarUtils._getNumberOfWeeksForYear = function (iYear) {
@@ -319,7 +319,7 @@ sap.ui.define([
 
 		/**
 		 * Sets the given values to the date.
-		 * @param {sap.ui.unified.UniversalDate} oDate The date which parameters will be set
+		 * @param {sap.ui.core.date.UniversalDate} oDate The date which parameters will be set
 		 * @param {int} iYear The year to be set
 		 * @param {int} iMonth The month to be set
 		 * @param {int} iDate The date to be set
@@ -377,7 +377,7 @@ sap.ui.define([
 			}
 		};
 
-		/**cal
+		/**
 		 * Compares the given month and the one from the <code>startDate</code>.
 		 *
 		 * @param {Date} oDate1 JavaScript date
@@ -432,8 +432,8 @@ sap.ui.define([
 
 		/**
 		 * Evaluates months between two dates.
-		 * @param {object} oFirstDate JavaScript date
-		 * @param {object} oSecondDate JavaScript date
+		 * @param {Date} oFirstDate JavaScript date
+		 * @param {Date} oSecondDate JavaScript date
 		 * @param {boolean} bDontAbsResult if omitted or false, the result will be positive number of months between dates;
 		 * 					if true, the result will be positive or negative depending of the direction of the difference
 		 * @return {int} iMonths
@@ -459,8 +459,8 @@ sap.ui.define([
 
 		/**
 		 * Evaluates hours between two dates.
-		 * @param {object} oFirstDate JavaScript date
-		 * @param {object} oSecondDate JavaScript date
+		 * @param {Date} oFirstDate JavaScript date
+		 * @param {Date} oSecondDate JavaScript date
 		 * @return {int} iMinutes
 		 * @private
 		 */
@@ -479,7 +479,7 @@ sap.ui.define([
 		/**
 		 * Evaluates whether a given date time part indicates midniht.
 		 *
-		 * @param {Object} oDate - JavaScript date
+		 * @param {Date} oDate - JavaScript date
 		 * @returns {boolean}
 		 */
 		CalendarUtils._isMidnight = function(oDate) {
@@ -663,7 +663,7 @@ sap.ui.define([
 		/**
 		* Returns week information for given calendar date.
 		* @param {sap.ui.unified.calendar.CalendarDate} oCalendarDate The date whose week wll be returned
-		* @return {Object} Week information - year and week, for given calendar date
+		* @return {object} Week information - year and week, for given calendar date
 		* @private
 		*/
 		CalendarUtils._getWeek = function (oCalendarDate) {
@@ -674,7 +674,7 @@ sap.ui.define([
 		/**
 		 * Evaluates whether the given date is part of the weekend.
 		 * @param {sap.ui.unified.calendar.CalendarDate} oCalDate The date to be checked
-		 * @param {object} oLocaleData locale date for the used locale
+		 * @param {sap.ui.core.LocaleData} oLocaleData locale date for the used locale
 		 * @return {boolean} True if the date is part of the weekend
 		 * @private
 		 */
@@ -682,6 +682,22 @@ sap.ui.define([
 			var iDay = oCalDate.getDay();
 
 			return iDay === oLocaleData.getWeekendStart() || iDay === oLocaleData.getWeekendEnd();
+		};
+
+		/**
+		 * Converts a JS Date object as if the machine was in the provided timezone.
+		 * @param {object} oDate JS Date object
+		 * @param {string} sTimezone IANA timezone key
+		 * @returns {object} The corresponding JS Date object as if the machine was in the provided timezone
+		 * @private
+		 */
+		CalendarUtils._convertToTimezone = function(oDate, sTimezone) {
+			var oNewDate = new Date(oDate.getUTCFullYear(), oDate.getUTCMonth(), oDate.getUTCDate(), oDate.getUTCHours(), oDate.getUTCMinutes(), oDate.getUTCSeconds());
+
+			oNewDate.setUTCFullYear(oDate.getUTCFullYear());
+			oNewDate = TimezoneUtil.convertToTimezone(oNewDate, sTimezone);
+
+			return oNewDate;
 		};
 
 		return CalendarUtils;

@@ -1,13 +1,13 @@
 sap.ui.define(function () { 'use strict';
 
 	const VersionInfo = {
-		version: "1.1.2",
+		version: "1.3.1",
 		major: 1,
-		minor: 1,
-		patch: 2,
+		minor: 3,
+		patch: 1,
 		suffix: "",
 		isNext: false,
-		buildTime: 1644236777,
+		buildTime: 1651645333,
 	};
 
 	return VersionInfo;

@@ -6119,6 +6119,9 @@ sap.ui.define([
 		oMultiComboBox.syncPickerContent();
 
 		var oSelectedButton = oMultiComboBox._getSuggestionsPopover().getFilterSelectedButton();
+		var oSelectButtonTooltipText = oResourceBundle.getText("SHOW_SELECTED_BUTTON");
+
+		assert.strictEqual(oSelectedButton.getTooltip(), oSelectButtonTooltipText, "Button's tooltip is set correctly");
 
 		var oFakeEvent = {
 			target: {
@@ -9279,6 +9282,103 @@ sap.ui.define([
 
 		// Clean
 		oSetPropertySpy.restore();
+		oMultiComboBox.destroy();
+	});
+
+	QUnit.test("Clear icon should clear the filter and close the suggestion dropdown when open while entering value", function(assert) {
+		// Arrange
+		var oMultiComboBox = new MultiComboBox({
+			showClearIcon: true,
+			items: [
+				new Item({
+					text: "Algeria"
+				}),
+
+				new Item({
+					text: "Argentina"
+				}),
+
+				new Item({
+					text: "Australia"
+				}),
+
+				new Item({
+					text: "Germany"
+				})
+			]
+		});
+
+		oMultiComboBox.placeAt("MultiComboBoxContent");
+		Core.applyChanges();
+
+		// Act
+		oMultiComboBox.focus();
+		oMultiComboBox.getFocusDomRef().value = "A";
+		qutils.triggerEvent("input", oMultiComboBox.getFocusDomRef());
+
+
+		// Assert
+		assert.ok(oMultiComboBox.isOpen(), "MultiComboBox is open");
+		assert.strictEqual(ListHelpers.getVisibleItems(oMultiComboBox.getItems()).length, 3, "The items are filtered");
+
+		// Act
+		oMultiComboBox.handleClearIconPress();
+		Core.applyChanges();
+
+		// Assert
+		assert.notOk(oMultiComboBox.isOpen(), "MultiComboBox is closed");
+		assert.strictEqual(ListHelpers.getVisibleItems(oMultiComboBox.getItems()).length, 4, "The items are filtered");
+
+		// Clean
+		oMultiComboBox.destroy();
+	});
+
+	QUnit.test("Clear icon should clear the filter and close the suggestion dropdown when open while entering value", function(assert) {
+		// Arrange
+		var oMultiComboBox = new MultiComboBox({
+			showClearIcon: true,
+			items: [
+				new Item({
+					text: "Algeria"
+				}),
+
+				new Item({
+					text: "Argentina"
+				}),
+
+				new Item({
+					text: "Australia"
+				}),
+
+				new Item({
+					text: "Germany"
+				})
+			]
+		});
+
+		oMultiComboBox.placeAt("MultiComboBoxContent");
+		Core.applyChanges();
+
+		// Act
+		oMultiComboBox.focus();
+		qutils.triggerKeyboardEvent(oMultiComboBox.getFocusDomRef(), KeyCodes.F4);
+		oMultiComboBox.getFocusDomRef().value = "A";
+		qutils.triggerEvent("input", oMultiComboBox.getFocusDomRef());
+
+
+		// Assert
+		assert.ok(oMultiComboBox.isOpen(), "MultiComboBox is open");
+		assert.strictEqual(ListHelpers.getVisibleItems(oMultiComboBox.getItems()).length, 3, "The items are filtered");
+
+		// Act
+		oMultiComboBox.handleClearIconPress();
+		Core.applyChanges();
+
+		// Assert
+		assert.ok(oMultiComboBox.isOpen(), "MultiComboBox remains open");
+		assert.strictEqual(ListHelpers.getVisibleItems(oMultiComboBox.getItems()).length, 4, "The items are filtered");
+
+		// Clean
 		oMultiComboBox.destroy();
 	});
 });

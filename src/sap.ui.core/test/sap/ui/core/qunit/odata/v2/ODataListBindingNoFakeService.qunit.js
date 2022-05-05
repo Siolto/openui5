@@ -53,7 +53,9 @@ sap.ui.define([
 			.withExactArgs("path", sinon.match.same(oContext))
 			.returns("~deep");
 		this.mock(oModel).expects("checkFilterOperation").withExactArgs([]);
-		this.mock(ODataListBinding.prototype).expects("checkExpandedList").withExactArgs();
+		this.mock(ODataListBinding.prototype).expects("checkExpandedList")
+			.withExactArgs()
+			.returns(false);
 
 		oRemoveExpectation = this.mock(ODataListBinding.prototype)
 			.expects("_removePersistedCreatedContexts")
@@ -262,6 +264,74 @@ sap.ui.define([
 		assert.strictEqual(oBinding.sCreatedEntitiesKey, oFixture.expected);
 	});
 });
+
+	//*********************************************************************************************
+	QUnit.test("constructor: defaulting w/o mParameters", function (assert) {
+		var oBinding,
+			oModel = {
+				sDefaultCountMode : "~sDefaultCountMode",
+				sDefaultOperationMode : "~sDefaultOperationMode",
+				bPreliminaryContext : "~bPreliminaryContext",
+				checkFilterOperation : function () {},
+				createCustomParams : function () {},
+				resolveDeep : function () {}
+			};
+
+		this.mock(oModel).expects("createCustomParams").withExactArgs(undefined).returns("~custom");
+		this.mock(oModel).expects("resolveDeep")
+			.withExactArgs("~sPath", "~oContext")
+			.returns("~sDeepPath");
+		this.mock(oModel).expects("checkFilterOperation").withExactArgs([]);
+		this.mock(ODataListBinding.prototype).expects("checkExpandedList")
+			.withExactArgs()
+			.returns(true);
+
+		// code under test
+		oBinding = new ODataListBinding(oModel, "~sPath", "~oContext");
+
+		assert.strictEqual(oBinding.sFilterParams, null);
+		assert.strictEqual(oBinding.sSortParams, null);
+		assert.strictEqual(oBinding.sRangeParams, null);
+		assert.strictEqual(oBinding.sCustomParams, "~custom");
+		assert.strictEqual(oBinding.mCustomParams, undefined);
+		assert.strictEqual(oBinding.iStartIndex, 0);
+		assert.strictEqual(oBinding.iLength, 0);
+		assert.strictEqual(oBinding.bPendingChange, false);
+		assert.strictEqual(oBinding.aAllKeys, null);
+		assert.deepEqual(oBinding.aKeys, []);
+		assert.strictEqual(oBinding.sCountMode, "~sDefaultCountMode");
+		assert.strictEqual(oBinding.sOperationMode, "~sDefaultOperationMode");
+		assert.strictEqual(oBinding.bCreatePreliminaryContext, "~bPreliminaryContext");
+		assert.strictEqual(oBinding.bUsePreliminaryContext, "~bPreliminaryContext");
+		assert.strictEqual(oBinding.bRefresh, false);
+		assert.strictEqual(oBinding.bNeedsUpdate, false);
+		assert.strictEqual(oBinding.bDataAvailable, false);
+		assert.strictEqual(oBinding.bIgnoreSuspend, false);
+		assert.strictEqual(oBinding.bPendingRefresh, false);
+		assert.strictEqual(oBinding.sGroupId, undefined);
+		assert.strictEqual(oBinding.sRefreshGroupId, undefined);
+		assert.strictEqual(oBinding.bLengthRequested, false);
+		assert.strictEqual(oBinding.bUseExtendedChangeDetection, false);
+		assert.strictEqual(oBinding.bFaultTolerant, undefined);
+		assert.strictEqual(oBinding.bLengthFinal, false);
+		assert.strictEqual(oBinding.iLastEndIndex, 0);
+		assert.strictEqual(oBinding.aLastContexts, null);
+		assert.strictEqual(oBinding.aLastContextData, null);
+		assert.strictEqual(oBinding.bInitial, true);
+		assert.deepEqual(oBinding.mRequestHandles, {});
+		assert.strictEqual(oBinding.oCountHandle, null);
+		assert.strictEqual(oBinding.bSkipDataEvents, false);
+		assert.strictEqual(oBinding.bUseExpandedList, false);
+		assert.strictEqual(oBinding.oCombinedFilter, null);
+		assert.strictEqual(oBinding.sDeepPath, "~sDeepPath");
+		assert.strictEqual(oBinding.bCanonicalRequest, undefined);
+		assert.deepEqual(oBinding.mNormalizeCache, {});
+		assert.strictEqual(oBinding.bTransitionMessagesOnly, false);
+		assert.strictEqual(oBinding.sCreatedEntitiesKey, "");
+		assert.deepEqual(oBinding.oCreatedPersistedToRemove, new Set());
+		assert.strictEqual(oBinding.iThreshold, 0);
+		assert.strictEqual(oBinding.bThresholdRejected, false);
+	});
 
 	//*********************************************************************************************
 ["resolvedPath", undefined, null].forEach(function (sResolvedPath) {
@@ -826,7 +896,7 @@ sap.ui.define([
 	});
 
 	//*********************************************************************************************
-[true,false].forEach(function (bIsResolved) {
+[true, false].forEach(function (bIsResolved) {
 	QUnit.test("checkExpandedList: isResolved=" + bIsResolved, function (assert) {
 		var oModel = {_getObject : function () {}},
 			oBinding = {
@@ -834,11 +904,11 @@ sap.ui.define([
 				oModel : oModel,
 				sPath : "~sPath",
 				isResolved : function () {}
-			};
+			},
+			aList = bIsResolved ? undefined : [];
 
+		this.mock(oModel).expects("_getObject").withExactArgs("~sPath", "~oContext").returns(aList);
 		this.mock(oBinding).expects("isResolved").withExactArgs().returns(bIsResolved);
-		this.mock(oModel).expects("_getObject").withExactArgs("~sPath", "~oContext")
-			.returns(bIsResolved ? undefined : []);
 
 		// code under test
 		assert.strictEqual(ODataListBinding.prototype.checkExpandedList.call(oBinding), false);
@@ -848,8 +918,166 @@ sap.ui.define([
 });
 
 	//*********************************************************************************************
+	QUnit.test("checkExpandedList: expanded list is not usable", function (assert) {
+		var oModel = {_getObject : function () {}},
+			oBinding = {
+				oContext : "~oContext",
+				oModel : oModel,
+				sPath : "~sPath",
+				_isExpandedListUsable : function () {},
+				isResolved : function () {}
+			};
+
+		this.mock(oModel).expects("_getObject")
+			.withExactArgs("~sPath", "~oContext")
+			.returns("~aList");
+		this.mock(oBinding).expects("isResolved").withExactArgs().returns(true);
+		this.mock(oBinding).expects("_isExpandedListUsable").withExactArgs().returns(false);
+
+		// code under test
+		assert.strictEqual(ODataListBinding.prototype.checkExpandedList.call(oBinding), false);
+		assert.strictEqual(oBinding.bUseExpandedList, false);
+		assert.strictEqual(oBinding.aExpandRefs, undefined);
+	});
+
+	//*********************************************************************************************
+[true, false].forEach(function (bUseExpandedList) {
+	QUnit.test("checkExpandedList: expanded 'to N' navigation property; skip reload needed;"
+			+ " not read via side effect; bUseExpandedList=" + bUseExpandedList, function (assert) {
+		var oModel = {_getObject : function () {}},
+			oBinding = {
+				oContext : "~oContext",
+				oModel : oModel,
+				sPath : "~sPath",
+				bUseExpandedList : bUseExpandedList,
+				_initSortersFilters : function () {},
+				_isExpandedListUsable : function () {},
+				applyFilter : function () {},
+				applySort : function () {},
+				isResolved : function () {}
+			},
+			aList = ["path0"];
+
+		this.mock(oModel).expects("_getObject").withExactArgs("~sPath", "~oContext").returns(aList);
+		this.mock(oBinding).expects("isResolved").withExactArgs().returns(true);
+		this.mock(oBinding).expects("_isExpandedListUsable").withExactArgs().returns(true);
+		this.mock(oBinding).expects("_initSortersFilters").withExactArgs();
+		this.mock(oBinding).expects("applyFilter").withExactArgs();
+		this.mock(oBinding).expects("applySort").withExactArgs();
+
+		// code under test
+		assert.strictEqual(ODataListBinding.prototype.checkExpandedList.call(oBinding, true), true);
+
+		assert.strictEqual(oBinding.bUseExpandedList, true);
+		assert.strictEqual(oBinding.aExpandRefs, aList);
+		assert.deepEqual(oBinding.aExpandRefs, ["path0"]);
+		assert.strictEqual(oBinding.aAllKeys, aList);
+		assert.strictEqual(oBinding.iLength, 1);
+		assert.strictEqual(oBinding.bLengthFinal, true);
+		assert.strictEqual(oBinding.bDataAvailable, true);
+	});
+});
+
+	//*********************************************************************************************
+[true, false].forEach(function (bUseExpandedList) {
+	QUnit.test("checkExpandedList: expanded 'to N' navigation property; skip reload needed;"
+			+ " read via side effect; bUseExpandedList=" + bUseExpandedList, function (assert) {
+		var oModel = {
+				_getObject : function () {},
+				getKey : function () {}
+			},
+			oBinding = {
+				oContext : "~oContext",
+				oModel : oModel,
+				sPath : "~sPath",
+				bUseExpandedList : bUseExpandedList,
+				_getCreatedPersistedContexts : function () {},
+				_initSortersFilters : function () {},
+				_isExpandedListUsable : function () {},
+				applyFilter : function () {},
+				applySort : function () {},
+				isResolved : function () {}
+			},
+			oModelMock = this.mock(oModel),
+			aList = ["path0", "path1", "path2"];
+
+		aList.sideEffects = true;
+
+		this.mock(oModel).expects("_getObject").withExactArgs("~sPath", "~oContext").returns(aList);
+		this.mock(oBinding).expects("isResolved").withExactArgs().returns(true);
+		this.mock(oBinding).expects("_isExpandedListUsable").withExactArgs().returns(true);
+		this.mock(oBinding).expects("_getCreatedPersistedContexts")
+			.withExactArgs()
+			.returns(["~Context0", "~Context1"]);
+		oModelMock.expects("getKey").withExactArgs("~Context0").returns("path0");
+		oModelMock.expects("getKey").withExactArgs("~Context1").returns("path1");
+		this.mock(oBinding).expects("_initSortersFilters").withExactArgs();
+		this.mock(oBinding).expects("applyFilter").withExactArgs();
+		this.mock(oBinding).expects("applySort").withExactArgs();
+
+		// code under test
+		assert.strictEqual(ODataListBinding.prototype.checkExpandedList.call(oBinding, true),
+			bUseExpandedList);
+
+		assert.strictEqual(oBinding.bUseExpandedList, bUseExpandedList);
+		assert.strictEqual(oBinding.aExpandRefs, bUseExpandedList ? aList : undefined);
+		assert.deepEqual(oBinding.aAllKeys, ["path2"]);
+		assert.deepEqual(aList, ["path0", "path1", "path2"]); // original value not modified
+		assert.strictEqual(oBinding.iLength, 1);
+		assert.strictEqual(oBinding.bLengthFinal, true);
+		assert.strictEqual(oBinding.bDataAvailable, true);
+	});
+});
+
+	//*********************************************************************************************
+[true, false].forEach(function (bUseExpandedList) {
+	var sTitle = "checkExpandedList: expanded 'to N' navigation property; skip reload needed;"
+			+ " read via side effect, no created persisted contexts;"
+			+ " bUseExpandedList=" + bUseExpandedList;
+
+	QUnit.test(sTitle, function (assert) {
+		var oModel = {_getObject : function () {}},
+			oBinding = {
+				oContext : "~oContext",
+				oModel : oModel,
+				sPath : "~sPath",
+				bUseExpandedList : bUseExpandedList,
+				_getCreatedPersistedContexts : function () {},
+				_initSortersFilters : function () {},
+				_isExpandedListUsable : function () {},
+				applyFilter : function () {},
+				applySort : function () {},
+				isResolved : function () {}
+			},
+			aList = ["path0", "path1", "path2"];
+
+		aList.sideEffects = true;
+
+		this.mock(oModel).expects("_getObject").withExactArgs("~sPath", "~oContext").returns(aList);
+		this.mock(oBinding).expects("isResolved").withExactArgs().returns(true);
+		this.mock(oBinding).expects("_isExpandedListUsable").withExactArgs().returns(true);
+		this.mock(oBinding).expects("_getCreatedPersistedContexts").withExactArgs().returns([]);
+		this.mock(oBinding).expects("_initSortersFilters").withExactArgs();
+		this.mock(oBinding).expects("applyFilter").withExactArgs();
+		this.mock(oBinding).expects("applySort").withExactArgs();
+
+		// code under test
+		assert.strictEqual(ODataListBinding.prototype.checkExpandedList.call(oBinding, true),
+			bUseExpandedList);
+
+		assert.strictEqual(oBinding.bUseExpandedList, bUseExpandedList);
+		assert.strictEqual(oBinding.aExpandRefs, bUseExpandedList ? aList : undefined);
+		assert.strictEqual(oBinding.aAllKeys, aList);
+		assert.strictEqual(oBinding.iLength, 3);
+		assert.strictEqual(oBinding.bLengthFinal, true);
+		assert.strictEqual(oBinding.bDataAvailable, true);
+	});
+});
+
+	//*********************************************************************************************
 	QUnit.test("_refresh: getResolvedPath is called", function (assert) {
 		var oBinding = {
+				bPendingRefresh : "~bPendingRefresh",
 				_hasTransientParentContext : function () {},
 				getResolvedPath : function () {}
 			};
@@ -860,19 +1088,85 @@ sap.ui.define([
 		// code under test
 		ODataListBinding.prototype._refresh.call(oBinding, undefined, undefined, "~mEntityTypes");
 
-		assert.strictEqual(oBinding.bPendingRefresh, false);
+		assert.strictEqual(oBinding.bPendingRefresh, "~bPendingRefresh", "unchanged");
 	});
 
 	//*********************************************************************************************
 	QUnit.test("_refresh: parent context is transient", function (assert) {
-		var oBinding = {_hasTransientParentContext : function () {}};
+		var oBinding = {
+				bPendingRefresh : "~bPendingRefresh",
+				_hasTransientParentContext : function () {}
+			};
 
 		this.mock(oBinding).expects("_hasTransientParentContext").returns(true);
 
 		// code under test
 		ODataListBinding.prototype._refresh.call(oBinding);
 
-		assert.strictEqual(oBinding.bPendingRefresh, undefined);
+		assert.strictEqual(oBinding.bPendingRefresh, "~bPendingRefresh", "unchanged");
+	});
+
+	//*********************************************************************************************
+	QUnit.test("_refresh: suspended binding - change detected", function (assert) {
+		var oBinding = {
+				bIgnoreSuspend : false,
+				bPendingRefresh : false,
+				bSuspended : true,
+				_hasTransientParentContext : function () {}
+			};
+
+		this.mock(oBinding).expects("_hasTransientParentContext").withExactArgs().returns(false);
+
+		// code under test
+		ODataListBinding.prototype._refresh.call(oBinding);
+
+		assert.strictEqual(oBinding.bPendingRefresh, true);
+	});
+
+	//*********************************************************************************************
+	QUnit.test("_refresh: suspended binding and force update", function (assert) {
+		var oBinding = {
+				bIgnoreSuspend : false,
+				bPendingRefresh : true,
+				bSuspended : true,
+				_fireRefresh : function () {},
+				_hasTransientParentContext : function () {},
+				abortPendingRequest : function () {},
+				resetData : function () {}
+			};
+
+		this.mock(oBinding).expects("_hasTransientParentContext").withExactArgs().returns(false);
+		this.mock(oBinding).expects("abortPendingRequest").withExactArgs(true);
+		this.mock(oBinding).expects("resetData").withExactArgs();
+		this.mock(oBinding).expects("_fireRefresh").withExactArgs({reason : ChangeReason.Refresh});
+
+		// code under test
+		ODataListBinding.prototype._refresh.call(oBinding, true);
+
+		assert.strictEqual(oBinding.bPendingRefresh, false);
+	});
+
+	//*********************************************************************************************
+	QUnit.test("_refresh: suspended binding ignore suspended", function (assert) {
+		var oBinding = {
+				bIgnoreSuspend : true,
+				bPendingRefresh : true,
+				bSuspended : true,
+				_fireRefresh : function () {},
+				_hasTransientParentContext : function () {},
+				abortPendingRequest : function () {},
+				resetData : function () {}
+			};
+
+		this.mock(oBinding).expects("_hasTransientParentContext").withExactArgs().returns(false);
+		this.mock(oBinding).expects("abortPendingRequest").withExactArgs(true);
+		this.mock(oBinding).expects("resetData").withExactArgs();
+		this.mock(oBinding).expects("_fireRefresh").withExactArgs({reason : ChangeReason.Refresh});
+
+		// code under test
+		ODataListBinding.prototype._refresh.call(oBinding);
+
+		assert.strictEqual(oBinding.bPendingRefresh, false);
 	});
 
 	//*********************************************************************************************
@@ -1172,6 +1466,8 @@ sap.ui.define([
 				_fireChange : function () {},
 				_getContexts : function () {},
 				_hasTransientParentContext : function () {},
+				_updateLastStartAndLength : function () {},
+				isFirstCreateAtEnd : function () {},
 				useClientMode : function () {}
 			},
 			aContexts = ["~V2Context0", "~V2Context1"],
@@ -1181,8 +1477,11 @@ sap.ui.define([
 			aContexts.dataRequested = true;
 		}
 		this.mock(oBinding).expects("_hasTransientParentContext").withExactArgs().returns(false);
+		this.mock(oBinding).expects("_updateLastStartAndLength")
+			.withExactArgs(0, 2, undefined, undefined);
 		this.mock(oBinding).expects("_getContexts").withExactArgs(0, 2).returns(aContexts);
 		this.mock(oBinding).expects("useClientMode").withExactArgs().returns(true);
+		this.mock(oBinding).expects("isFirstCreateAtEnd").withExactArgs().returns(false);
 		this.mock(oBinding).expects("_fireChange")
 			.withExactArgs({reason : ChangeReason.Change})
 			.exactly(bDataRequested ? 0 : 1);
@@ -1191,9 +1490,6 @@ sap.ui.define([
 		aResultContexts = ODataListBinding.prototype.getContexts.call(oBinding, 0, 2);
 
 		assert.strictEqual(aResultContexts, aContexts);
-		assert.strictEqual(oBinding.iLastLength, 2);
-		assert.strictEqual(oBinding.iLastStartIndex, 0);
-		assert.strictEqual(oBinding.iLastThreshold, undefined);
 	});
 });
 
@@ -1207,12 +1503,17 @@ sap.ui.define([
 				_fireChange : function () {},
 				_getContexts : function () {},
 				_hasTransientParentContext : function () {},
+				_updateLastStartAndLength : function () {},
+				isFirstCreateAtEnd : function () {},
 				useClientMode : function () {}
 			};
 
 		this.mock(oBinding).expects("_hasTransientParentContext").withExactArgs().returns(false);
+		this.mock(oBinding).expects("_updateLastStartAndLength")
+			.withExactArgs(0, 2, undefined, undefined);
 		this.mock(oBinding).expects("_getContexts").withExactArgs(0, 2).returns([]);
 		this.mock(oBinding).expects("useClientMode").withExactArgs().returns(true);
+		this.mock(oBinding).expects("isFirstCreateAtEnd").withExactArgs().returns(false);
 		this.mock(oBinding).expects("_fireChange").never();
 
 		// code under test
@@ -1224,8 +1525,6 @@ sap.ui.define([
 	QUnit.test("getContexts: use ODataUtils, bLengthFinal = " + bLengthFinal, function (assert) {
 		var oModel = {getServiceMetadata : function () {}},
 			oBinding = {
-				aKeys : [],
-				iLength : 550,
 				bLengthFinal : bLengthFinal,
 				oModel : oModel,
 				bPendingRequest : false,
@@ -1233,33 +1532,28 @@ sap.ui.define([
 				_getLength : function () {},
 				_getSkipAndTop : function () {},
 				_hasTransientParentContext : function () {},
+				_updateLastStartAndLength : function () {},
+				isFirstCreateAtEnd : function () {},
 				loadData : function () {},
 				useClientMode : function () {}
 			},
-			aContexts = [],
-			oInterval = {start : 0, end : 110},
-			aIntervals = [{start : 0, end : 110}];
+			aContexts = [];
 
 		this.mock(oBinding).expects("_hasTransientParentContext").withExactArgs().returns(false);
 		this.mock(oBinding).expects("_getLength").withExactArgs().exactly(bLengthFinal ? 0 : 1);
+		this.mock(oBinding).expects("_updateLastStartAndLength")
+			.withExactArgs(0, 10, 100, undefined);
 		this.mock(oBinding).expects("_getContexts")
 			.withExactArgs(0, 10)
 			.returns(aContexts);
 		this.mock(oBinding).expects("useClientMode").withExactArgs().returns(false);
 		this.mock(oBinding).expects("_getSkipAndTop")
-			.withExactArgs(0, 10)
+			.withExactArgs(0, 10, 100)
 			.returns({skip : "~skip", top : "~top"});
-		this.mock(ODataUtils).expects("_getReadIntervals")
-			.withExactArgs(oBinding.aKeys , "~skip", "~top", 100,
-				bLengthFinal ? oBinding.iLength : undefined)
-			.returns(aIntervals);
-		this.mock(ODataUtils).expects("_mergeIntervals")
-			.withExactArgs(sinon.match.same(aIntervals))
-			.returns(oInterval);
 		this.mock(oModel).expects("getServiceMetadata").withExactArgs().returns(true);
 		this.mock(oBinding).expects("loadData")
-			.withExactArgs(sinon.match.same(oInterval.start),
-				sinon.match.same(oInterval.end - oInterval.start));
+			.withExactArgs("~skip", "~top");
+		this.mock(oBinding).expects("isFirstCreateAtEnd").withExactArgs().returns(false);
 
 		// code under test
 		assert.deepEqual(ODataListBinding.prototype.getContexts.call(oBinding, 0, 10, 100),
@@ -1277,15 +1571,20 @@ sap.ui.define([
 				_getContexts : function () {},
 				_getMaximumLength : function () {},
 				_hasTransientParentContext : function () {},
+				_updateLastStartAndLength : function () {},
+				isFirstCreateAtEnd : function () {},
 				useClientMode : function () {}
 			};
 
 		this.mock(oBinding).expects("_hasTransientParentContext").withExactArgs().returns(false);
+		this.mock(oBinding).expects("_updateLastStartAndLength")
+			.withExactArgs(0, undefined, 100, undefined);
 		this.mock(oBinding).expects("_getMaximumLength").withExactArgs().returns("~iLength");
 		this.mock(oBinding).expects("_getContexts")
 			.withExactArgs(0, "~iLength")
 			.returns("~aContexts");
 		this.mock(oBinding).expects("useClientMode").withExactArgs().returns(true);
+		this.mock(oBinding).expects("isFirstCreateAtEnd").withExactArgs().returns(false);
 		this.mock(oBinding).expects("_fireChange").withExactArgs({reason : ChangeReason.Change});
 
 		// code under test
@@ -1295,52 +1594,46 @@ sap.ui.define([
 
 	//*********************************************************************************************
 [
-	{pendingRequest : false, interval : {start : 0, end : 110}, expectLoad : true},
-	{pendingRequest : true, interval : {start : 0, end : 110}, expectLoad : false},
-	{pendingRequest : true, interval : undefined, expectLoad : false},
-	{pendingRequest : false, interval : undefined, expectLoad : false}
+	{pendingRequest : false, bSkipTop : true, expectLoad : true},
+	{pendingRequest : true, bSkipTop : true, expectLoad : false},
+	{pendingRequest : true, bSkipTop : false, expectLoad : false},
+	{pendingRequest : false, bSkipTop : false, expectLoad : false}
 ].forEach(function (oFixture) {
-	var sTitle = "getContexts: use ODataUtils: pendingRequest = " + oFixture.pendingRequest
-			+ ", interval = " + oFixture.interval;
+	var sTitle = "getContexts: calls loadData with pendingRequest = " + oFixture.pendingRequest
+			+ ", has skip/top = " + oFixture.bSkipTop;
 	QUnit.test(sTitle, function (assert) {
 		var oModel = {getServiceMetadata : function () {}},
 			oBinding = {
-				aKeys : [],
-				iLength : 550,
 				bLengthFinal : true,
 				oModel : oModel,
 				bPendingRequest : oFixture.pendingRequest,
 				_getContexts : function () {},
-				_getLength : function () {},
 				_getSkipAndTop : function () {},
 				_hasTransientParentContext : function () {},
+				_updateLastStartAndLength : function () {},
+				isFirstCreateAtEnd : function () {},
 				loadData : function () {},
 				useClientMode : function () {}
 			},
-			aContexts = [],
-			aIntervals = [{start : 0, end : 110}];
+			aContexts = [];
 
 		this.mock(oBinding).expects("_hasTransientParentContext").withExactArgs().returns(false);
+		this.mock(oBinding).expects("_updateLastStartAndLength")
+			.withExactArgs(0, 10, 100, undefined);
 		this.mock(oBinding).expects("_getContexts")
 			.withExactArgs(0, 10)
 			.returns(aContexts);
 		this.mock(oBinding).expects("useClientMode").withExactArgs().returns(false);
 		this.mock(oBinding).expects("_getSkipAndTop")
-			.withExactArgs(0, 10)
-			.returns({skip : "~skip", top : "~top"});
-		this.mock(ODataUtils).expects("_getReadIntervals")
-			.withExactArgs(oBinding.aKeys , "~skip", "~top", 100, oBinding.iLength)
-			.returns(aIntervals);
-		this.mock(ODataUtils).expects("_mergeIntervals")
-			.withExactArgs(sinon.match.same(aIntervals))
-			.returns(oFixture.interval);
+			.withExactArgs(0, 10, 100)
+			.returns(oFixture.bSkipTop ? {skip : "~skip", top : "~top"} : undefined);
 		this.mock(oModel).expects("getServiceMetadata").withExactArgs().returns(true);
-		if (oFixture.interval) {
+		if (oFixture.bSkipTop) {
 			this.mock(oBinding).expects("loadData")
-				.withExactArgs(oFixture.interval.start,
-					oFixture.interval.end - oFixture.interval.start)
+				.withExactArgs( "~skip",  "~top")
 				.exactly(oFixture.expectLoad ? 1 : 0);
 		}
+		this.mock(oBinding).expects("isFirstCreateAtEnd").withExactArgs().returns(false);
 
 		// code under test
 		assert.deepEqual(ODataListBinding.prototype.getContexts.call(oBinding, 0, 10, 100),
@@ -1349,20 +1642,261 @@ sap.ui.define([
 });
 
 	//*********************************************************************************************
+[{ // no created contexts
+	isFirstCreateAtEnd : undefined, // return value of isFirstCreateAtEnd call
+	bPendingRequest : true, // whether the call to getContexts causes a pending request
+	sAvailableContexts : "backend", // kind of contexts already avail in requested ranged
+	bExpectIsTransient : false, // whether a call to isTransient on the avail context is expected
+	iExpectedLength : 1 // expected length of returned contexts array
+},{ // created contexts at start
+	isFirstCreateAtEnd : false,
+	bPendingRequest : true,
+	sAvailableContexts : "backend",
+	bExpectIsTransient : false,
+	iExpectedLength : 1
+}, { // created contexts at end, no pending request
+	isFirstCreateAtEnd : true,
+	bPendingRequest : false,
+	sAvailableContexts : "backend",
+	bExpectIsTransient : false,
+	iExpectedLength : 1
+}, { // created contexts at end, pending request, no contexts to return
+	isFirstCreateAtEnd : true,
+	bPendingRequest : true,
+	sAvailableContexts : "none",
+	bExpectIsTransient : false,
+	iExpectedLength : 0
+}, { // created contexts at end, pending request, contexts to return are from backend
+	isFirstCreateAtEnd : true,
+	bPendingRequest : true,
+	sAvailableContexts : "backend",
+	bExpectIsTransient : true,
+	iExpectedLength : 1
+}, { // created contexts at end, pending request, contexts to return are created => empty array
+	isFirstCreateAtEnd : true,
+	bPendingRequest : true,
+	sAvailableContexts : "created",
+	bExpectIsTransient : true,
+	iExpectedLength : 0
+}].forEach(function (oFixture, i) {
+	var sTitle = "getContexts: Return [] if created contexts are at end and pending request," + i;
+
+	QUnit.test(sTitle, function (assert) {
+		var aResult,
+			oModel = {getServiceMetadata : function () {}},
+			oBinding = {
+				bLengthFinal : true,
+				oModel : oModel,
+				bPendingRequest : false, // no pending request initially; changed in #loadData
+				_getContexts : function () {},
+				_getSkipAndTop : function () {},
+				_hasTransientParentContext : function () {},
+				_updateLastStartAndLength : function () {},
+				getContextData : function () {},
+				isFirstCreateAtEnd : function () {},
+				loadData : function () {},
+				useClientMode : function () {}
+			},
+			oContext = {
+				isTransient : function () {}
+			},
+			aContexts = oFixture.sAvailableContexts === "none" ? [] : [oContext];
+
+		this.mock(oBinding).expects("_hasTransientParentContext").withExactArgs().returns(false);
+		this.mock(oBinding).expects("_updateLastStartAndLength")
+			.withExactArgs(0, 10, 100, undefined)
+			.callsFake(function () {
+				// set last length and start to see that values are not changed anywhere else
+				this.iLastLength = "~iLastLengthUpdated";
+				this.iLastStartIndex = "~iLastStartIndexUpdated";
+			});
+		this.mock(oBinding).expects("_getContexts")
+			.withExactArgs(0, 10)
+			.returns(aContexts);
+		this.mock(oBinding).expects("useClientMode").withExactArgs().returns(false);
+		this.mock(oBinding).expects("_getSkipAndTop")
+			.withExactArgs(0, 10, 100)
+			.returns({skip : "~skip", top : "~top"});
+		this.mock(oModel).expects("getServiceMetadata").withExactArgs().returns(true);
+		this.mock(oBinding).expects("loadData")
+			.withExactArgs("~skip",  "~top")
+			.callsFake(function () {
+				oBinding.bPendingRequest = oFixture.bPendingRequest;
+			});
+		this.mock(oBinding).expects("isFirstCreateAtEnd")
+			.withExactArgs()
+			.returns(oFixture.isFirstCreateAtEnd);
+		this.mock(oContext).expects("isTransient")
+			.withExactArgs()
+			.exactly(oFixture.bExpectIsTransient ? 1 : 0)
+			.returns(oFixture.sAvailableContexts === "created" ? false : undefined);
+		this.mock(oBinding).expects("getContextData")
+			.withExactArgs(sinon.match.same(oContext))
+			.exactly(oFixture.iExpectedLength)
+			.returns("~data0");
+
+		// code under test
+		aResult = ODataListBinding.prototype.getContexts.call(oBinding, 0, 10, 100);
+
+		assert.strictEqual(aResult, aContexts);
+		assert.strictEqual(aResult.dataRequested, true);
+		assert.strictEqual(aResult.length, oFixture.iExpectedLength);
+
+		assert.deepEqual(oBinding.aLastContextData, oFixture.iExpectedLength ? ["~data0"] : []);
+		assert.deepEqual(oBinding.aLastContexts, aContexts);
+		assert.notStrictEqual(oBinding.aLastContexts, aContexts);
+		assert.strictEqual(oBinding.iLastEndIndex, 10);
+		assert.strictEqual(oBinding.iLastLength, "~iLastLengthUpdated");
+		assert.strictEqual(oBinding.iLastStartIndex, "~iLastStartIndexUpdated");
+	});
+});
+
+	//**********************************************************************************************
+	QUnit.test("getContexts: throws error of _updateLastStartAndLength", function (assert) {
+		var oBinding = {
+				bLengthFinal : true,
+				_hasTransientParentContext : function () {},
+				_updateLastStartAndLength : function () {}
+			},
+			oError = new Error("foo");
+
+		this.mock(oBinding).expects("_hasTransientParentContext").withExactArgs().returns(false);
+		this.mock(oBinding).expects("_updateLastStartAndLength")
+			.withExactArgs("~iStartIndex", "~iLength", "~iMaximumPrefetchSize", "~bKeepCurrent")
+			.throws(oError);
+
+		assert.throws(function () {
+			// code under test
+			ODataListBinding.prototype.getContexts.call(oBinding, "~iStartIndex", "~iLength",
+				"~iMaximumPrefetchSize", "~bKeepCurrent");
+		}, oError);
+	});
+
+	//**********************************************************************************************
+	QUnit.test("getContexts: bKeepCurrent=true, no extended change detection", function (assert) {
+		var oBinding = {
+				aAllKeys : [/* content nor relevant for this test */],
+				aLastContextData : "~aLastContextData",
+				aLastContexts : "~aLastContexts",
+				iLastEndIndex : "~iLastEndIndex",
+				iLastLength : "~iLastLength",
+				iLastMaximumPrefetchSize : "~iLastMaximumPrefetchSize",
+				iLastStartIndex : "~iLastStartIndex",
+				bLengthFinal : true,
+				_getContexts : function () {},
+				_hasTransientParentContext : function () {},
+				_updateLastStartAndLength : function () {},
+				isFirstCreateAtEnd : function () {},
+				useClientMode : function () {}
+			},
+			aContexts = ["~context0", "~context1"];
+
+		this.mock(oBinding).expects("_hasTransientParentContext").withExactArgs().returns(false);
+		this.mock(oBinding).expects("_updateLastStartAndLength")
+			.withExactArgs(7, 2, undefined, true);
+		this.mock(oBinding).expects("_getContexts").withExactArgs(7, 2).returns(aContexts);
+		this.mock(oBinding).expects("useClientMode").withExactArgs().returns(true);
+		this.mock(oBinding).expects("isFirstCreateAtEnd").withExactArgs().returns(false);
+
+		// code under test
+		assert.strictEqual(
+			ODataListBinding.prototype.getContexts.call(oBinding, 7, 2, undefined, true),
+			aContexts);
+
+		assert.strictEqual(oBinding.aLastContextData, "~aLastContextData");
+		assert.strictEqual(oBinding.aLastContexts, "~aLastContexts");
+		assert.strictEqual(oBinding.iLastEndIndex, "~iLastEndIndex");
+		assert.strictEqual(oBinding.iLastLength, "~iLastLength");
+		assert.strictEqual(oBinding.iLastMaximumPrefetchSize, "~iLastMaximumPrefetchSize");
+		assert.strictEqual(oBinding.iLastStartIndex, "~iLastStartIndex");
+	});
+
+	//*********************************************************************************************
+	QUnit.test("_updateLastStartAndLength: bKeepCurrent = false", function (assert) {
+		var oBinding = {
+				iLastLength : "~iLastLength",
+				iLastMaximumPrefetchSize : "~iLastMaximumPrefetchSize",
+				iLastStartIndex : "~iLastStartIndex",
+				bUseExtendedChangeDetection : true
+			};
+
+		// code under test
+		ODataListBinding.prototype._updateLastStartAndLength.call(oBinding, "~start", "~length",
+			"~maximumPrefetchSize", /*bKeepCurrent*/false);
+
+		assert.strictEqual(oBinding.iLastLength, "~length");
+		assert.strictEqual(oBinding.iLastMaximumPrefetchSize, "~maximumPrefetchSize");
+		assert.strictEqual(oBinding.iLastStartIndex, "~start");
+	});
+
+	//*********************************************************************************************
+	QUnit.test("_updateLastStartAndLength: keep last start and last length", function (assert) {
+		var oBinding = {
+				iLastLength : "~iLastLength",
+				iLastMaximumPrefetchSize : "~iLastMaximumPrefetchSize",
+				iLastStartIndex : "~iLastStartIndex",
+				_checkKeepCurrentSupported : function () {}
+			};
+
+		this.mock(oBinding).expects("_checkKeepCurrentSupported")
+			.withExactArgs("~iMaximumPrefetchSize");
+
+		// code under test
+		ODataListBinding.prototype._updateLastStartAndLength.call(oBinding, "~start", "~length",
+			"~iMaximumPrefetchSize", /*bKeepCurrent*/true);
+
+		assert.strictEqual(oBinding.iLastLength, "~iLastLength");
+		assert.strictEqual(oBinding.iLastMaximumPrefetchSize, "~iLastMaximumPrefetchSize");
+		assert.strictEqual(oBinding.iLastStartIndex, "~iLastStartIndex");
+	});
+
+	//*********************************************************************************************
+	QUnit.test("_updateLastStartAndLength: throws error of _checkKeepCurrentSupported",
+			function (assert) {
+		var oBinding = {
+				iLastLength : "~iLastLength",
+				iLastMaximumPrefetchSize : "~iLastMaximumPrefetchSize",
+				iLastStartIndex : "~iLastStartIndex",
+				_checkKeepCurrentSupported : function () {}
+			},
+			oError = new Error("Foo");
+
+		this.mock(oBinding).expects("_checkKeepCurrentSupported")
+			.withExactArgs("~iMaximumPrefetchSize")
+			.throws(oError);
+
+		// code under test
+		assert.throws(function () {
+			ODataListBinding.prototype._updateLastStartAndLength.call(oBinding, "~start", "~length",
+				"~iMaximumPrefetchSize", /*bKeepCurrent*/true);
+		}, oError);
+
+		assert.strictEqual(oBinding.iLastLength, "~iLastLength");
+		assert.strictEqual(oBinding.iLastMaximumPrefetchSize, "~iLastMaximumPrefetchSize");
+		assert.strictEqual(oBinding.iLastStartIndex, "~iLastStartIndex");
+	});
+
+	//*********************************************************************************************
 [
 	{aCreatedContexts : [], iLength : 0, iExpected : 0},
 	{aCreatedContexts : [{}, {}, {}], iLength : 0, iExpected : 3},
 	{aCreatedContexts : [], iLength : 42, iExpected : 52},
-	{aCreatedContexts : [], iLastLength : 17, iLastThreshold : 13, iLength : 42, iExpected : 55},
+	{
+		aCreatedContexts : [],
+		iLastLength : 17,
+		iLastMaximumPrefetchSize : 13,
+		iLength : 42,
+		iExpected : 55
+	},
 	{aCreatedContexts : [], iLastLength : 17, iLength : 42, iExpected : 59},
 	{aCreatedContexts : [{}], iLength : 42, iExpected : 53},
-	{aCreatedContexts : [{}], iLastThreshold : 13, iLength : 42, iExpected : 56},
+	{aCreatedContexts : [{}], iLastMaximumPrefetchSize : 13, iLength : 42, iExpected : 56},
 	{aCreatedContexts : [{}, {}], iLastLength : 17, iLength : 42, iExpected : 61}
 ].forEach(function (oFixture, i) {
 	QUnit.test("getLength: bLengthFinal=false; #" + i, function (assert) {
 		var oBinding = {
 				iLastLength : oFixture.iLastLength,
-				iLastThreshold : oFixture.iLastThreshold,
+				iLastMaximumPrefetchSize : oFixture.iLastMaximumPrefetchSize,
 				iLength : oFixture.iLength,
 				bLengthFinal : false,
 				_getCreatedContexts : function () {}
@@ -1401,23 +1935,31 @@ sap.ui.define([
 
 	//*********************************************************************************************
 [{
-	changeSetId : "~changeSetId",
-	error : "~error",
-	expand : "~expand",
-	groupId : "~groupId",
-	inactive : "~inactive",
-	success : "~success"
+	bindingParameters : {expand : "~bindingExpand"},
+	parameters : {
+		changeSetId : "~changeSetId",
+		error : "~error",
+		expand : "~parametersExpand",
+		groupId : "~groupId",
+		inactive : "~inactive",
+		success : "~success"
+	},
+	expectedExpand : "~parametersExpand"
 }, {
-	success : undefined
-},
-	undefined
-].forEach(function (mParameters, i) {
+	bindingParameters : {expand : "~bindingExpand"},
+	parameters : {success : undefined},
+	expectedExpand : "~bindingExpand"
+}, {
+	bindingParameters : undefined,
+	parameters : undefined,
+	expectedExpand : undefined
+}].forEach(function (oFixture, i) {
 	QUnit.test("create: calls ODataModel#createEntry with parameters, #" + i, function (assert) {
 		var fnResolveActivatedPromise,
 			oActivatedPromise = new Promise(function (resolve) {
 				fnResolveActivatedPromise = resolve;
 			}),
-			bInactive = mParameters && mParameters.inactive,
+			bInactive = oFixture.parameters && oFixture.parameters.inactive,
 			oModel = {
 				oMetadata : {isLoaded : function () {}},
 				_getCreatedContextsCache : function () {},
@@ -1428,6 +1970,7 @@ sap.ui.define([
 				sCreatedEntitiesKey : "~sCreatedEntitiesKey",
 				bLengthFinal : true,
 				oModel : oModel,
+				mParameters : oFixture.bindingParameters,
 				sPath : "~sPath",
 				_fireChange : function () {},
 				_hasTransientParentContext : function () {},
@@ -1451,20 +1994,22 @@ sap.ui.define([
 			.withExactArgs()
 			.returns(oCreatedContextsCache);
 		this.mock(Object).expects("assign")
-			.withExactArgs(sinon.match(function (mParam0) {
-				assert.deepEqual(mParam0, {
+			.withExactArgs(sinon.match(function (mParams0) {
+				assert.deepEqual(mParams0, {
 					context : "~oContext",
 					properties : "~oInitialData",
 					refreshAfterChange : false
 				});
-				mCreateParameters = mParam0;
+				mCreateParameters = mParams0;
 
 				return true;
-			}), sinon.match.same(mParameters))
+			}), sinon.match.same(oFixture.parameters))
 			.callThrough();
 		this.mock(oModel).expects("createEntry")
-			.withExactArgs("~sPath", sinon.match(function (mParam) {
-				return mParam === mCreateParameters;
+			.withExactArgs("~sPath", sinon.match(function (mParams) {
+				assert.strictEqual(mParams.expand, oFixture.expectedExpand);
+
+				return mParams === mCreateParameters;
 			}))
 			.returns(oCreatedContext);
 		this.mock(oCreatedContextsCache).expects("addContext")
@@ -1479,7 +2024,7 @@ sap.ui.define([
 
 		// code under test
 		assert.strictEqual(ODataListBinding.prototype.create.call(oBinding, "~oInitialData",
-			"~bAtEnd", mParameters), oCreatedContext);
+			"~bAtEnd", oFixture.parameters), oCreatedContext);
 
 		oBindingMock.expects("fireEvent")
 			.withExactArgs("createActivate")
@@ -1632,97 +2177,155 @@ sap.ui.define([
 });
 
 	//*********************************************************************************************
-[{
-	iCreated : 0, iLength : 10, iStartIndex : 3, oResult : {skip : 3, top : 10}
-}, {
-	iCreated : 4, iLength : 10, iStartIndex : 4, oResult : {skip : 0, top : 10}
-}, {
-	iCreated : 4, iLength : 10, iStartIndex : 6, oResult : {skip : 2, top : 10}
-}, {
-	iCreated : 6, iLength : 10, iStartIndex : 4, oResult : {skip : 0, top : 10}
-}, {
-	iCreated : 20, iLength : 5, iStartIndex : 4, oResult : {skip : 0, top : 5}
-}].forEach(function (oFixture, i) {
-	QUnit.test("_getSkipAndTop, creation area at start: #" + i, function (assert) {
+	QUnit.test("_getSkipAndTop, creation at start, no data in binding", function (assert) {
 		var oBinding = {
+				aKeys : [],
+				bLengthFinal : true,
+				iLength : "~length",
+				_getCreatedContexts : function () {},
+				isFirstCreateAtEnd : function () {}
+			};
+
+		this.mock(oBinding).expects("_getCreatedContexts").withExactArgs(); // return value unused
+		this.mock(oBinding).expects("isFirstCreateAtEnd").withExactArgs().returns(false);
+		this.mock(ODataUtils).expects("_getReadIntervals")
+			.withExactArgs(sinon.match.same(oBinding.aKeys), "~startIndex", "~length",
+				"~maximumPrefetchSize", "~length")
+			.returns("~aIntervals");
+		this.mock(ODataUtils).expects("_mergeIntervals")
+			.withExactArgs("~aIntervals")
+			.returns({start : 222, end : 333});
+
+		// code under test
+		assert.deepEqual(
+			ODataListBinding.prototype._getSkipAndTop.call(oBinding, "~startIndex", "~length",
+				"~maximumPrefetchSize"),
+			{skip : 222, top : 111});
+	});
+
+	//*********************************************************************************************
+[
+	{interval : {start : 222, end : 333}, result : {skip : 222 - 1, top : 111}},
+	{interval : undefined, result : undefined}
+].forEach(function (oFixture, i) {
+	QUnit.test("_getSkipAndTop, creation at start, binding has data: #" + i, function (assert) {
+		var oBinding = {
+				aKeys : ["key0", "key1"],
+				bLengthFinal : true,
+				iLength : "~length",
 				_getCreatedContexts : function () {},
 				isFirstCreateAtEnd : function () {}
 			};
 
 		this.mock(oBinding).expects("_getCreatedContexts")
 			.withExactArgs()
-			.returns(Array(oFixture.iCreated));
+			.returns(["created0"]);
 		this.mock(oBinding).expects("isFirstCreateAtEnd")
 			.withExactArgs()
 			.returns(false);
+		this.mock(ODataUtils).expects("_getReadIntervals")
+			.withExactArgs(["created0", "key0", "key1"], "~startIndex", "~length",
+				"~maximumPrefetchSize", "~length")
+			.returns("~aIntervals");
+		this.mock(ODataUtils).expects("_mergeIntervals")
+			.withExactArgs("~aIntervals")
+			.returns(oFixture.interval);
 
 		// code under test
 		assert.deepEqual(
-			ODataListBinding.prototype._getSkipAndTop.call(oBinding, oFixture.iStartIndex,
-				oFixture.iLength),
-			oFixture.oResult);
+			ODataListBinding.prototype._getSkipAndTop.call(oBinding, "~startIndex", "~length",
+				"~maximumPrefetchSize"),
+			oFixture.result);
 	});
 });
 
 	//*********************************************************************************************
-[{ // created contexts, length not final
-	iBindingLength : 1,
-	iCreated : 1,
-	iLength : 10,
-	bLengthFinal : false,
-	iStartIndex : 5,
-	oResult : {skip : 5, top : 10}
-}, { // created contexts, length final, start index > binding length (nothing to read)
-	iBindingLength : 1,
-	iCreated : 1,
-	iLength : 10,
-	bLengthFinal : true,
-	iStartIndex : 5,
-	oResult : {skip : 5, top : 0}
-}, { // created contexts, length final, start index === binding length (nothing to read)
-	iBindingLength : 5,
-	iCreated : 1,
-	iLength : 10,
-	bLengthFinal : true,
-	iStartIndex : 5,
-	oResult : {skip : 5, top : 0}
-}, { // created contexts, length final, requested contexts are all on server (read all)
-	iBindingLength : 42,
-	iCreated : 1,
-	iLength : 10,
-	bLengthFinal : true,
-	iStartIndex : 5,
-	oResult : {skip : 5, top : 10}
-}, { // created contexts, length final, requested contexts are partially on server
-	iBindingLength : 12,
-	iCreated : 1,
-	iLength : 10,
-	bLengthFinal : true,
-	iStartIndex : 5,
-	oResult : {skip : 5, top : 7}
-}].forEach(function (oFixture, i) {
-	QUnit.test("_getSkipAndTop: creation area at end: #" + i, function (assert) {
+[
+	{bLengthFinal : false, iLimit : undefined},
+	{bLengthFinal : true, iLimit : "~length"}
+].forEach(function (oFixture, i) {
+	QUnit.test("_getSkipAndTop, length final and limit: #" + i, function (assert) {
 		var oBinding = {
+				aKeys : [],
+				bLengthFinal : oFixture.bLengthFinal,
+				iLength : "~length",
+				_getCreatedContexts : function () {},
+				isFirstCreateAtEnd : function () {}
+			};
+
+		this.mock(oBinding).expects("_getCreatedContexts").withExactArgs().returns([]);
+		this.mock(oBinding).expects("isFirstCreateAtEnd").withExactArgs().returns(undefined);
+		this.mock(ODataUtils).expects("_getReadIntervals")
+			.withExactArgs(sinon.match.same(oBinding.aKeys) , 0, 10, "~maximumPrefetchSize",
+				oFixture.iLimit)
+			.returns("~aIntervals");
+		this.mock(ODataUtils).expects("_mergeIntervals")
+			.withExactArgs("~aIntervals")
+			.returns({start : 222, end : 333});
+
+		// code under test
+		assert.deepEqual(
+			ODataListBinding.prototype._getSkipAndTop.call(oBinding, 0, 10, "~maximumPrefetchSize"),
+			{skip : 222, top : 111});
+	});
+});
+
+	//*********************************************************************************************
+	QUnit.test("_getSkipAndTop, no read interval", function (assert) {
+		var oBinding = {
+				aKeys : [],
+				bLengthFinal : true,
+				iLength : "~length",
+				_getCreatedContexts : function () {},
+				isFirstCreateAtEnd : function () {}
+			};
+
+		this.mock(oBinding).expects("_getCreatedContexts").withExactArgs().returns([]);
+		this.mock(oBinding).expects("isFirstCreateAtEnd").withExactArgs().returns(false);
+		this.mock(ODataUtils).expects("_getReadIntervals")
+			.withExactArgs(sinon.match.same(oBinding.aKeys) , 0, 10, "~maximumPrefetchSize",
+				"~length")
+			.returns("~aIntervals");
+		this.mock(ODataUtils).expects("_mergeIntervals")
+			.withExactArgs("~aIntervals")
+			.returns(undefined);
+
+		// code under test
+		assert.deepEqual(
+			ODataListBinding.prototype._getSkipAndTop.call(oBinding, 0, 10, "~maximumPrefetchSize"),
+			undefined);
+	});
+
+	//*********************************************************************************************
+	QUnit.test("_getSkipAndTop: creation area at end", function (assert) {
+		var oBinding = {
+				aKeys : "~keys",
 				_getCreatedContexts : function () {},
 				isFirstCreateAtEnd : function () {},
-				iLength : oFixture.iBindingLength,
-				bLengthFinal : oFixture.bLengthFinal
+				iLength : "~bindingLength",
+				bLengthFinal : true
 			};
 
 		this.mock(oBinding).expects("_getCreatedContexts")
 			.withExactArgs()
-			.returns(Array(oFixture.iCreated));
+			.returns([0, 1, 2]);
 		this.mock(oBinding).expects("isFirstCreateAtEnd")
 			.withExactArgs()
 			.returns(true);
+		this.mock(ODataUtils).expects("_getReadIntervals")
+			.withExactArgs("~keys" , "~startIndex", "~length", "~maximumPrefetchSize",
+				"~bindingLength")
+			.returns("~aIntervals");
+		this.mock(ODataUtils).expects("_mergeIntervals")
+			.withExactArgs("~aIntervals")
+			.returns({start : 222, end : 333});
 
 		// code under test
 		assert.deepEqual(
-			ODataListBinding.prototype._getSkipAndTop.call(oBinding, oFixture.iStartIndex,
-				oFixture.iLength),
-			oFixture.oResult);
+			ODataListBinding.prototype._getSkipAndTop.call(oBinding, "~startIndex",
+				"~length", "~maximumPrefetchSize"),
+			{skip : 222, top : 111});
 	});
-});
 
 	//*********************************************************************************************
 	QUnit.test("_getCreatedContexts:", function (assert) {
@@ -1746,16 +2349,33 @@ sap.ui.define([
 	});
 
 	//*********************************************************************************************
-	QUnit.test("_getCreatedPersistedExcludeFilter: only transient contexts", function (assert) {
-		var oBinding = {_getCreatedContexts : function () {}},
+	QUnit.test("_getCreatedPersistedContexts", function (assert) {
+		var aContexts,
+			oBinding = {_getCreatedContexts : function () {}},
 			oContext0 = {isTransient : function () {}},
-			oContext1 = {isTransient : function () {}};
+			oContext1 = {isTransient : function () {}},
+			oContext2 = {isTransient : function () {}};
 
 		this.mock(oBinding).expects("_getCreatedContexts")
 			.withExactArgs()
-			.returns([oContext0, oContext1]);
-		this.mock(oContext0).expects("isTransient").withExactArgs().returns(true);
+			.returns([oContext0, oContext1, oContext2]);
+		this.mock(oContext0).expects("isTransient").withExactArgs().returns(false);
 		this.mock(oContext1).expects("isTransient").withExactArgs().returns(true);
+		this.mock(oContext2).expects("isTransient").withExactArgs().returns(false);
+
+		// code under test
+		aContexts = ODataListBinding.prototype._getCreatedPersistedContexts.call(oBinding);
+
+		assert.deepEqual(aContexts, [oContext0, oContext2]);
+		assert.strictEqual(aContexts[0], oContext0);
+		assert.strictEqual(aContexts[1], oContext2);
+	});
+
+	//*********************************************************************************************
+	QUnit.test("_getCreatedPersistedExcludeFilter: only transient contexts", function (assert) {
+		var oBinding = {_getCreatedPersistedContexts : function () {}};
+
+		this.mock(oBinding).expects("_getCreatedPersistedContexts").withExactArgs().returns([]);
 		this.mock(ODataUtils).expects("_createFilterParams").never();
 
 		// code under test
@@ -1770,30 +2390,20 @@ sap.ui.define([
 				oModel : {
 					oMetadata : {}
 				},
-				_getCreatedContexts : function () {},
+				_getCreatedPersistedContexts : function () {},
 				_getFilterForPredicate : function () {}
 			},
 			oBindingMock = this.mock(oBinding),
-			oContext0 = {isTransient : function () {}},
-			oContext1 = {
-				getPath : function () {},
-				isTransient : function () {}
-			},
-			oContext2 = {
-				getPath : function () {},
-				isTransient : function () {}
-			},
+			oContext0 = {getPath : function () {}},
+			oContext1 = {getPath : function () {}},
 			oFilter1 = new Filter("~Path", FilterOperator.EQ, "foo"),
 			oFilter2 = new Filter("~Path", FilterOperator.EQ, "bar");
 
-		oBindingMock.expects("_getCreatedContexts")
+		oBindingMock.expects("_getCreatedPersistedContexts")
 			.withExactArgs()
-			.returns([oContext0, oContext1, oContext2]);
-		this.mock(oContext0).expects("isTransient").withExactArgs().returns(true);
-		this.mock(oContext1).expects("isTransient").withExactArgs().returns(false);
-		this.mock(oContext2).expects("isTransient").withExactArgs().returns(false);
-		this.mock(oContext1).expects("getPath").withExactArgs().returns("~sPath('1')");
-		this.mock(oContext2).expects("getPath").withExactArgs().returns("~sPath('2')");
+			.returns([oContext0, oContext1]);
+		this.mock(oContext0).expects("getPath").withExactArgs().returns("~sPath('1')");
+		this.mock(oContext1).expects("getPath").withExactArgs().returns("~sPath('2')");
 		oBindingMock.expects("_getFilterForPredicate").withExactArgs("('1')").returns(oFilter1);
 		oBindingMock.expects("_getFilterForPredicate").withExactArgs("('2')").returns(oFilter2);
 		this.mock(ODataUtils).expects("_createFilterParams")
@@ -1822,18 +2432,14 @@ sap.ui.define([
 				oModel : {
 					oMetadata : {}
 				},
-				_getCreatedContexts : function () {},
+				_getCreatedPersistedContexts : function () {},
 				_getFilterForPredicate : function () {}
 			},
 			oBindingMock = this.mock(oBinding),
-			oContext = {
-				getPath : function () {},
-				isTransient : function () {}
-			},
+			oContext = {getPath : function () {}},
 			oFilter = new Filter("~Path", FilterOperator.EQ, "foo");
 
-		oBindingMock.expects("_getCreatedContexts").withExactArgs().returns([oContext]);
-		this.mock(oContext).expects("isTransient").withExactArgs().returns(false);
+		oBindingMock.expects("_getCreatedPersistedContexts").withExactArgs().returns([oContext]);
 		this.mock(oContext).expects("getPath").withExactArgs().returns("~sPath('1')");
 		oBindingMock.expects("_getFilterForPredicate").withExactArgs("('1')").returns(oFilter);
 		this.mock(ODataUtils).expects("_createFilterParams")
@@ -1973,6 +2579,44 @@ sap.ui.define([
 	});
 
 	//*********************************************************************************************
+[
+	{createdPersistedProcessed : false, sorters : ["~sorter"], filterCalls : 0},
+	{createdPersistedProcessed : true, sorters : ["~sorter"], filterCalls : 1},
+	{createdPersistedProcessed : false, sorters : [], filterCalls : 1}
+].forEach(function (oFixture, i) {
+	QUnit.test("sort: handle created persisted in Client mode #" + i, function (assert) {
+		var oBinding = {
+				aAllKeys : "~aAllKeys",
+				bInitial : false,
+				_moveCreatedPersistedToAllKeys : function () {},
+				_fireChange : function () {},
+				_fireSort : function () {},
+				addComparators : function () {},
+				applyFilter : function () {},
+				applySort : function () {},
+				useClientMode : function () {}
+			};
+
+		this.mock(oBinding).expects("useClientMode").withExactArgs().twice().returns(true);
+		this.mock(oBinding).expects("addComparators")
+			.withExactArgs(sinon.match.same(oFixture.sorters), true);
+		this.mock(oBinding).expects("_moveCreatedPersistedToAllKeys")
+			.withExactArgs()
+			.returns(oFixture.createdPersistedProcessed);
+		this.mock(oBinding).expects("applyFilter").withExactArgs().exactly(oFixture.filterCalls);
+		this.mock(oBinding).expects("applySort").withExactArgs();
+		this.mock(oBinding).expects("_fireChange").withExactArgs({reason : ChangeReason.Sort});
+		this.mock(oBinding).expects("_fireSort")
+			.withExactArgs({sorter : sinon.match.same(oFixture.sorters)});
+
+		// code under test
+		assert.strictEqual(
+			ODataListBinding.prototype.sort.call(oBinding, oFixture.sorters),
+			oBinding);
+	});
+});
+
+	//*********************************************************************************************
 	QUnit.test("filter: removes persisted created entries", function (assert) {
 		var oRemoveExpectation, oResetDataExpectation,
 			aApplicationFilters = [],
@@ -2016,6 +2660,39 @@ sap.ui.define([
 		assert.strictEqual(oBinding.aFilters, aFilters);
 		assert.strictEqual(oBinding.oCombinedFilter, "~oCombinedFilter");
 		assert.ok(oResetDataExpectation.calledImmediatelyAfter(oRemoveExpectation));
+	});
+
+	//*********************************************************************************************
+	QUnit.test("filter: handle created persisted in Client mode", function (assert) {
+		var oBinding = {
+				aAllKeys : [],
+				bInitial : false,
+				oModel : {checkFilterOperation : function () {}},
+				_moveCreatedPersistedToAllKeys : function () {},
+				_fireChange : function () {},
+				_fireFilter : function () {},
+				addComparators : function () {},
+				applyFilter : function () {},
+				applySort : function () {},
+				convertFilters : function () {},
+				useClientMode : function () {}
+			};
+
+		this.mock(oBinding.oModel).expects("checkFilterOperation").withExactArgs([]);
+		this.mock(oBinding).expects("convertFilters").withExactArgs();
+		this.mock(FilterProcessor).expects("combineFilters")
+			.withExactArgs([], [])
+			.returns("~oCombinedFilter");
+		this.mock(oBinding).expects("useClientMode").withExactArgs().twice().returns(true);
+		this.mock(oBinding).expects("addComparators").withExactArgs([]).twice();
+		this.mock(oBinding).expects("_moveCreatedPersistedToAllKeys").withExactArgs().returns(true);
+		this.mock(oBinding).expects("applyFilter").withExactArgs();
+		this.mock(oBinding).expects("applySort").withExactArgs();
+		this.mock(oBinding).expects("_fireChange").withExactArgs({reason: ChangeReason.Filter});
+		this.mock(oBinding).expects("_fireFilter").withExactArgs({filters : []});
+
+		// code under test
+		assert.strictEqual(ODataListBinding.prototype.filter.call(oBinding), oBinding);
 	});
 
 	//*********************************************************************************************
@@ -2247,4 +2924,383 @@ sap.ui.define([
 		assert.strictEqual(oBinding.bLengthFinal, oFixture.bResult);
 	});
 });
+
+	//*********************************************************************************************
+[false, true].forEach(function (bExpandedList) {
+	QUnit.test("checkUpdate: bExpandedList = " + bExpandedList, function (assert) {
+		var oBinding = {
+				sChangeReason : "~sChangeReason",
+				aKeys : [],
+				_cleanupCreatedPersisted : function () {},
+				_fireChange : function () {},
+				checkExpandedList : function () {},
+				useClientMode : function () {}
+			};
+
+		this.mock(oBinding).expects("_cleanupCreatedPersisted").withExactArgs().returns(false);
+		this.mock(oBinding).expects("checkExpandedList").withExactArgs(true).returns(bExpandedList);
+		this.mock(oBinding).expects("useClientMode").withExactArgs().exactly(bExpandedList ? 0 : 1);
+		this.mock(oBinding).expects("_fireChange").withExactArgs({reason : "~sChangeReason"});
+
+		// code under test
+		ODataListBinding.prototype.checkUpdate.call(oBinding);
+
+		assert.strictEqual(oBinding.bNeedsUpdate, false);
+		assert.strictEqual(oBinding.sChangeReason, undefined);
+	});
+});
+
+	//*********************************************************************************************
+	QUnit.test("checkUpdate: #_cleanupCreatedPersisted=true fires change event", function (assert) {
+		var oBinding = {
+				sChangeReason : "~sChangeReason",
+				aKeys : [],
+				aLastContextData : [],
+				aLastContexts : [],
+				iLastLength : "~iLastLength",
+				iLastStartIndex : "~iLastStartIndex",
+				_cleanupCreatedPersisted : function () {},
+				_fireChange : function () {},
+				_getContexts : function () {},
+				checkExpandedList : function () {}
+			};
+
+		this.mock(oBinding).expects("_cleanupCreatedPersisted").withExactArgs().returns(true);
+		this.mock(oBinding).expects("checkExpandedList").withExactArgs(true).returns(true);
+		this.mock(oBinding).expects("_getContexts")
+			.withExactArgs("~iLastStartIndex", "~iLastLength")
+			.returns([]);
+		this.mock(oBinding).expects("_fireChange").withExactArgs({reason : "~sChangeReason"});
+
+		// code under test
+		ODataListBinding.prototype.checkUpdate.call(oBinding);
+
+		assert.strictEqual(oBinding.bNeedsUpdate, false);
+		assert.strictEqual(oBinding.sChangeReason, undefined);
+	});
+
+	//*********************************************************************************************
+[
+	{bSuspended : true},
+	{bPendingRequest : true},
+	{bInitial : true}
+].forEach(function (oBindingProperties) {
+	var sTitle = "checkUpdate: #_cleanupCreatedPersisted is called without change event: "
+			+ JSON.stringify(oBindingProperties);
+
+	QUnit.test(sTitle, function (assert) {
+		var oBinding = Object.assign({
+				bNeedsUpdate : true,
+				_cleanupCreatedPersisted : function () {},
+				_fireChange : function () {}
+			}, oBindingProperties);
+
+		this.mock(oBinding).expects("_cleanupCreatedPersisted")
+			.withExactArgs()
+			.returns(/*value not relevant*/ "~bCreatedPersistedRemoved");
+		this.mock(oBinding).expects("_fireChange").never();
+
+		// code under test
+		ODataListBinding.prototype.checkUpdate.call(oBinding);
+	});
+});
+
+	//*********************************************************************************************
+[
+	{mCustomParams : "foo", sOperationMode : "~notRelevant"},
+	{aApplicationFilters : ["foo"]},
+	{aFilters : ["foo"]},
+	{aSorters : ["foo"]}
+].forEach(function (oBindingEnhancement, i) {
+	QUnit.test("_isExpandedListUsable: returns false #" + i, function (assert) {
+		var oBinding = {
+				aApplicationFilters : [],
+				aFilters : [],
+				sOperationMode : OperationMode.Server,
+				aSorters : []
+			};
+
+		Object.assign(oBinding, oBindingEnhancement);
+
+		// code under test
+		assert.strictEqual(ODataListBinding.prototype._isExpandedListUsable.call(oBinding), false);
+	});
+});
+
+	//*********************************************************************************************
+[{
+	// no custom params and no filters/sorters
+}, {
+	sOperationMode : OperationMode.Server
+}, {
+	sOperationMode : "~notServer",
+	aApplicationFilters : ["foo"],
+	aFilters : ["foo"],
+	aSorters : ["foo"]
+}].forEach(function (oBindingEnhancement, i) {
+	QUnit.test("_isExpandedListUsable: returns true #" + i, function (assert) {
+		var oBinding = {
+				aApplicationFilters : [],
+				aFilters : [],
+				aSorters : []
+			};
+
+		Object.assign(oBinding, oBindingEnhancement);
+
+		// code under test
+		assert.strictEqual(ODataListBinding.prototype._isExpandedListUsable.call(oBinding), true);
+	});
+});
+
+	//*********************************************************************************************
+[
+	{expandedListUsable : false, entityType : "~wrongType", refreshExpected : false},
+	{expandedListUsable : true, entityType : "~entityType", refreshExpected : false},
+	{expandedListUsable : false, entityType : "~entityType", refreshExpected : true}
+].forEach(function (oFixture, i) {
+	QUnit.test("_refreshForSideEffects: " + i, function (assert) {
+		var oBinding = {
+				oEntityType : oFixture.entityType,
+				_isExpandedListUsable : function () {},
+				_refresh : function () {}
+			};
+
+		this.mock(oBinding).expects("_isExpandedListUsable")
+			.withExactArgs()
+			.returns(oFixture.expandedListUsable);
+		this.mock(oBinding).expects("_refresh")
+			.withExactArgs()
+			.callsFake(function () {
+				assert.strictEqual(oBinding.sRefreshGroupId, "~sGroupId");
+			})
+			.exactly(oFixture.refreshExpected ? 1 : 0);
+
+		// code under test
+		ODataListBinding.prototype._refreshForSideEffects.call(oBinding,
+			new Set(["~entityType"]), "~sGroupId");
+
+		assert.strictEqual(oBinding.sRefreshGroupId, undefined);
+	});
+});
+
+	//*********************************************************************************************
+	QUnit.test("_cleanupCreatedPersisted: all keys in aList", function (assert) {
+		var oBinding = {
+				oContext : "~oContext",
+				oCreatedPersistedToRemove : new Set(),
+				oModel : {
+					_getObject : function () {},
+					getKey : function () {}
+				},
+				sPath : "~sPath",
+				_getCreatedPersistedContexts : function () {}
+			},
+			aList = ["~sEntityKey"];
+
+		aList.sideEffects = true;
+
+		this.mock(oBinding.oModel).expects("_getObject")
+			.withExactArgs("~sPath", "~oContext")
+			.returns(aList);
+		this.mock(oBinding).expects("_getCreatedPersistedContexts")
+			.withExactArgs()
+			.returns(["~oContext"]);
+		this.mock(oBinding.oModel).expects("getKey")
+			.withExactArgs("~oContext")
+			.returns("~sEntityKey");
+
+		// code under test
+		assert.strictEqual(
+			ODataListBinding.prototype._cleanupCreatedPersisted.call(oBinding),
+			false);
+	});
+
+	//*********************************************************************************************
+	QUnit.test("_cleanupCreatedPersisted: some keys not in aList", function (assert) {
+		var oBinding = {
+				oContext : "~oContext",
+				oCreatedPersistedToRemove : new Set(),
+				oModel : {
+					_discardEntityChanges : function () {},
+					_getObject : function () {},
+					getKey : function () {}
+				},
+				sPath : "~sPath",
+				_getCreatedPersistedContexts : function () {}
+			},
+			oModelMock = this.mock(oBinding.oModel),
+			aList = ["~key0"];
+
+		aList.sideEffects = true;
+
+		this.mock(oBinding.oModel).expects("_getObject")
+			.withExactArgs("~sPath", "~oContext")
+			.returns(aList);
+		this.mock(oBinding).expects("_getCreatedPersistedContexts")
+			.withExactArgs()
+			.returns(["~oContext0", "~oContext1"]);
+		oModelMock.expects("getKey").withExactArgs("~oContext0").returns("~key0");
+		oModelMock.expects("getKey").withExactArgs("~oContext1").returns("~key1");
+		oModelMock.expects("_discardEntityChanges").withExactArgs("~key1", true);
+
+		// code under test
+		assert.strictEqual(
+			ODataListBinding.prototype._cleanupCreatedPersisted.call(oBinding),
+			true);
+	});
+
+	//*********************************************************************************************
+[undefined, ["foo"]].forEach(function (aList, i) {
+	QUnit.test("_cleanupCreatedPersisted: no side effects scenario #" + i, function (assert) {
+		var oBinding = {
+				oContext : "~oContext",
+				oCreatedPersistedToRemove : new Set(),
+				oModel : {_getObject : function () {}},
+				sPath : "~sPath",
+				_getCreatedPersistedContexts : function () {}
+			};
+
+		this.mock(oBinding.oModel).expects("_getObject")
+			.withExactArgs("~sPath", "~oContext")
+			.returns(aList);
+		this.mock(oBinding).expects("_getCreatedPersistedContexts").never();
+
+		// code under test
+		assert.strictEqual(
+			ODataListBinding.prototype._cleanupCreatedPersisted.call(oBinding),
+			false);
+	});
+});
+
+	//*********************************************************************************************
+	QUnit.test("_cleanupCreatedPersisted: bSuspended=true", function (assert) {
+		var oBinding = {
+				oContext : "~oContext",
+				oCreatedPersistedToRemove : new Set(),
+				oModel : {
+					_discardEntityChanges : function () {},
+					_getObject : function () {},
+					getKey : function () {}
+				},
+				sPath : "~sPath",
+				bSuspended : true,
+				_getCreatedPersistedContexts : function () {}
+			},
+			aList = ["~key0"],
+			oModelMock = this.mock(oBinding.oModel);
+
+		aList.sideEffects = true;
+
+		oModelMock.expects("_getObject")
+			.withExactArgs("~sPath", "~oContext")
+			.returns(aList);
+		this.mock(oBinding).expects("_getCreatedPersistedContexts")
+			.withExactArgs()
+			.returns(["~oContext0", "~oContext1"]);
+		oModelMock.expects("getKey").withExactArgs("~oContext0").returns("~key0");
+		oModelMock.expects("getKey").withExactArgs("~oContext1").returns("~key1");
+		this.mock(oBinding.oCreatedPersistedToRemove).expects("add").withExactArgs("~key1");
+		oModelMock.expects("_discardEntityChanges").never();
+
+		// code under test
+		assert.strictEqual(
+			ODataListBinding.prototype._cleanupCreatedPersisted.call(oBinding),
+			false);
+	});
+
+	//*********************************************************************************************
+	QUnit.test("_cleanupCreatedPersisted: resume after suspended", function (assert) {
+		var oBinding = {
+				oContext : "~oContext",
+				oCreatedPersistedToRemove : new Set(["~key0", "~key1"]),
+				oModel : {
+					_discardEntityChanges : function () {},
+					_getObject : function () {}
+				},
+				sPath : "~sPath",
+				bSuspended : false,
+				_getCreatedPersistedContexts : function () {}
+			},
+			oModelMock = this.mock(oBinding.oModel);
+
+		oModelMock.expects("_getObject").withExactArgs("~sPath", "~oContext").returns(undefined);
+		oModelMock.expects("_discardEntityChanges").withExactArgs("~key0", true);
+		oModelMock.expects("_discardEntityChanges").withExactArgs("~key1", true);
+		this.mock(oBinding.oCreatedPersistedToRemove).expects("clear").withExactArgs();
+
+		// code under test
+		assert.strictEqual(
+			ODataListBinding.prototype._cleanupCreatedPersisted.call(oBinding),
+			true);
+	});
+
+	//*********************************************************************************************
+[
+	{oCreatedPersistedToRemove : new Set(), bSuspended : false},
+	{oCreatedPersistedToRemove : new Set("~key"), bSuspended : true}
+].forEach(function (oBindingProperties, i) {
+	var sTitle = "_cleanupCreatedPersisted: no reset of oCreatedPersistedToRemove needed #" + i;
+
+	QUnit.test(sTitle, function (assert) {
+		var oBinding = Object.assign({
+				oContext : "~oContext",
+				oModel : {_getObject : function () {}},
+				sPath : "~sPath"
+			}, oBindingProperties);
+
+		this.mock(oBinding.oModel).expects("_getObject")
+			.withExactArgs("~sPath", "~oContext")
+			.returns(undefined);
+		this.mock(oBinding.oCreatedPersistedToRemove).expects("clear").never();
+
+		// code under test
+		assert.strictEqual(
+			ODataListBinding.prototype._cleanupCreatedPersisted.call(oBinding),
+			false);
+	});
+});
+
+	//*********************************************************************************************
+	QUnit.test("_moveCreatedPersistedToAllKeys: no created persisted items", function (assert) {
+		var oBinding = {
+				aAllKeys : ["~key0"],
+				_getCreatedPersistedContexts : function () {},
+				_removePersistedCreatedContexts : function () {}
+			};
+
+		this.mock(oBinding).expects("_getCreatedPersistedContexts").withExactArgs().returns([]);
+		this.mock(oBinding).expects("_removePersistedCreatedContexts").never();
+
+		// code under test
+		assert.strictEqual(
+			ODataListBinding.prototype._moveCreatedPersistedToAllKeys.call(oBinding),
+			false);
+
+		assert.deepEqual(oBinding.aAllKeys, ["~key0"]);
+	});
+
+	//*********************************************************************************************
+	QUnit.test("_moveCreatedPersistedToAllKeys: has created persisted items", function (assert) {
+		var oBinding = {
+				aAllKeys : ["~key0"],
+				oModel : {getKey : function () {}},
+				_getCreatedPersistedContexts : function () {},
+				_removePersistedCreatedContexts : function () {}
+			},
+			oModelMock = this.mock(oBinding.oModel);
+
+		this.mock(oBinding).expects("_getCreatedPersistedContexts")
+			.withExactArgs()
+			.returns(["~context0", "~context1"]);
+		oModelMock.expects("getKey").withExactArgs("~context0").returns("~key1");
+		oModelMock.expects("getKey").withExactArgs("~context1").returns("~key2");
+		this.mock(oBinding).expects("_removePersistedCreatedContexts").withExactArgs();
+
+		// code under test
+		assert.strictEqual(
+			ODataListBinding.prototype._moveCreatedPersistedToAllKeys.call(oBinding),
+			true);
+
+		assert.deepEqual(oBinding.aAllKeys, ["~key0", "~key1", "~key2"]);
+	});
 });

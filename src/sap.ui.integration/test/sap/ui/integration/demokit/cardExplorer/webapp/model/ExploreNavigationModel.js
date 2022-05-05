@@ -1120,14 +1120,37 @@ sap.ui.define([
 						key: 'cardActions',
 						target: 'exploreSamples',
 						title: 'Card Actions',
-						settings: {
-							columns: 3
-						},
-						files: [
+						subSamples: [
 							{
-								url: '/samples/actions/manifest.json',
-								name: 'manifest.json',
-								key: 'manifest.json'
+								title: 'Navigation',
+								key: "navigation",
+								target: 'exploreSamples',
+								settings: {
+									columns: 3
+								},
+								files: [
+									{
+										url: '/samples/actions/navigation/manifest.json',
+										name: 'manifest.json',
+										key: 'manifest.json'
+									}
+								]
+							},
+							{
+								title: 'Intent-Based Navigation',
+								key: "ibn",
+								target: 'exploreSamples',
+								experimental: true,
+								settings: {
+									columns: 3
+								},
+								files: [
+									{
+										url: '/samples/actions/ibn/manifest.json',
+										name: 'manifest.json',
+										key: 'manifest.json'
+									}
+								]
 							}
 						]
 					},
@@ -1455,6 +1478,17 @@ sap.ui.define([
 										key: 'DataExtension.js'
 									}
 								]
+							},
+							{
+								title: 'Pagination and Actions',
+								key: "clientactions",
+								files: [
+									{
+										url: '/samples/pagination/clientactions/manifest.json',
+										name: 'manifest.json',
+										key: 'manifest.json'
+									}
+								]
 							}
 						]
 					},
@@ -1579,12 +1613,36 @@ sap.ui.define([
 						]
 					},
 					{
+						key: 'encodeURIComponent',
+						target: 'exploreSamples',
+						title: 'EncodeURIComponent',
+						files: [
+							{
+								url: '/samples/formatters/encodeURIComponent/manifest.json',
+								name: 'manifest.json',
+								key: 'manifest.json'
+							}
+						]
+					},
+					{
 						key: 'float',
 						target: 'exploreSamples',
 						title: 'Float',
 						files: [
 							{
 								url: '/samples/formatters/float/manifest.json',
+								name: 'manifest.json',
+								key: 'manifest.json'
+							}
+						]
+					},
+					{
+						key: 'initials',
+						target: 'exploreSamples',
+						title: 'Initials',
+						files: [
+							{
+								url: '/samples/formatters/initials/manifest.json',
 								name: 'manifest.json',
 								key: 'manifest.json'
 							}

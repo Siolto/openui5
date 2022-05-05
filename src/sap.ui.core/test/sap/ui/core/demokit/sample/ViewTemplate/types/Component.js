@@ -32,22 +32,22 @@ sap.ui.define([
 				oModelV2,
 				oModelV4,
 				bRealOData = TestUtils.isRealOData(),
+				sResourcePath = "sap/ui/core/sample/ViewTemplate/types/data",
 				oRootView,
 				sUriV2 = "/sap/opu/odata/sap/ZUI5_EDM_TYPES/",
 				sUriV4 = "/sap/opu/odata4/sap/zui5_testv4/default/sap/zui5_edm_types_v4/0001/",
 				mViews = {
-					"false" : null, // V2 templating view
-					"true" : null // V4 templating view
+					false : null, // V2 templating view
+					true : null // V4 templating view
 				},
 				onError = function (oError) {
-					MessageBox.alert(oError.message, {
-						icon : MessageBox.Icon.ERROR,
+					MessageBox.alert(oError.message, {icon : MessageBox.Icon.ERROR,
 						title : "Error"});
 				};
 
 			if (!bRealOData) {
-				TestUtils.useFakeServer(this.oSandbox,
-					"sap/ui/core/sample/ViewTemplate/types/data", {
+				/* eslint-disable max-len */
+				TestUtils.useFakeServer(this.oSandbox, sResourcePath, {
 					"/sap/opu/odata/sap/ZUI5_EDM_TYPES/$metadata" : {
 						source : "metadataV2.xml"
 					},
@@ -61,16 +61,18 @@ sap.ui.define([
 						source : "EdmTypesV4.json"
 					}
 				});
+				/* eslint-enable max-len */
 			}
 
 			oModelV2 = new ODataModelV2({
-				annotationURI : sap.ui.require.toUrl("sap/ui/core/sample/ViewTemplate/types/data/annotationsV2.xml"),
+				annotationURI : sap.ui.require.toUrl(sResourcePath + "/annotationsV2.xml"),
 				defaultBindingMode : BindingMode.TwoWay,
 				serviceUrl : sUriV2,
 				useBatch : bRealOData
 			});
 
 			oModelV4 = new ODataModelV4({
+				annotationURI : sap.ui.require.toUrl(sResourcePath + "/annotationsV4.xml"),
 				serviceUrl : sUriV4,
 				synchronizationMode : "None",
 				updateGroupId : "EDMTypes"
@@ -83,8 +85,7 @@ sap.ui.define([
 					preprocessors : {
 						xml : {
 							bindingContexts : {meta : oMetaModel.createBindingContext(
-								"/dataServices/schema/0/entityType/0")
-							},
+								"/dataServices/schema/0/entityType/0")},
 							models : {meta : oMetaModel}
 						}
 					},
@@ -108,8 +109,7 @@ sap.ui.define([
 						preprocessors : {
 							xml : {
 								bindingContexts : {meta : oMetaModel.createBindingContext(
-									"/com.sap.gateway.default.zui5_edm_types_v4.v0001.EdmTypes")
-								},
+									"/com.sap.gateway.default.zui5_edm_types_v4.v0001.EdmTypes")},
 								models : {meta : oMetaModel}
 							}
 						},

@@ -6,9 +6,11 @@
 sap.ui.define([
 	"sap/ui/webc/common/WebComponent",
 	"./library",
+	"sap/ui/core/EnabledPropagator",
 	"sap/ui/core/library",
-	"./thirdparty/TextArea"
-], function(WebComponent, library, coreLibrary) {
+	"./thirdparty/TextArea",
+	"./thirdparty/features/InputElementsFormSupport"
+], function(WebComponent, library, EnabledPropagator, coreLibrary) {
 	"use strict";
 
 	var ValueState = coreLibrary.ValueState;
@@ -44,29 +46,36 @@ sap.ui.define([
 	 * @since 1.92.0
 	 * @experimental Since 1.92.0 This control is experimental and its API might change significantly.
 	 * @alias sap.ui.webc.main.TextArea
+	 * @implements sap.ui.core.IFormContent
 	 * @ui5-metamodel This control/element also will be described in the UI5 (legacy) designtime metamodel
 	 */
 	var TextArea = WebComponent.extend("sap.ui.webc.main.TextArea", {
 		metadata: {
 			library: "sap.ui.webc.main",
 			tag: "ui5-textarea-ui5",
+			interfaces: [
+				"sap.ui.core.IFormContent"
+			],
 			properties: {
 
 				/**
-				 * Sets the accessible aria name of the component.
+				 * Defines the accessible aria name of the component.
 				 */
 				accessibleName: {
 					type: "string"
 				},
 
 				/**
-				 * Indicates whether the user can interact with the component or not. <br>
-				 * <br>
-				 * <b>Note:</b> A disabled component is completely noninteractive.
+				 * Defines whether the control is enabled. A disabled control can't be interacted with, and it is not in the tab chain.
 				 */
-				disabled: {
+				enabled: {
 					type: "boolean",
-					defaultValue: false
+					defaultValue: true,
+					mapping: {
+						type: "attribute",
+						to: "disabled",
+						formatter: "_mapEnabled"
+					}
 				},
 
 				/**
@@ -92,7 +101,6 @@ sap.ui.define([
 				 */
 				height: {
 					type: "sap.ui.core.CSSSize",
-					defaultValue: null,
 					mapping: "style"
 				},
 
@@ -216,7 +224,6 @@ sap.ui.define([
 				 */
 				width: {
 					type: "sap.ui.core.CSSSize",
-					defaultValue: null,
 					mapping: "style"
 				}
 			},
@@ -253,6 +260,8 @@ sap.ui.define([
 			}
 		}
 	});
+
+	EnabledPropagator.call(TextArea.prototype);
 
 	/* CUSTOM CODE START */
 	/* CUSTOM CODE END */

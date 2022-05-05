@@ -16,6 +16,7 @@ sap.ui.define([
 	'sap/ui/mdc/enum/BaseType',
 	'sap/ui/mdc/enum/ConditionValidated',
 	'sap/base/util/merge',
+	'sap/base/strings/whitespaceReplacer',
 	'sap/ui/base/SyncPromise'
 ],
 	function(
@@ -31,8 +32,9 @@ sap.ui.define([
 		BaseType,
 		ConditionValidated,
 		merge,
+		whitespaceReplacer,
 		SyncPromise
-		) {
+	) {
 	"use strict";
 
 	/**
@@ -61,6 +63,7 @@ sap.ui.define([
 	 * @param {sap.ui.model.Context} [oFormatOptions.bindingContext] <code>BindingContext</code> of field. Used to get a key or description from the value help using in/out parameters. (In a table, the value help might be connected to a different row)
 	 * @param {sap.ui.model.Type} [oFormatOptions.originalDateType] Type used on field, for example, for date types; a different type is used internally to have different <code>formatOptions</code>
 	 * @param {sap.ui.model.Type} [oFormatOptions.additionalType] additional Type used on other part of a field. (This is the case for unit fields.)
+	 * @param {sap.ui.model.Type[]} [oFormatOptions.compositeTypes] additional Types used for parts of a <code>CompositeType</code>
 	 * @param {function} [oFormatOptions.getConditions] Function to get the existing conditions of the field. Only used if <code>isUnit</code> is set. // TODO: better solution
 	 * @param {function} [oFormatOptions.asyncParsing] Callback function to tell the <code>Field</code> the parsing is asynchronous.
 	 * @param {object} [oFormatOptions.navigateCondition] Condition of keyboard navigation. If this is filled, no real parsing is needed as the condition has already been determined and is just returned
@@ -70,6 +73,8 @@ sap.ui.define([
 	 * @param {sap.ui.mdc.condition.ConditionModel} [oFormatOptions.conditionModel] <code>ConditionModel</code>, if bound to one
 	 * @param {string} [oFormatOptions.conditionModelName] Name of the <code>ConditionModel</code>, if bound to one
 	 * @param {string} [oFormatOptions.defaultOperatorName] Name of the default <code>Operator</code>
+	 * @param {boolean} [oFormatOptions.convertWhitespaces] If set, whitespaces will be replaced by special characters to display whitespaces in HTML
+	 * @param {sap.ui.core.Control} [oFormatOptions.control] Instance if the calling control
 	 * @param {object} [oConstraints] Value constraints
 	 * @alias sap.ui.mdc.field.ConditionType
 	 */
@@ -139,7 +144,7 @@ sap.ui.define([
 					var vKey = bIsUnit ? oCondition.values[0][1] : oCondition.values[0];
 
 					return SyncPromise.resolve().then(function() {
-						return _getDescription.call(this, vKey, oCondition.inParameters, oCondition.outParameters, oBindingContext, oConditionModel, sConditionModelName);
+						return _getDescription.call(this, vKey, oCondition, oBindingContext, oConditionModel, sConditionModelName);
 					}.bind(this)).then(function(vDescription) { // if description needs to be requested -> return if it is resolved
 						if (vDescription) {
 							oCondition = merge({}, oCondition); // do not manipulate original object
@@ -197,12 +202,21 @@ sap.ui.define([
 
 		var bHideOperator = (this.oFormatOptions.hideOperator && oCondition.values.length === 1) || bIsUnit;
 		var oOperator = FilterOperatorUtil.getOperator(oCondition.operator);
+		var aCompositeTypes = _getCompositeTypes.call(this);
 
 		if (!oOperator) {
 			throw new FormatException("No valid condition provided, Operator wrong.");
 		}
 
-		return oOperator.format(oCondition, oType, sDisplay, bHideOperator);
+		var sResult = oOperator.format(oCondition, oType, sDisplay, bHideOperator, aCompositeTypes);
+		var bConvertWhitespaces = this.oFormatOptions.convertWhitespaces;
+
+		if (bConvertWhitespaces && (_getBaseType.call(this, oType) === BaseType.String || sDisplay !== FieldDisplay.Value)) {
+			// convert only string types to prevent unwanted side effects
+			sResult = whitespaceReplacer(sResult);
+		}
+
+		return sResult;
 
 	}
 
@@ -321,6 +335,7 @@ sap.ui.define([
 					}
 					var oCondition;
 					var bCompositeType = _isCompositeType.call(this, oType);
+					var aCompositeTypes = _getCompositeTypes.call(this);
 					this._oCalls.active++;
 					this._oCalls.last++;
 					var iCallCount = this._oCalls.last;
@@ -340,7 +355,7 @@ sap.ui.define([
 								// parse using unit part
 								oCondition = Condition.createCondition(oOperator.name, [oType.parseValue(vValue, "string", oType._aCurrentValue)], undefined, undefined, ConditionValidated.NotValidated);
 							} else {
-								oCondition = oOperator.getCondition(vValue, oType, sDisplay, bUseDefaultOperator);
+								oCondition = oOperator.getCondition(vValue, oType, sDisplay, bUseDefaultOperator, aCompositeTypes);
 							}
 						} catch (oException) {
 							var oMyException = oException;
@@ -390,16 +405,20 @@ sap.ui.define([
 	function _finishParseFromString(oCondition, oType) {
 
 		var bIsUnit = _isUnit(oType);
+		var bCompositeType = _isCompositeType.call(this, oType);
 
-		if (oCondition && !bIsUnit) {
+		if (oCondition && !bIsUnit && bCompositeType) {
 			var sName = oType.getMetadata().getName();
+			var oFormatOptions = oType.getFormatOptions();
+			var oConstraints = oType.getConstraints();
 			var oDelegate = this.oFormatOptions.delegate;
 			var oPayload = this.oFormatOptions.payload;
-			if (oDelegate && oDelegate.getTypeUtil(oPayload).getBaseType(sName) === BaseType.Unit &&
+			var sBaseType = oDelegate && oDelegate.getTypeUtil(oPayload).getBaseType(sName, oFormatOptions, oConstraints); // don't use _getBaseType to get "real" unit type
+			if ((sBaseType === BaseType.Unit || sBaseType === BaseType.DateTime) &&
 					!oCondition.values[0][1] && oType._aCurrentValue) {
 				// TODO: if no unit provided use last one
 				var sUnit = oType._aCurrentValue[1] ? oType._aCurrentValue[1] : null; // if no unit set null
-				oCondition.values[0][1] = oType._aCurrentValue[1] ? oType._aCurrentValue[1] : null; // if no unit set null
+				oCondition.values[0][1] = sUnit;
 				if (oCondition.operator === "BT") {
 					oCondition.values[1][1] = sUnit;
 				}
@@ -478,7 +497,7 @@ sap.ui.define([
 					// description is supported
 					aValues.push(oResult.description);
 				}
-				return Condition.createCondition(oOperator.name, aValues, oResult.inParameters, oResult.outParameters, ConditionValidated.Validated);
+				return Condition.createCondition(oOperator.name, aValues, oResult.inParameters, oResult.outParameters, ConditionValidated.Validated, oResult.payload);
 			} else if (vValue === "") {
 				// no empty key -> no condition
 				return null;
@@ -601,6 +620,7 @@ sap.ui.define([
 		var oOriginalType = _getOriginalType.call(this);
 		var aOperators = _getOperators.call(this);
 		var bIsUnit = _isUnit(oType);
+		var aCompositeTypes = _getCompositeTypes.call(this);
 
 		if (oCondition === undefined || this._bDestroyed) { // if destroyed do nothing
 			return null;
@@ -633,25 +653,25 @@ sap.ui.define([
 			throw new ValidateException(this._oResourceBundle.getText("field.VALUE_NOT_VALID"));
 		}
 
-		var oOperator = FilterOperatorUtil.getOperator(oCondition.operator, aOperators);
+		var oOperator = FilterOperatorUtil.getOperator(oCondition.operator);
 
 		if (bIsUnit) {
 			// only use unit in condition
 			oOperator = FilterOperatorUtil.getEQOperator(); // as only EQ is allowed for unit
 		}
 
-		if (!oOperator) {
+		if (!oOperator || aOperators.indexOf(oOperator.name) === -1) {
 			throw new ValidateException("No valid condition provided, Operator wrong.");
 		}
 
 		try {
-			oOperator.validate(oCondition.values, oType);
+			oOperator.validate(oCondition.values, oType, aCompositeTypes);
 		} catch (oException) {
 			if (oException instanceof ValidateException && oOriginalType) {
 				// As internal yyyy-MM-dd is used as pattern for dates (times similar) the
 				// ValidateException might contain this as pattern. The user should see the pattern thats shown
 				// So try to validate date with the original type to get ValidateException with right pattern.
-				oOperator.validate(oCondition.values, oOriginalType);
+				oOperator.validate(oCondition.values, oOriginalType, aCompositeTypes);
 			}
 			throw oException;
 		}
@@ -734,13 +754,22 @@ sap.ui.define([
 
 	}
 
+	function _getCompositeTypes() {
+
+		return this.oFormatOptions.compositeTypes;
+
+	}
+
 	function _isUnit(oType) {
 
 		if (_isCompositeType(oType)) {
 			var oFormatOptions = oType.getFormatOptions();
 			var bShowMeasure = !oFormatOptions || !oFormatOptions.hasOwnProperty("showMeasure") || oFormatOptions.showMeasure;
 			var bShowNumber = !oFormatOptions || !oFormatOptions.hasOwnProperty("showNumber") || oFormatOptions.showNumber;
-			if (bShowMeasure && !bShowNumber) {
+			var bShowTimezone = !oFormatOptions || !oFormatOptions.hasOwnProperty("showTimezone") || oFormatOptions.showTimezone; // handle timezone as unit
+			var bShowDate = !oFormatOptions || !oFormatOptions.hasOwnProperty("showDate") || oFormatOptions.showDate;
+			var bShowTime = !oFormatOptions || !oFormatOptions.hasOwnProperty("showTime") || oFormatOptions.showTime;
+			if ((bShowMeasure && !bShowNumber) || (bShowTimezone && !bShowDate && !bShowTime)) {
 				return true;
 			}
 		}
@@ -752,16 +781,16 @@ sap.ui.define([
 	function _attachCurrentValueAtType(oCondition, oType) {
 
 		if (_isCompositeType.call(this, oType) && oCondition && oCondition.values[0]) {
-			oType._aCurrentValue = oCondition.values[0];
+			oType._aCurrentValue = merge([], oCondition.values[0]); // use copy to prevent changes on original arry change aCurrentValue too
 
 			var oAdditionalType = _getAdditionalType.call(this);
 			if (_isCompositeType.call(this, oAdditionalType)) { // store in corresponding unit or measure type too
-				oAdditionalType._aCurrentValue = oCondition.values[0];
+				oAdditionalType._aCurrentValue = merge([], oCondition.values[0]);
 			}
 
 			var oOriginalType = _getOriginalType.call(this);
 			if (_isCompositeType.call(this, oOriginalType)) { // store in original type too (Currently not used in Unit/Currency type, but basically in CompositeType for parsing)
-				oOriginalType._aCurrentValue = oCondition.values[0];
+				oOriginalType._aCurrentValue = merge([], oCondition.values[0]);
 			}
 		}
 
@@ -859,6 +888,7 @@ sap.ui.define([
 		var oFieldHelp = _getFieldHelp.call(this);
 		var oDelegate = this.oFormatOptions.delegate;
 		var oPayload = this.oFormatOptions.payload;
+		var oControl = this.oFormatOptions.control;
 		var oConfig = {
 				value: vValue,
 				parsedValue: vParsedValue,
@@ -870,7 +900,8 @@ sap.ui.define([
 				checkDescription: bCheckDescription,
 				conditionModel: oConditionModel,
 				conditionModelName: sConditionModelName,
-				exception: ParseException
+				exception: ParseException,
+				control: oControl
 		};
 
 		if (oDelegate) {
@@ -883,16 +914,33 @@ sap.ui.define([
 
 	}
 
-	function _getDescription(vKey, oInParameters, oOutParameters, oBindingContext, oConditionModel, sConditionModelName) {
+	function _getDescription(vKey, oCondition, oBindingContext, oConditionModel, sConditionModelName) {
 
 		var oFieldHelp = _getFieldHelp.call(this);
 		var oDelegate = this.oFormatOptions.delegate;
 		var oPayload = this.oFormatOptions.payload;
-
+		var oControl = this.oFormatOptions.control;
 		if (oDelegate) {
-			return oDelegate.getDescription(oPayload, oFieldHelp, vKey, oInParameters, oOutParameters, oBindingContext, oConditionModel, sConditionModelName);
+			return oDelegate.getDescription(oPayload, oFieldHelp, vKey, oCondition.inParameters, oCondition.outParameters, oBindingContext, oConditionModel, sConditionModelName, oCondition.payload, oControl);
 		} else if (oFieldHelp) {
-			return oFieldHelp.getTextForKey(vKey, oInParameters, oOutParameters, oBindingContext, oConditionModel, sConditionModelName);
+			if (oFieldHelp.isA("sap.ui.mdc.ValueHelp")) {
+					var oConfig = {
+						value: vKey,
+						parsedValue: vKey,
+						context: {inParameters: oCondition.inParameters, outParameters: oCondition.outParameters, payload: oCondition.payload},
+						bindingContext: oBindingContext,
+						conditionModel: oConditionModel,
+						conditionModelName: sConditionModelName,
+						checkKey: true,
+						checkDescription: false,
+						caseSensitive: true, // case sensitive as used to get description for known key
+						exception: FormatException,
+						control: oControl
+					};
+					return oFieldHelp.getItemForValue(oConfig);
+				} else {
+				return oFieldHelp.getTextForKey(vKey, oCondition.inParameters, oCondition.outParameters, oBindingContext, oConditionModel, sConditionModelName);
+			}
 		}
 
 	}

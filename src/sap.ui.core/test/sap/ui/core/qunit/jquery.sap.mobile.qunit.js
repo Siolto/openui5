@@ -1,12 +1,17 @@
 /* global QUnit */
-sap.ui.define(["sap/ui/Device", "jquery.sap.mobile"],function(Device /*, jquery.sap.mobile*/){
+sap.ui.define([
+	"sap/ui/Device",
+	"jquery.sap.mobile"
+],function(Device, jQuery) {
 	"use strict";
+
 	QUnit.module("Test initMobile");
 
 	QUnit.test("Test initMobile with default settings", function (assert) {
 		jQuery.sap.initMobile();
 
 		// check viewport:  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+		// for ios platform: <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 		var $v = jQuery("meta").filter("[name=viewport]");
 		assert.equal($v.length, 1, "There should be a viewport meta tag");
 		assert.ok($v.attr("content").length > 0, "viewport meta tag has content");

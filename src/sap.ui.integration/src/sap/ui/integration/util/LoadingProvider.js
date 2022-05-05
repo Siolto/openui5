@@ -42,11 +42,11 @@ sap.ui.define([
 	});
 
 	LoadingProvider.prototype.setLoading = function (bLoading) {
-		if (this.isDataProviderJson()) {
-			return;
+		if (this.isDataProviderJson() || (this._bAwaitPagination && !bLoading)) {
+			return this;
 		}
 
-		this.setProperty("loading", bLoading);
+		return this.setProperty("loading", bLoading);
 	};
 
 	LoadingProvider.prototype.isDataProviderJson = function () {

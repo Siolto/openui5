@@ -1,6 +1,4 @@
-sap.ui.define([
-	"sap/base/Log"
-], function(Log) {
+sap.ui.define([], function() {
 
 	"use strict";
 
@@ -232,6 +230,9 @@ sap.ui.define([
 				group: "Designtime",
 				module: "./designtime/DynamicSideContent.qunit",
 				sinon: false
+			},
+			"Generic Testsuite": {
+				page: "test-resources/sap/ui/layout/qunit/testsuite.generic.qunit.html"
 			}
 
 		}

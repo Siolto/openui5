@@ -5,6 +5,7 @@
 	height="100%"
 	xmlns="sap.m"
 	xmlns:core="sap.ui.core"
+	xmlns:data="http://schemas.sap.com/sapui5/extension/sap.ui.core.CustomData/1"
 	xmlns:form="sap.ui.layout.form"
 	xmlns:mvc="sap.ui.core.mvc"
 	xmlns:plugins="sap.m.plugins"
@@ -111,16 +112,22 @@
 					<items>
 						<ColumnListItem>
 							<cells>
-								<!-- use fully qualified formatter name to make formatters "this"
-									the control -->
 								<core:Icon decorative="false"
 									src="{
-										formatter : 'sap.ui.core.internal.samples.odata.v2.SalesOrders.model.formatter.formatStatusIcon',
-										path : 'SalesOrders>SalesOrderID'
+										parts : [
+											'SalesOrders>@$ui5.context.isTransient',
+											'SalesOrders>@$ui5.context.isInactive',
+											{value : 'icon'}
+										],
+										formatter : 'formatter.formatContextStatus'
 									}"
 									tooltip="{
-										formatter : 'sap.ui.core.internal.samples.odata.v2.SalesOrders.model.formatter.formatStatusToolTip',
-										path : 'SalesOrders>SalesOrderID'
+										parts : [
+											'SalesOrders>@$ui5.context.isTransient',
+											'SalesOrders>@$ui5.context.isInactive',
+											{value : 'tooltip'}
+										],
+										formatter : 'formatter.formatContextStatus'
 									}" />
 								<Input editable="false" value="{SalesOrders>SalesOrderID}" />
 								<Input editable="false" value="{SalesOrders>CustomerName}" />
@@ -161,7 +168,7 @@
 					<Input id="salesOrderID::objectPage" editable="false" value="{SalesOrderID}"
 						width="8em" />
 					<Label text="Note" />
-					<Input value="{Note}" />
+					<Input id="note::objectPage" value="{Note}" />
 					<Label text="Gross Amount" />
 					<Input editable="false" id="grossAmount::objectPage" value="{
 							parts : [{
@@ -229,8 +236,12 @@
 								</layoutData>
 							</Select>
 							<ToolbarSpacer/>
-							<Button id="fixAllQuantities::ToLineItems" press="onFixAllQuantities"
+							<Button enabled="{= %{ui>/salesOrderItemsCount} > 0}"
+								id="fixAllQuantities::ToLineItems" press="onFixAllQuantities"
 								text="Fix Quantities" tooltip="Fix all faulty quantities" />
+							<Button enabled="{= %{ui>/salesOrderItemsCount} > 0}"
+								id="fixItems::ToLineItems" press="onFixItems" text="Fix Items"
+								tooltip="Fix all faulty items" />
 							<Button enabled="{ui>/itemSelected}" id="cloneItem::ToLineItems"
 								press="onCloneItem" text="Clone Item"
 								tooltip="Clone the selected line item" />
@@ -255,12 +266,20 @@
 							<t:template>
 								<core:Icon decorative="false"
 									src="{
-										formatter : 'sap.ui.core.internal.samples.odata.v2.SalesOrders.model.formatter.formatStatusIcon',
-										path : 'ItemPosition'
+										parts : [
+											'@$ui5.context.isTransient',
+											'@$ui5.context.isInactive',
+											{value : 'icon'}
+										],
+										formatter : 'formatter.formatContextStatus'
 									}"
 									tooltip="{
-										formatter : 'sap.ui.core.internal.samples.odata.v2.SalesOrders.model.formatter.formatStatusToolTip',
-										path : 'ItemPosition'
+										parts : [
+											'@$ui5.context.isTransient',
+											'@$ui5.context.isInactive',
+											{value : 'tooltip'}
+										],
+										formatter : 'formatter.formatContextStatus'
 									}" />
 							</t:template>
 						</t:Column>
@@ -502,8 +521,8 @@
 									path : 'messages>'
 								}" title="{messages>message}"
 								type="{messages>type}">
-								<Link binding="{messages>}" press="onShowMessageDetails"
-									text="Technical Details" />
+								<Link binding="{messages>}" data:message="{messages>}"
+									press="onShowMessageDetails" text="Technical Details" />
 							</MessageItem>
 						</MessagePopover>
 					</dependents>
@@ -511,7 +530,7 @@
 				<ToolbarSpacer />
 				<Button id="saveSalesOrder" press="onSaveSalesOrder" text="Save"
 					tooltip="Save the sales order" type="Emphasized" />
-				<Button press="onResetChanges" text="Reset Changes" />
+				<Button id="resetChanges" press="onResetChanges" text="Reset Changes" />
 			</OverflowToolbar>
 		</footer>
 	</Page>

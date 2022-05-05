@@ -602,7 +602,7 @@ sap.ui
 
 			/**
 			 * Removes duplicate entries from the given array
-			 * @param {array} aDataSet
+			 * @param {array} array the data set
 			 * @private
 			 */
 			MockServer.prototype._arrayUnique = function(array) {
@@ -1096,6 +1096,7 @@ sap.ui
 
 			/**
 			 * Applies the Format OData system query option
+			 * @param {array} aDataSet
 			 * @param {string} sODataQueryValue
 			 * @private
 			 */
@@ -2081,7 +2082,7 @@ sap.ui
 									break;
 								case "Edm.Int16":
 								case "Edm.Int32":
-								//case "Edm.Int64": In ODataModel this type is represented as a string. (https://openui5.hana.ondemand.com/docs/api/symbols/sap.ui.model.odata.type.Int64.html)
+								//case "Edm.Int64": In ODataModel this type is represented as a string. (https://openui5.hana.ondemand.com/api/sap.ui.model.odata.type.Int64)
 								// eslint-ignore-next-line no-fallthrough
 								case "Edm.Decimal":
 								case "Edm.Byte":

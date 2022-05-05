@@ -80,6 +80,28 @@
 				"content": {}
 			}
 		},
+		"card5": {
+			"sap.app": {
+				"id": "cardsdemo.defaultHeader.card5",
+				"type": "card"
+			},
+			"sap.card": {
+				"header": {
+					"title": "This Line is the Title of sap.f.Card and a very very very very very very very very very very very very very very very very very very long one",
+					"titleMaxLines": 1,
+					"subTitle": " Thi is a sap.f.Card subtitle and a very very  very very very very very very very very very very very very very very very very  very very long one",
+					"subTitleMaxLines": 1,
+					"icon": {
+						"text": "GK"
+					},
+					"status": {
+						"text": "Count"
+					}
+				},
+				"type": "List",
+				"content": {}
+			}
+		},
 		"defaultDataTimestamp": {
 			"sap.app": {
 				"id": "cardsdemo.defaultHeader.defaultDataTimestamp",
@@ -166,7 +188,7 @@
 			"sap.card": {
 				"data": {
 					"request": {
-						"url": "./cardsdemo/cardcontent/someitems.json"
+						"url": "./cardcontent/someitems.json"
 					}
 				},
 				"type": "List",
@@ -226,7 +248,7 @@
 				"content": {
 					"data": {
 						"request": {
-							"url": "./cardsdemo/cardcontent/someitems.json"
+							"url": "./cardcontent/someitems.json"
 						}
 					},
 					"maxItems": 7,
@@ -267,7 +289,7 @@
 				"content": {
 					"data": {
 						"request": {
-							"url": "./cardsdemo/cardcontent/tableitems.json"
+							"url": "./cardcontent/tableitems.json"
 						},
 						"path": "/names"
 					},
@@ -312,7 +334,7 @@
 				"content": {
 					"data": {
 						"request": {
-							"url": "./cardsdemo/cardcontent/tableitems.json"
+							"url": "./cardcontent/tableitems.json"
 						},
 						"path": "/tableCard2"
 					},
@@ -350,7 +372,7 @@
 				"content": {
 					"data": {
 						"request": {
-							"url": "./cardsdemo/cardcontent/tableitems.json"
+							"url": "./cardcontent/tableitems.json"
 						},
 						"path": "/tableCard3"
 					},
@@ -398,7 +420,7 @@
 					],
 					"data": {
 						"request": {
-							"url": "./cardsdemo/cardcontent/kpi.json"
+							"url": "./cardcontent/kpi.json"
 						},
 						"path": "/kpiInfos/kpi"
 					},
@@ -528,7 +550,7 @@
 				"content": {
 					"data": {
 						"request": {
-							"url": "./cardsdemo/cardcontent/someitems.json"
+							"url": "./cardcontent/someitems.json"
 						}
 					},
 					"item": {
@@ -560,6 +582,54 @@
 				}
 			}
 		},
+		"kpicard6": {
+			"sap.app": {
+				"id": "cardsdemo.kpiManifests.kpicard3",
+				"type": "card"
+			},
+			"sap.card": {
+				"type": "List",
+				"header": {
+					"type": "Numeric",
+					"data": {
+						"json": {
+							"n": "56",
+							"u": "%",
+							"trend": "Up",
+							"valueColor": "Good"
+						}
+					},
+					"title": "Cloud Transformation Project Cloud Transformation Project Cloud Transformation Project Cloud Transformation Project Cloud Transformation Project Cloud Transformation Project Cloud Transformation ",
+					"titleMaxLines": 1,
+					"subTitle": "Forecasted goal achievement depending on business logic and other important information Forecasted goal achievement depending on business logic and other important information",
+					"subTitleMaxLines": 1,
+					"status": {
+						"text": "On Track"
+					},
+					"unitOfMeasurement": "EUR",
+					"mainIndicator": {
+						"number": "{n}",
+						"unit": "{u}",
+						"trend": "{trend}",
+						"state": "{valueColor}"
+					},
+					"details": "Details, additional information, will directly truncate after there is no more space.Details, additional information, will directly truncate after there is no more space.",
+					"detailsMaxLines": 1,
+					"sideIndicators": [
+						{
+							"title": "Target Long Target Long Target Long Target Long",
+							"number": "3252.234",
+							"unit": "K"
+						},
+						{
+							"title": "Deviation Long Deviation Deviation Long Deviation",
+							"number": "22.43",
+							"unit": "%"
+						}
+					]
+				}
+			}
+		},
 		"tablecard1": {
 			"sap.app": {
 				"id": "cardsdemo.kpiManifests.tablecard1",
@@ -571,7 +641,7 @@
 					"type": "Numeric",
 					"data": {
 						"request": {
-							"url": "./cardsdemo/cardcontent/kpi.json"
+							"url": "./cardcontent/kpi.json"
 						},
 						"path": "/kpiInfos/kpi"
 					},
@@ -605,7 +675,7 @@
 				"content": {
 					"data": {
 						"request": {
-							"url": "./cardsdemo/cardcontent/tableitems.json"
+							"url": "./cardcontent/tableitems.json"
 						},
 						"path": "/names"
 					},
@@ -635,7 +705,7 @@
 					"type": "Numeric",
 					"data": {
 						"request": {
-							"url": "./cardsdemo/cardcontent/kpi.json"
+							"url": "./cardcontent/kpi.json"
 						},
 						"path": "/kpiInfos/kpi"
 					},
@@ -646,7 +716,7 @@
 				"content": {
 					"data": {
 						"request": {
-							"url": "./cardsdemo/cardcontent/tableitems.json"
+							"url": "./cardcontent/tableitems.json"
 						},
 						"path": "/names"
 					},
@@ -702,7 +772,7 @@
 				"content": {
 					"data": {
 						"request": {
-							"url": "./cardsdemo/cardcontent/someitems.json"
+							"url": "./cardcontent/someitems.json"
 						}
 					},
 					"item": {
@@ -740,7 +810,7 @@
 					"maxItems": "7",
 					"data": {
 						"request": {
-							"url": "./cardsdemo/cardcontent/employees.json"
+							"url": "./cardcontent/employees.json"
 						},
 						"path": "/Employees"
 					},
@@ -795,7 +865,7 @@
 					"maxItems": "5",
 					"data": {
 						"request": {
-							"url": "./cardsdemo/cardcontent/employees.json"
+							"url": "./cardcontent/employees.json"
 						},
 						"path": "/Activities"
 					},
@@ -1406,7 +1476,7 @@
 			"sap.card": {
 				"data": {
 					"request": {
-						"url": "./cardsdemo/cardcontent/someitems.json"
+						"url": "./cardcontent/someitems.json"
 					}
 				},
 				"type": "List",
@@ -1767,7 +1837,7 @@
 					"dimensionAxis": "color",
 					"data": {
 						"request": {
-							"url": "./cardsdemo/cardcontent/cost.json"
+							"url": "./cardcontent/cost.json"
 						},
 						"path": "/milk"
 					},
@@ -1804,7 +1874,7 @@
 				"content": {
 					"data": {
 						"request": {
-							"url": "./cardsdemo/cardcontent/someitems.json"
+							"url": "./cardcontent/someitems.json"
 						}
 					},
 					"maxItems": 7,
@@ -1946,7 +2016,7 @@
 				"type": "List",
 				"data": {
 					"request": {
-						"url": "./cardsdemo/cardcontent/cost.json"
+						"url": "./cardcontent/cost.json"
 					}
 				},
 				"header": {
@@ -1984,7 +2054,7 @@
 			"sap.card": {
 				"data": {
 					"request": {
-						"url": "./cardsdemo/cardcontent/someitems.json"
+						"url": "./cardcontent/someitems.json"
 					}
 				},
 				"configuration": {
@@ -2039,7 +2109,7 @@
 			"sap.card": {
 				"data": {
 					"request": {
-						"url": "./cardsdemo/cardcontent/someitems.json"
+						"url": "./cardcontent/someitems.json"
 					}
 				},
 				"configuration": {
@@ -2103,7 +2173,7 @@
 			"sap.card": {
 				"data": {
 					"request": {
-						"url": "./cardsdemo/cardcontent/someitems.json"
+						"url": "./cardcontent/someitems.json"
 					}
 				},
 				"configuration": {
@@ -2174,7 +2244,7 @@
 			"sap.card": {
 				"data": {
 					"request": {
-						"url": "./cardsdemo/cardcontent/someitems.json"
+						"url": "./cardcontent/someitems.json"
 					}
 				},
 				"type": "List",
@@ -2346,7 +2416,15 @@
 						"text": "DM"
 					},
 					"title": "Donna Moore",
-					"subTitle": "Complete your time recording"
+					"subTitle": "Complete your time recording",
+					"actions": [
+						{
+							"type": "Navigation",
+							"parameters": {
+								"url": "#"
+							}
+						}
+					]
 				},
 				"configuration": {
 					"filters": {
@@ -2387,6 +2465,14 @@
 									"details": "Project Nanga Prabat (Ingo) 0 hours recorded. Please, record your time by the end of the month."
 								}
 							]
+						}
+					],
+					"actions": [
+						{
+							"type": "Navigation",
+							"parameters": {
+								"url": "#"
+							}
 						}
 					]
 				},

@@ -26,7 +26,7 @@ sap.ui.define([
 
 	/**
 	 * Class taking care of the control responsive behaviour.
-	 * @alias sap/f/shellBar/ResponsiveHandler
+	 * @alias module:sap/f/shellBar/ResponsiveHandler
 	 * @since 1.63
 	 * @private
 	 * @property {object} oContext the context of the ShellBar control instance
@@ -59,7 +59,7 @@ sap.ui.define([
 	 */
 	ResponsiveHandler.prototype.onAfterRendering = function () {
 
-		var bPhoneRange = Device.media.getCurrentRange("Std", this._oControl.$().outerWidth(true)).name === "Phone";
+		var bPhoneRange = Device.media.getCurrentRange("StdExt", this._oControl.$().outerWidth(true)).name === "Phone";
 		this._oButton = this._oControl._oMegaMenu && this._oControl._oMegaMenu.getAggregation("_button");
 		this._oDomRef = this._oControl.getDomRef(); // Cache DOM Reference
 		this.bIsMegaMenuConfigured = this._oControl._oTitleControl &&
@@ -101,7 +101,7 @@ sap.ui.define([
 
 		var $Control = this._oControl.$(),
 			iWidth = $Control.outerWidth(),
-			oCurrentRange = Device.media.getCurrentRange("Std", iWidth),
+			oCurrentRange = Device.media.getCurrentRange("StdExt", iWidth),
 			bPhoneRange;
 
 		this.sCurrentRange = oCurrentRange.name;
@@ -109,6 +109,7 @@ sap.ui.define([
 		if (oCurrentRange) {
 			bPhoneRange = this.sCurrentRange === "Phone";
 
+			$Control.toggleClass("sapFShellBarSizeLargeDesktop", this.sCurrentRange === "LargeDesktop");
 			$Control.toggleClass("sapFShellBarSizeDesktop", this.sCurrentRange === "Desktop");
 			$Control.toggleClass("sapFShellBarSizeTablet", this.sCurrentRange === "Tablet");
 			$Control.toggleClass("sapFShellBarSizePhone", bPhoneRange);

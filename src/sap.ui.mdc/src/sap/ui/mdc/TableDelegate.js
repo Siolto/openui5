@@ -7,9 +7,22 @@
 // ---------------------------------------------------------------------------------------
 // ---------------------------------------------------------------------------------------
 sap.ui.define([
-	"sap/ui/mdc/AggregationBaseDelegate", "sap/ui/core/library", "sap/ui/core/Core"
-], function(AggregationBaseDelegate, coreLibrary, Core) {
+	"./AggregationBaseDelegate",
+	"./library",
+	"sap/ui/model/Sorter",
+	"sap/ui/core/library",
+	"sap/ui/core/Core"
+], function(
+	AggregationBaseDelegate,
+	library,
+	Sorter,
+	coreLibrary,
+	Core
+) {
 	"use strict";
+
+	var P13nMode = library.TableP13nMode;
+	var TableType = library.TableType;
 
 	/**
 	 * Base delegate for {@link sap.ui.mdc.Table}.
@@ -29,19 +42,42 @@ sap.ui.define([
 	/**
 	 * Provides a hook to update the binding info object that is used to bind the table to the model.
 	 *
-	 * @param {sap.ui.mdc.Table} oMDCTable Instance of the MDC table
+	 * @param {sap.ui.mdc.Table} oTable Instance of the MDC table
 	 * @param {sap.ui.base.ManagedObject.AggregationBindingInfo} oBindingInfo The binding info object to be used to bind the table to the model
 	 * @protected
 	 */
-	TableDelegate.updateBindingInfo = function(oMDCTable, oBindingInfo) {
+	TableDelegate.updateBindingInfo = function(oTable, oBindingInfo) {
 		oBindingInfo.parameters = {};
+		oBindingInfo.filters = [];
+		oBindingInfo.sorter = [];
 
-		if (oMDCTable._oMessageFilter) {
-			oBindingInfo.filters = [oMDCTable._oMessageFilter];
-		} else {
-			oBindingInfo.filters = [];
+		if (oTable._oMessageFilter) {
+			oBindingInfo.filters = [oTable._oMessageFilter];
 		}
-		oBindingInfo.sorter = oMDCTable._getSorters();
+
+		if (oTable._bMobileTable) {
+			var oGroupedProperty = oTable._getGroupedProperties()[0];
+
+			if (oGroupedProperty) {
+				var oSortedProperty = oTable._getSortedProperties().find(function(oProperty) {
+					return oProperty.name === oGroupedProperty.name;
+				});
+				var sPath = oTable.getPropertyHelper().getProperty(oGroupedProperty.name).path;
+				var bDescending = oSortedProperty ? oSortedProperty.descending : false;
+
+				oBindingInfo.sorter.push(new Sorter(sPath, bDescending, function(oContext) {
+					return this.formatGroupHeader(oTable, oContext, oGroupedProperty.name);
+				}.bind(this)));
+			}
+		}
+
+		oBindingInfo.sorter = oBindingInfo.sorter.concat(
+			oBindingInfo.sorter.length === 1
+				? oTable._getSorters().filter(function(oSorter) {
+					return oSorter.sPath !== oBindingInfo.sorter[0].sPath;
+				})
+				: oTable._getSorters()
+		);
 	};
 
 	/**
@@ -50,13 +86,37 @@ sap.ui.define([
 	 * The default implementation rebinds the table, but model-specific subclasses must call dedicated binding methods to update the binding instead
 	 * of using {@link #rebind}.
 	 *
-	 * @param {sap.ui.mdc.Table} oMDCTable Instance of the table
+	 * @param {sap.ui.mdc.Table} oTable Instance of the table
 	 * @param {sap.ui.base.ManagedObject.AggregationBindingInfo} oBindingInfo The binding info object to be used to bind the table to the model
 	 * @param {sap.ui.model.ListBinding} [oBinding] The binding instance of the table
 	 * @protected
 	 */
-	TableDelegate.updateBinding = function(oMDCTable, oBindingInfo, oBinding) {
-		this.rebind(oMDCTable, oBindingInfo);
+	TableDelegate.updateBinding = function(oTable, oBindingInfo, oBinding) {
+		this.rebind(oTable, oBindingInfo);
+	};
+
+	/**
+	 * Formats the title text of a group header row of the table.
+	 *
+	 * @param {sap.ui.mdc.Table} oTable Instance of the MDC table
+	 * @param {sap.ui.model.Context} oContext Binding context
+	 * @param {string} sProperty The name of the grouped property
+	 * @returns {string | undefined} The group header title. If <code>undefined</code> is returned, the default group header title is set.
+	 * @protected
+	 */
+	TableDelegate.formatGroupHeader = function(oTable, oContext, sProperty) {
+		var oProperty = oTable.getPropertyHelper().getProperty(sProperty);
+		var oTextProperty = oProperty.textProperty;
+		var oResourceBundle = Core.getLibraryResourceBundle("sap.ui.mdc");
+		var sResourceKey = "table.ROW_GROUP_TITLE";
+		var aValues = [oProperty.label, oContext.getProperty(oProperty.path, true)];
+
+		if (oTextProperty) {
+			sResourceKey = "table.ROW_GROUP_TITLE_FULL";
+			aValues.push(oContext.getProperty(oTextProperty.path, true));
+		}
+
+		return oResourceBundle.getText(sResourceKey, aValues);
 	};
 
 	TableDelegate.validateState = function(oControl, oState, sKey) {
@@ -68,19 +128,19 @@ sap.ui.define([
 			};
 		}
 
-		return  AggregationBaseDelegate.validateState.apply(this, arguments);
+		return AggregationBaseDelegate.validateState.apply(this, arguments);
 	};
 
 	/**
 	 * Rebinds the table.
 	 *
-	 * @param {sap.ui.mdc.Table} oMDCTable Instance of the MDC table
+	 * @param {sap.ui.mdc.Table} oTable Instance of the MDC table
 	 * @param {sap.ui.base.ManagedObject.AggregationBindingInfo} oBindingInfo The binding info object to be used to bind the table to the model
 	 * @protected
 	 */
-	TableDelegate.rebind = function (oMDCTable, oBindingInfo) {
-		if (oMDCTable._oTable) {
-			oMDCTable._oTable.bindRows(oBindingInfo);
+	TableDelegate.rebind = function(oTable, oBindingInfo) {
+		if (oTable._oTable) {
+			oTable._oTable.bindRows(oBindingInfo);
 		}
 	};
 
@@ -106,11 +166,37 @@ sap.ui.define([
 			 *
 			 * @param {string} sPropertyName The property name
 			 * @param {sap.ui.mdc.Table} oTable Instance of the table
-			 * @returns {Promise<sap.ui.mdc.FilterField>} <code>Promise</code> that resolves with an instance of a <code>sap.ui.mdc.FilterField</code>.
+			 * @returns {Promise<sap.ui.mdc.FilterField>} A promise that resolves with an instance of <code>sap.ui.mdc.FilterField</code>.
 			 * @see sap.ui.mdc.AggregationBaseDelegate#addItem
 			 */
 			addItem: function(sPropertyName, oTable) {
 				return Promise.resolve(null);
+			},
+
+			/**
+			 * This methods is called during the appliance of the add condition change.
+			 * This intention is to update the propertyInfo property.
+			 *
+			 * @param {string} sPropertyName The name of a property.
+			 * @param {sap.ui.mdc.Control} oControl - the instance of the mdc control
+			 * @param {Object} mPropertyBag Instance of property bag from Flex change API
+			 * @returns {Promise} Promise that resolves once the properyInfo property was updated
+			 */
+			addCondition: function(sPropertyName, oControl, mPropertyBag) {
+				return Promise.resolve();
+			},
+
+			/**
+			 * This methods is called during the appliance of the remove condition change.
+			 * This intention is to update the propertyInfo property.
+			 *
+			 * @param {string} sPropertyName The name of a property.
+			 * @param {sap.ui.mdc.Control} oControl - the instance of the mdc control
+			 * @param {Object} mPropertyBag Instance of property bag from Flex change API
+			 * @returns {Promise} Promise that resolves once the properyInfo property was updated
+			 */
+			removeCondition: function(sPropertyName, oControl, mPropertyBag) {
+				return Promise.resolve();
 			}
 		};
 	};
@@ -118,28 +204,22 @@ sap.ui.define([
 	/**
 	 * Returns the feature set for exporting data in the MDC Table.
 	 *
+	 * @param {sap.ui.mdc.Table} oTable Instance of the MDC table
 	 * @returns {Promise} Export capabilities with specific features
 	 * @protected
 	 */
-	TableDelegate.fetchExportCapabilities = function() {
-		var oExportCapabilities = {
-			"XLSX": {} // default
-		};
+	TableDelegate.fetchExportCapabilities = function(oTable) {
+		return Promise.resolve({ XLSX: {} });
+	};
 
-		// This is a temporary approach for testing purposes
-		if (new URL(window.location.href).search.indexOf("sap-ui-xx-enablePDFExport=true") > -1) {
-			oExportCapabilities["PDF"] = {
-				DocumentDescriptionReference: "../../../../default/iwbep/common/0001/$metadata",
-				DocumentDescriptionCollection: "MyDocumentDescriptions",
-				ArchiveFormat: true,
-				Signature: true,
-				CoverPage: true,
-				FitToPage: false,
-				ResultSizeDefault: 5000,
-				ResultSizeMaximum: 20000
-			};
+	TableDelegate.getSupportedP13nModes = function(oTable) {
+		var aSupportedModes = [P13nMode.Column, P13nMode.Sort, P13nMode.Filter];
+
+		if (oTable._getStringType() === TableType.ResponsiveTable) {
+			aSupportedModes.push(P13nMode.Group);
 		}
-		return Promise.resolve(oExportCapabilities);
+
+		return aSupportedModes;
 	};
 
 	return TableDelegate;

@@ -77,6 +77,9 @@ function(
 		// shortcut for sap.ui.core.TextAlign
 		var TextAlign = coreLibrary.TextAlign;
 
+		// shortcut for sap.ui.core.OpenState
+		var OpenState = coreLibrary.OpenState;
+
 		// shortcut for sap.m.SelectType
 		var SelectType = library.SelectType;
 
@@ -195,6 +198,8 @@ function(
 					 * <li> Invalid or missing <code>selectedKey</code> leads to severe functional
 					 * issues in <code>sap.ui.table.Table</code>, when the <code>sap.m.Select</code> is used inside a
 					 * <code>sap.ui.table.Table</code> column.</li>
+					 * <li> If an item with the default key exists and we try to select it, it happens only if the
+					 * <code>forceSelection</code> property is set to <code>true</code>.</li>
 					 * </ul>
 					 *
 					 * @since 1.11
@@ -465,6 +470,30 @@ function(
 								type: "sap.ui.core.Item"
 							}
 						}
+					},
+
+					/**
+					 * Fires when the user navigates through the <code>Select</code> items.
+					 * It's also fired on revert of the currently selected item.
+					 *
+					 * <b>Note:</b> Revert occurs in some of the following actions:
+					 * <ul>
+					 * 	<li>The user clicks outside of the <code>Select</code></li>
+					 * 	<li>The <i>Escape</i> key is pressed</li>
+					 * </ul>
+					 *
+					 * @since 1.100
+					 */
+					liveChange: {
+						parameters: {
+
+							/**
+							 * The selected item.
+							 */
+							selectedItem: {
+								type: "sap.ui.core.Item"
+							}
+						}
 					}
 				},
 				designtime: "sap/m/designtime/Select.designtime"
@@ -490,6 +519,9 @@ function(
 			}
 
 			if (oItem) {
+				if (this.getSelectedItemId() !== oItem.getId()) {
+					this.fireEvent("liveChange", {selectedItem: oItem});
+				}
 				this.setSelection(oItem);
 				this.setValue(oItem.getText());
 				this.scrollToItem(oItem);
@@ -599,6 +631,7 @@ function(
 			var oItem = this.getSelectedItem();
 
 			if (this._oSelectionOnFocus !== oItem) {
+				this.fireEvent("liveChange", {selectedItem: this._oSelectionOnFocus});
 				this.setSelection(this._oSelectionOnFocus);
 				this.setValue(this._getSelectedItemText());
 			}
@@ -1517,7 +1550,7 @@ function(
 		};
 
 		/**
-		 * Handles the <code>selectionChange</code> event on the <code>SelectList</code>.
+		 * Handles the <code>liveChange</code> event on the <code>SelectList</code>.
 		 *
 		 * @param {sap.ui.base.Event} oControlEvent
 		 * @private
@@ -2798,7 +2831,8 @@ function(
 		 * an empty string <code>""</code> or <code>undefined</code>, the value of <code>sKey</code> is changed to match
 		 * the <code>key</code> of the first enabled item and the first enabled item is selected (if any items exist).
 		 *
-		 * In the case that an item has the default key value and <code>forceSelection</code> property is set to <code>true</code>, it is selected instead.
+		 * If an item with the default key exists and we try to select it, it happens only if the
+		 * <code>forceSelection</code> property is set to <code>true</code>.
 		 * If duplicate keys exist, the first item matching the key is selected.
 		 *
 		 * @returns {this} <code>this</code> to allow method chaining.
@@ -2839,11 +2873,26 @@ function(
 		};
 
 		Select.prototype.setValueState = function(sValueState) {
-			var sOldValueState = this.getValueState();
+			var sOldValueState = this.getValueState(),
+				oPicker;
 
 			if (sValueState === sOldValueState) {
 				return this;
 			}
+
+			oPicker = this.getPicker();
+
+			if (oPicker && oPicker.isA("sap.m.Popover") && oPicker.isOpen() && oPicker.oPopup.getOpenState() === OpenState.CLOSING) {
+				oPicker.attachEventOnce("afterClose", function(oEvent) {
+					return this._finishSettingValueState(sValueState);
+				}, this);
+			} else {
+				return this._finishSettingValueState(sValueState);
+			}
+
+		};
+
+		Select.prototype._finishSettingValueState = function(sValueState) {
 
 			this.setProperty("valueState", sValueState);
 

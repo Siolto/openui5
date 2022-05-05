@@ -2,10 +2,12 @@
  * ! ${copyright}
  */
 sap.ui.define([
-	"sap/ui/layout/Grid", "./BasePanel", "sap/ui/core/Item", "sap/m/CustomListItem", "sap/m/Select", "sap/m/List", "sap/m/HBox", "sap/m/library", "sap/m/Button", "sap/base/util/merge"
-], function (Grid, BasePanel, Item, CustomListItem, Select, List, HBox, mLibrary, Button, merge) {
+	"sap/ui/layout/Grid", "./BasePanel", "sap/ui/core/ListItem", "sap/m/CustomListItem", "sap/m/ComboBox", "sap/m/List", "sap/m/HBox", "sap/m/library", "sap/m/Button", "sap/base/util/merge", 'sap/ui/core/library'
+], function (Grid, BasePanel, Item, CustomListItem, ComboBox, List, HBox, mLibrary, Button, merge, coreLibrary) {
 	"use strict";
 
+
+	var ValueState = coreLibrary.ValueState;
 
 	/**
 	 * Constructor for a new <code>QueryPanel</code>.
@@ -51,8 +53,6 @@ sap.ui.define([
 
 	// shortcut for sap.m.ButtonType
 	var ButtonType = mLibrary.ButtonType;
-
-	QueryPanel.prototype.NONE_KEY = "$_none";
 
 	QueryPanel.prototype.init = function () {
 		BasePanel.prototype.init.apply(this, arguments);
@@ -108,14 +108,21 @@ sap.ui.define([
 	};
 
 	QueryPanel.prototype._moveTableItem = function (oItem, iNewIndex) {
-		// Rules for the movement for the $_none row:
-		// 1) disable the $_none row for reordering
-		// 2) in case all entries are used there is no $_none row and the movement is allowed
-		if (this._oListControl.getItems().indexOf(oItem) !== (this._oListControl.getItems().length - 1)  || this._allEntriesUsed()) {
+		var iCurrentIndex = this._oListControl.getItems().indexOf(oItem);
+		var iMaxListLength = this._oListControl.getItems().length - 1;
+		var iQueryLimit = this.getQueryLimit();
+
+		// Rules for the movement:
+		// 1) The row is not the template row
+		// 2) in case all entries are used, allow reordering for all rows
+		// 3) in case a query limit is provided, limit the movement to the allowed limit
+		if ((iCurrentIndex !== iMaxListLength || this._allEntriesUsed()) && (iQueryLimit === -1 || iNewIndex < iQueryLimit)) {
 			this._oListControl.removeItem(oItem);
 			this._oListControl.insertItem(oItem, iNewIndex);
 
 			this._updateEnableOfMoveButtons(oItem, false);
+
+			this._getP13nModel().checkUpdate(true);
 
 			this.fireChange({
 				reason: this.CHANGE_REASON_MOVE,
@@ -153,11 +160,7 @@ sap.ui.define([
 	QueryPanel.prototype._getAvailableItems = function (sKey) {
 		var aItems = this._getP13nModel().getProperty("/items");
 
-		var aAvailableItems = [new Item({
-			key: this.NONE_KEY,
-			text: this._getResourceText("p13n.QUERY_NONE"),
-			enabled: !sKey
-		})];
+		var aAvailableItems = [];
 
 		aItems.forEach(function (oNonPresent, iIndex) {
 			aAvailableItems.push(new Item({
@@ -166,7 +169,14 @@ sap.ui.define([
 				enabled: {
 					path: this.P13N_MODEL + ">/items/" + iIndex + "/" + this.PRESENCE_ATTRIBUTE,
 					formatter: function(bQueried) {
-						return !bQueried; //Only enable the selection in case there is not yet a query present
+						var oComboBox = this.getParent();
+						var selItem =  oComboBox.getSelectedItem();
+						var selItemIndex = selItem && oComboBox.getItems().indexOf(selItem);
+
+						var sPath = this.getBindingPath("enabled");
+						var pathIndex = parseInt(sPath.split("/")[2]);
+
+						return !bQueried || selItemIndex === pathIndex; //Only enable the selection in case there is not yet a query present or the item is the selected item
 					}
 				}
 			}));
@@ -178,9 +188,9 @@ sap.ui.define([
 	QueryPanel.prototype._addQueryRow = function (oItem) {
 
 		var bLimitedQueries = this.getQueryLimit() > -1;
-		var bQueryLimitReached = this.getQueryLimit() === this._oListControl.getItems().length;
+		var bQueryLimitReached = this.getQueryLimit() <= this._oListControl.getItems().length;
 
-		if ((bLimitedQueries && bQueryLimitReached) || this._allEntriesUsed()) {
+		if ((bLimitedQueries && bQueryLimitReached && !oItem) || this._allEntriesUsed()) {
 			return;
 		}
 
@@ -198,7 +208,11 @@ sap.ui.define([
 		//We only need 'move' buttons if:
 		// 1) Reordering is enabled
 		// 2) At least 2 queries can be made
-		if (this.getEnableReorder() && (this.getQueryLimit() === -1 || this.getQueryLimit() > 1)){
+		// 3) The row is not exeeding the query limit
+		if (
+			this.getEnableReorder() &&
+			(this.getQueryLimit() === -1 || (this.getQueryLimit() > 1 && this._oListControl.getItems().length < this.getQueryLimit()))
+		){
 			this._addHover(oRow);
 		}
 
@@ -239,46 +253,80 @@ sap.ui.define([
 		}
 	};
 
+	QueryPanel.prototype._getPlaceholderText = function () {
+		return "";
+	};
+
+	QueryPanel.prototype._getRemoveButtonTooltipText = function () {
+		return "";
+	};
+
 	QueryPanel.prototype._createKeySelect = function (sKey) {
-		var oKeySelect = new Select({
+		var that = this;
+		var oKeySelect = new ComboBox({
 			width: "14rem",
+			enabled: {
+				path: this.P13N_MODEL + ">/items/",
+				formatter: function(aItems) {
+
+					if (that.getQueryLimit() < 0) {
+						return true;
+					}
+
+					var aPresentKeys = that.getP13nData(true).map(function(oItem){
+						return oItem.name;
+					});
+					var sKey = this._key; //'this' is the select control passed by the formatter
+					var iPositon = aPresentKeys.indexOf(sKey) + 1;
+					return iPositon <= that.getQueryLimit();
+				}
+			},
 			items: this._getAvailableItems(sKey),
 			selectedKey: sKey,
-			change: this._selectKey.bind(this)
+			placeholder: this._getPlaceholderText(),
+			selectionChange: function(oEvt) {
+				var oComboBox =  oEvt.getSource();
+				var oSelItem = oComboBox.getSelectedItem();
+				// var sNewKey = oComboBox.getSelectedKey();
+				if (!oSelItem) {
+					this._selectKey(oComboBox);
+				}
+			}.bind(this),
+			change: function(oEvt) {
+				var oComboBox = oEvt.getSource();
+				var newValue = oEvt.getParameter("newValue");
+				this._selectKey(oComboBox);
+				oComboBox.setValueState( newValue && !oComboBox.getSelectedItem() ? ValueState.Error : ValueState.None);
+			}.bind(this)
 		});
 
 		return oKeySelect;
 	};
 
-	QueryPanel.prototype._selectKey = function(oEvt) {
-
-		var oListItem = oEvt.getSource().getParent().getParent();
-
+	QueryPanel.prototype._selectKey = function(oComboBox) {
+		var sNewKey = oComboBox.getSelectedKey();
+		var sOldKey = oComboBox._key;
+		var oListItem = oComboBox.getParent().getParent();
 		var bIsLastRow = this._oListControl.getItems().length - 1 == this._oListControl.getItems().indexOf(oListItem);
-		var sNewKey = oEvt.getParameter("selectedItem").getKey();
-		var sOldKey = oEvt.getSource()._key;
 
-		var oBtnContainer = oListItem.getContent()[0].getContent()[oListItem.getContent()[0].getContent().length - 1];
-		//var oRemoveBtn = oBtnContainer.getItems()[oBtnContainer.getItems().length - 1];
-
-		oBtnContainer.setVisible(sNewKey !== this.NONE_KEY);
+		var aContent = oListItem.getContent()[0].getContent();
+		var oBtnContainer = aContent[aContent.length - 1];
+		oBtnContainer.setVisible(!(bIsLastRow && sNewKey == ""));
 
 		//Remove previous
 		if (sOldKey) {
 			this._updatePresence(sOldKey, false, undefined);
 		}
+
 		//store old key
-		oEvt.getSource()._key = sNewKey;
+		oComboBox._key = sNewKey;
 
 		//add new
 		this._updatePresence(sNewKey, true, this._oListControl.getItems().indexOf(oListItem));
 
 		//Add a new row in case the last "empty" row has been configured
-		if (sNewKey !== this.NONE_KEY && bIsLastRow) {
+		if (sNewKey !== "" && bIsLastRow) {
 			this._addQueryRow();
-			var oSelect = oEvt.getSource();
-			var oNoneItem = oSelect.getItemByKey(this.NONE_KEY);
-			oNoneItem.setEnabled(false);
 		}
 	};
 
@@ -308,10 +356,16 @@ sap.ui.define([
 							var iLastIndex = this._oListControl.getItems().length - 1;
 							this._oListControl.getItems()[iLastIndex].getContent()[0].getContent()[0].focus();
 						}
+
+						this._getP13nModel().checkUpdate(true);
 					}.bind(this)
 				})
 			]
 		});
+
+		if (this._getRemoveButtonTooltipText()) {
+			oRemoveBox.getItems()[0].setTooltip(this._getRemoveButtonTooltipText());
+		}
 
 		return oRemoveBox;
 	};

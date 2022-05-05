@@ -10,10 +10,8 @@
 		stroke-width: 0.125rem;
 	}
 
-	&:not(.sapMRbErr):not(.sapMRbWarn) {
-		.sapMRbBOut {
-			stroke-width: @sapUiFieldBorderWidth;
-		}
+	&.sapMRbRo .sapMRbBOut {
+		stroke-width: @sapElement_BorderWidth
 	}
 }
 
@@ -110,6 +108,10 @@
 	fill: @sapUiContentIconColor; // contrast themes specific
 }
 
+.sapMRbB .sapMRbBInn {
+	r: 27.5%;
+}
+
 /* Value states */
 .sapMRbErr, .sapMRbWarn, .sapMRbInfo{
 	.sapMRbB .sapMRbBOut {
@@ -178,5 +180,18 @@
 	.sapMRbB .sapMRbBOut {
 		stroke: @sapUiFieldInformationColor;
 		fill: @sapUiFieldInformationBackground;
+		stroke-width: @sapUiFieldInformationBorderWidth;
+	}
+}
+
+html[data-sap-ui-browser^="sf"] {
+	// fix for circle width on zoom in Safari
+	.sapMRb .sapMRbBOut {
+		stroke-width: 2px;
+	}
+	// fix for circle width on zoom in Safari
+	.sapMRb.sapMRbRo .sapMRbBOut,
+	.sapMRb.sapMRbInfo .sapMRbBOut {
+		stroke-width: 1px;
 	}
 }

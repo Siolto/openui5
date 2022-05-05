@@ -16,8 +16,10 @@ sap.ui.define([
 	"sap/m/ToolbarSpacer",
 	"sap/m/Button",
 	"sap/m/OverflowToolbar",
-	"sap/ui/model/Filter"
-], function(BasePanel, Label, ColumnListItem, HBox, VBox, coreLibrary, Icon, Text, Column, Table, mLibrary, ToolbarSpacer, Button, OverflowToolbar, Filter) {
+	"sap/ui/model/Filter",
+	"sap/base/util/merge",
+	"sap/ui/core/InvisibleText"
+], function(BasePanel, Label, ColumnListItem, HBox, VBox, coreLibrary, Icon, Text, Column, Table, mLibrary, ToolbarSpacer, Button, OverflowToolbar, Filter, merge, InvisibleText) {
 	"use strict";
 
 	// shortcut for sap.ui.core.IconColor
@@ -148,6 +150,17 @@ sap.ui.define([
 									}
 								}
 							}
+						}),
+						// The active status is visiually represented as dot icon in the tabular view, for the screen reader it needs to be ensured
+						// that a similar information is available without the UI. This InvisibleText will provide a text in the screen reader as:
+						// "Active Field is active" & "Active Field is inactive"
+						new InvisibleText({
+							text: {
+								path: this.P13N_MODEL + ">active",
+								formatter: function(bactive) {
+									return bactive ? this._getResourceText("p13n.ACTIVESTATE_ACTIVE") : this._getResourceText("p13n.ACTIVESTATE_INACTIVE");
+								}.bind(this)
+							}
 						})
 					]
 				})
@@ -270,10 +283,19 @@ sap.ui.define([
 	 * @public
 	 * @param {sap.m.p13n.Item[]} aP13nData An array containing the personalization state that is represented by the <code>SelectionPanel</code>.
 	 */
-	SelectionPanel.prototype.setP13nData = function() {
-		this._oListControl.removeSelections();
-		BasePanel.prototype.setP13nData.apply(this, arguments);
+	SelectionPanel.prototype.setP13nData = function(aP13nData) {
+		if (this.getEnableCount()) {
+			aP13nData = merge([], aP13nData);
+			this._oListControl.removeSelections();
+		}
+		BasePanel.prototype.setP13nData.call(this, aP13nData);
 		this._updateCount();
+
+		//After explicitly updating the data (e.g. outer influences by the p13n.Popup such as reset, open & update)
+		//Ensure that the remove buttons and currently selected item will be reset, as it's not clear anymore
+		//remove the reorder buttons from their current location and hence reset the hover logic
+		this._removeMoveButtons();
+		this._oSelectedItem = null;
 	};
 
 	SelectionPanel.prototype._updateCount = function() {
@@ -353,8 +375,15 @@ sap.ui.define([
 		this._oListControl.getItems().forEach(function(oItem){
 			var oContext = oItem.getBindingContext(this.P13N_MODEL);
 			var oField = this.getItemFactory().call(this, oContext);
-			var oCell = oItem.getCells()[0];
-			oCell.addItem(oField);
+
+			//set 'labelFor'
+			var oFirstCell = oItem.getCells()[0];
+			var oLabel = oFirstCell.getItems()[0];
+			if (oLabel) {
+				oLabel.setLabelFor(oField);
+			}
+
+			oFirstCell.addItem(oField);
 		}.bind(this));
 		this.addStyleClass("sapUiMDCAFLabelMarkingList");
 	};

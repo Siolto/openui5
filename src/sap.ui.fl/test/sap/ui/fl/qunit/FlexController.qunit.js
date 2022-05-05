@@ -1,19 +1,15 @@
 /*global QUnit*/
 
 sap.ui.define([
+	"sap/ui/fl/initial/_internal/changeHandlers/ChangeHandlerStorage",
 	"sap/ui/fl/FlexController",
 	"sap/ui/fl/Change",
 	"sap/ui/fl/Layer",
 	"sap/ui/core/Control",
+	"sap/ui/fl/write/api/Version",
 	"sap/ui/fl/Utils",
 	"sap/ui/fl/changeHandler/HideControl",
 	"sap/ui/fl/ChangePersistenceFactory",
-	"sap/ui/core/util/reflection/JsControlTreeModifier",
-	"sap/ui/core/Manifest",
-	"sap/ui/core/UIComponent",
-	"sap/m/Label",
-	"sap/ui/model/json/JSONModel",
-	"sap/base/Log",
 	"sap/ui/fl/apply/_internal/controlVariants/URLHandler",
 	"sap/ui/fl/apply/_internal/changes/Applier",
 	"sap/ui/fl/apply/_internal/changes/FlexCustomData",
@@ -21,24 +17,26 @@ sap.ui.define([
 	"sap/ui/fl/apply/_internal/changes/Reverter",
 	"sap/ui/fl/write/_internal/Versions",
 	"sap/ui/fl/write/_internal/Storage",
+	"sap/ui/model/json/JSONModel",
+	"sap/base/Log",
 	"sap/base/util/deepClone",
+	"sap/ui/core/Core",
+	"sap/ui/core/util/reflection/JsControlTreeModifier",
+	"sap/ui/core/Manifest",
+	"sap/ui/core/UIComponent",
+	"sap/m/Label",
 	"sap/ui/thirdparty/jquery",
-	"sap/ui/thirdparty/sinon-4",
-	"sap/ui/core/Core"
+	"sap/ui/thirdparty/sinon-4"
 ], function(
+	ChangeHandlerStorage,
 	FlexController,
 	Change,
 	Layer,
 	Control,
+	Version,
 	Utils,
 	HideControl,
 	ChangePersistenceFactory,
-	JsControlTreeModifier,
-	Manifest,
-	UIComponent,
-	Label,
-	JSONModel,
-	Log,
 	URLHandler,
 	Applier,
 	FlexCustomData,
@@ -46,16 +44,22 @@ sap.ui.define([
 	Reverter,
 	Versions,
 	Storage,
+	JSONModel,
+	Log,
 	deepClone,
+	Core,
+	JsControlTreeModifier,
+	Manifest,
+	UIComponent,
+	Label,
 	jQuery,
-	sinon,
-	oCore
+	sinon
 ) {
 	"use strict";
 
 	var sandbox = sinon.createSandbox();
 
-	var oComponent = oCore.createComponent({
+	var oComponent = Core.createComponent({
 		name: "testComponent",
 		id: "testComponent",
 		metadata: {
@@ -145,22 +149,32 @@ sap.ui.define([
 				});
 		});
 
+		QUnit.test("when saveAll is called without versioning", function(assert) {
+			var fnChangePersistenceSaveStub = sandbox.stub(this.oFlexController._oChangePersistence, "saveDirtyChanges").resolves();
+			return this.oFlexController.saveAll(oComponent, undefined, false)
+				.then(function() {
+					assert.equal(fnChangePersistenceSaveStub.calledWith(oComponent, undefined, undefined, undefined, undefined), true, "then ChangePersistence.saveDirtyChanges() was called with correct parameters");
+				});
+		});
+
+
 		QUnit.test("when saveAll is called for a draft without filenames", function(assert) {
 			sandbox.stub(Versions, "getVersionsModel").returns(new JSONModel({
-				persistedVersion: sap.ui.fl.Versions.Draft,
-				versions: [{version: sap.ui.fl.Versions.Draft}]
+				persistedVersion: Version.Number.Draft,
+				versions: [{version: Version.Number.Draft, filenames: []}],
+				draftFilenames: []
 			}));
 			var fnChangePersistenceSaveStub = sandbox.stub(this.oFlexController._oChangePersistence, "saveDirtyChanges").resolves();
 			return this.oFlexController.saveAll(oComponent, undefined, true)
 				.then(function() {
-					assert.equal(fnChangePersistenceSaveStub.calledWith(oComponent, undefined, undefined, sap.ui.fl.Versions.Draft, undefined), true, "then ChangePersistence.saveDirtyChanges() was called with correct parameters");
+					assert.equal(fnChangePersistenceSaveStub.calledWith(oComponent, undefined, undefined, Version.Number.Draft, []), true, "then ChangePersistence.saveDirtyChanges() was called with correct parameters");
 				});
 		});
 
 		QUnit.test("when saveAll is called for a draft with filenames", function(assert) {
 			var aFilenames = ["fileName1", "fileName2"];
 			var oDraftVersion = {
-				version: sap.ui.fl.Versions.Draft,
+				version: Version.Number.Draft,
 				filenames: aFilenames
 			};
 			var oFirstVersion = {
@@ -173,25 +187,26 @@ sap.ui.define([
 				oFirstVersion
 			];
 			sandbox.stub(Versions, "getVersionsModel").returns(new JSONModel({
-				persistedVersion: sap.ui.fl.Versions.Draft,
-				versions: aVersions
+				persistedVersion: Version.Number.Draft,
+				versions: aVersions,
+				draftFilenames: aFilenames
 			}));
 			var fnChangePersistenceSaveStub = sandbox.stub(this.oFlexController._oChangePersistence, "saveDirtyChanges").resolves();
 			return this.oFlexController.saveAll(oComponent, undefined, true)
 				.then(function() {
-					assert.equal(fnChangePersistenceSaveStub.calledWith(oComponent, undefined, undefined, sap.ui.fl.Versions.Draft, aFilenames), true, "then ChangePersistence.saveDirtyChanges() was called with correct parameters");
+					assert.equal(fnChangePersistenceSaveStub.calledWith(oComponent, undefined, undefined, Version.Number.Draft, aFilenames), true, "then ChangePersistence.saveDirtyChanges() was called with correct parameters");
 				});
 		});
 
 		QUnit.test("when saveAll is called with skipping the cache and for draft", function(assert) {
 			sandbox.stub(Versions, "getVersionsModel").returns(new JSONModel({
-				persistedVersion: sap.ui.fl.Versions.Original,
-				versions: [{version: sap.ui.fl.Versions.Original}]
+				persistedVersion: Version.Number.Original,
+				versions: [{version: Version.Number.Original}]
 			}));
 			var fnChangePersistenceSaveStub = sandbox.stub(this.oFlexController._oChangePersistence, "saveDirtyChanges").resolves();
 			return this.oFlexController.saveAll(oComponent, true, true)
 				.then(function() {
-					assert.equal(fnChangePersistenceSaveStub.calledWith(oComponent, true, undefined, sap.ui.fl.Versions.Original, undefined), true, "then ChangePersistence.saveDirtyChanges() was called with correct parameters");
+					assert.equal(fnChangePersistenceSaveStub.calledWith(oComponent, true, undefined, Version.Number.Original, undefined), true, "then ChangePersistence.saveDirtyChanges() was called with correct parameters");
 				});
 		});
 
@@ -220,15 +235,15 @@ sap.ui.define([
 		});
 
 		QUnit.test("when saveAll is called with draft and no change was saved", function(assert) {
-			return _runSaveAllAndAssumeVersionsCall.call(this, assert, undefined, sap.ui.fl.Versions.Draft, 0);
+			return _runSaveAllAndAssumeVersionsCall.call(this, assert, undefined, Version.Number.Draft, 0);
 		});
 
 		QUnit.test("when saveAll is called with draft and a change was saved", function(assert) {
-			return _runSaveAllAndAssumeVersionsCall.call(this, assert, [{reference: "my.app.Component"}], sap.ui.fl.Versions.Draft, 1);
+			return _runSaveAllAndAssumeVersionsCall.call(this, assert, [{reference: "my.app.Component"}], Version.Number.Draft, 1);
 		});
 
 		QUnit.test("when saveAll is called with draft and multiple changes were saved", function(assert) {
-			return _runSaveAllAndAssumeVersionsCall.call(this, assert, [{reference: "my.app.Component"}, {}], sap.ui.fl.Versions.Draft, 1);
+			return _runSaveAllAndAssumeVersionsCall.call(this, assert, [{reference: "my.app.Component"}, {}], Version.Number.Draft, 1);
 		});
 
 		QUnit.test("when saveSequenceOfDirtyChanges is called with an array of changes", function(assert) {
@@ -260,7 +275,7 @@ sap.ui.define([
 			var fChangeHandler = sandbox.stub();
 			fChangeHandler.applyChange = sandbox.stub();
 			fChangeHandler.completeChangeContent = sandbox.stub();
-			sandbox.stub(this.oFlexController, "_getChangeHandler").resolves(fChangeHandler);
+			sandbox.stub(ChangeHandlerStorage, "getChangeHandler").resolves(fChangeHandler);
 
 			sandbox.stub(Utils, "getAppDescriptor").returns({
 				"sap.app": {
@@ -457,7 +472,7 @@ sap.ui.define([
 			var fChangeHandler = sandbox.stub();
 			fChangeHandler.applyChange = sandbox.stub();
 			fChangeHandler.completeChangeContent = sandbox.stub();
-			sandbox.stub(this.oFlexController, "_getChangeHandler").resolves(fChangeHandler);
+			sandbox.stub(ChangeHandlerStorage, "getChangeHandler").resolves(fChangeHandler);
 			sandbox.stub(Storage, "write").resolves();
 
 			return this.oFlexController.addChange({}, oControl).then(function(oChange) {
@@ -480,7 +495,7 @@ sap.ui.define([
 			var fChangeHandler = sandbox.stub();
 			fChangeHandler.applyChange = sandbox.stub();
 			fChangeHandler.completeChangeContent = sandbox.stub();
-			sandbox.stub(this.oFlexController, "_getChangeHandler").resolves(fChangeHandler);
+			sandbox.stub(ChangeHandlerStorage, "getChangeHandler").resolves(fChangeHandler);
 
 			sandbox.stub(Utils, "getAppDescriptor").returns({
 				"sap.app": {
@@ -515,7 +530,7 @@ sap.ui.define([
 			var fChangeHandler = sandbox.stub();
 			fChangeHandler.applyChange = sandbox.stub();
 			fChangeHandler.completeChangeContent = sandbox.stub();
-			sandbox.stub(this.oFlexController, "_getChangeHandler").resolves(fChangeHandler);
+			sandbox.stub(ChangeHandlerStorage, "getChangeHandler").resolves(fChangeHandler);
 			sandbox.stub(Utils, "getAppDescriptor").returns({
 				"sap.app": {
 					id: "myComponent",
@@ -545,7 +560,7 @@ sap.ui.define([
 				success: false,
 				error: new Error("myError")
 			}));
-			sandbox.stub(this.oFlexController, "_getChangeHandler").resolves(HideControl);
+			sandbox.stub(ChangeHandlerStorage, "getChangeHandler").resolves(HideControl);
 			sandbox.stub(this.oFlexController, "createChangeWithControlSelector").resolves(new Change(oChangeSpecificData));
 			sandbox.stub(this.oFlexController._oChangePersistence, "_addPropagationListener");
 			sandbox.spy(this.oFlexController._oChangePersistence, "deleteChange");
@@ -568,7 +583,7 @@ sap.ui.define([
 			};
 			var oChange = new Change(oChangeSpecificData);
 			sandbox.stub(Applier, "applyChangeOnControl").resolves({success: true});
-			sandbox.stub(this.oFlexController, "_getChangeHandler").resolves(HideControl);
+			sandbox.stub(ChangeHandlerStorage, "getChangeHandler").resolves(HideControl);
 			sandbox.stub(this.oFlexController, "createChangeWithControlSelector").resolves(oChange);
 			sandbox.stub(this.oFlexController._oChangePersistence, "_addPropagationListener");
 
@@ -590,7 +605,7 @@ sap.ui.define([
 			};
 
 			sandbox.stub(Applier, "applyChangeOnControl").resolves(({success: false}));
-			sandbox.stub(this.oFlexController, "_getChangeHandler").resolves(HideControl);
+			sandbox.stub(ChangeHandlerStorage, "getChangeHandler").resolves(HideControl);
 			sandbox.stub(this.oFlexController, "createChangeWithControlSelector").resolves(new Change(oChangeSpecificData));
 			sandbox.stub(this.oFlexController._oChangePersistence, "_addPropagationListener");
 
@@ -638,7 +653,7 @@ sap.ui.define([
 			var oDummyChangeHandler = {
 				completeChangeContent: function() {}
 			};
-			sandbox.stub(this.oFlexController, "_getChangeHandler").resolves(oDummyChangeHandler);
+			sandbox.stub(ChangeHandlerStorage, "getChangeHandler").resolves(oDummyChangeHandler);
 			sandbox.stub(Utils, "getAppDescriptor").returns({
 				"sap.app": {
 					id: "myComponent",
@@ -663,7 +678,7 @@ sap.ui.define([
 			var oDummyChangeHandler = {
 				completeChangeContent: function() {}
 			};
-			sandbox.stub(this.oFlexController, "_getChangeHandler").resolves(oDummyChangeHandler);
+			sandbox.stub(ChangeHandlerStorage, "getChangeHandler").resolves(oDummyChangeHandler);
 			sandbox.spy(JsControlTreeModifier, "getSelector");
 
 			return this.oFlexController.createChangeWithControlSelector({}, oControl)
@@ -681,7 +696,7 @@ sap.ui.define([
 			var oDummyChangeHandler = {
 				completeChangeContent: function() {}
 			};
-			sandbox.stub(this.oFlexController, "_getChangeHandler").resolves(oDummyChangeHandler);
+			sandbox.stub(ChangeHandlerStorage, "getChangeHandler").resolves(oDummyChangeHandler);
 			sandbox.stub(Utils, "getAppDescriptor").returns({
 				"sap.app": {
 					id: "myComponent",
@@ -707,7 +722,7 @@ sap.ui.define([
 			var oDummyChangeHandler = {
 				completeChangeContent: function() {}
 			};
-			sandbox.stub(this.oFlexController, "_getChangeHandler").resolves(oDummyChangeHandler);
+			sandbox.stub(ChangeHandlerStorage, "getChangeHandler").resolves(oDummyChangeHandler);
 
 			return this.oFlexController.createChangeWithControlSelector({}, mControl1)
 				.catch(function() {
@@ -743,7 +758,7 @@ sap.ui.define([
 			var oDummyChangeHandler = {
 				completeChangeContent: function() {}
 			};
-			sandbox.stub(this.oFlexController, "_getChangeHandler").resolves(oDummyChangeHandler);
+			sandbox.stub(ChangeHandlerStorage, "getChangeHandler").resolves(oDummyChangeHandler);
 			sandbox.spy(JsControlTreeModifier, "getSelector");
 
 			return this.oFlexController.createChangeWithExtensionPointSelector({}, mExtensionPointReference)
@@ -768,7 +783,7 @@ sap.ui.define([
 		QUnit.test("when processXmlView is called with changes", function(assert) {
 			var oGetChangesForViewStub = sandbox.stub(this.oFlexController._oChangePersistence, "getChangesForView").resolves();
 			var oApplyAllChangesForXMLView = sandbox.stub(Applier, "applyAllChangesForXMLView").resolves();
-			var oHandlePromiseChainError = sandbox.stub(this.oFlexController, "_handlePromiseChainError");
+			var oLogStub = sandbox.stub(Log, "error");
 			var mPropertyBag = {
 				viewId: "myView",
 				componentId: "testComponent"
@@ -777,14 +792,14 @@ sap.ui.define([
 			return this.oFlexController.processXmlView(this.oView, mPropertyBag).then(function() {
 				assert.ok(oGetChangesForViewStub.calledOnce, "then getChangesForView is called once");
 				assert.ok(oApplyAllChangesForXMLView.calledOnce, "then _resolveGetChangesForView is called once");
-				assert.equal(oHandlePromiseChainError.callCount, 0, "then error handling is skipped");
+				assert.equal(oLogStub.callCount, 0, "then error handling is skipped");
 			});
 		});
 
 		QUnit.test("when processXmlView is called without changes", function(assert) {
 			var oGetChangesForViewStub = sandbox.stub(this.oFlexController._oChangePersistence, "getChangesForView").returns(Promise.reject());
 			var oApplyAllChangesForXMLView = sandbox.spy(Applier, "applyAllChangesForXMLView");
-			var oHandlePromiseChainError = sandbox.spy(this.oFlexController, "_handlePromiseChainError");
+			var oLogStub = sandbox.stub(Log, "error");
 			var mPropertyBag = {
 				viewId: "myView",
 				componentId: "testComponent"
@@ -793,7 +808,7 @@ sap.ui.define([
 			return this.oFlexController.processXmlView(this.oView, mPropertyBag).then(function() {
 				assert.ok(oGetChangesForViewStub.calledOnce, "then getChangesForView is called once");
 				assert.equal(oApplyAllChangesForXMLView.callCount, 0, "then _resolveGetChangesForView is skipped");
-				assert.ok(oHandlePromiseChainError.calledOnce, "then error handling is called");
+				assert.ok(oLogStub.calledOnce, "then error handling is called");
 			});
 		});
 	});

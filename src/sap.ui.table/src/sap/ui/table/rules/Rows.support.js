@@ -4,8 +4,9 @@
 sap.ui.define([
 	"./TableHelper.support",
 	"sap/ui/support/library",
-	"sap/ui/Device"
-], function(SupportHelper, SupportLibrary, Device) {
+	"sap/ui/Device",
+	"sap/ui/thirdparty/jquery"
+], function(SupportHelper, SupportLibrary, Device, jQuery) {
 	"use strict";
 
 	var Categories = SupportLibrary.Categories;
@@ -36,7 +37,7 @@ sap.ui.define([
 		resolution: "Ensure that either only the 'Cozy' or 'Compact' content density is used, or the 'Condensed' and 'Compact' content densities"
 					+ " are used in combination.",
 		resolutionurls: [
-			SupportHelper.createDocuRef("Documentation: Content Densities", "#docs/guide/e54f729da8e3405fae5e4fe8ae7784c1.html")
+			SupportHelper.createDocuRef("Documentation: Content Densities", "topic/e54f729da8e3405fae5e4fe8ae7784c1")
 		],
 		check: function(oIssueManager, oCoreFacade, oScope) {
 			var $Document = jQuery("html");

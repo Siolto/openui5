@@ -109,7 +109,11 @@ sap.ui.define([
 					throw new Error("loadModules promise rejected in sap.ui.mdc.field.content.ContentFactory:createContent function call - could not load controls " + JSON.stringify(aControlNames));
 				})
 				.then(function(aControls) {
-					return oContentType.create(this, sContentMode, this._sOperator, aControls, sId);
+					if (this.getField() && !this.getField()._bIsBeingDestroyed) {
+						return oContentType.create(this, sContentMode, this._sOperator, aControls, sId);
+					} else {
+						return [];
+					}
 				}.bind(this))
 				.unwrap();
 		} catch (oError) {
@@ -405,6 +409,14 @@ sap.ui.define([
 
 	ContentFactory.prototype.setUnitType = function(oUnitType) {
 		this._oUnitType = oUnitType;
+	};
+
+	ContentFactory.prototype.getCompositeTypes = function() {
+		return this._aCompositeTypes;
+	};
+
+	ContentFactory.prototype.setCompositeTypes = function(aCompositeTypes) {
+		this._aCompositeTypes = aCompositeTypes;
 	};
 
 	ContentFactory.prototype.isMeasure = function() {

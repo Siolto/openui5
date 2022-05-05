@@ -19,9 +19,11 @@ sap.ui.define([
         "sap/ui/mdc/p13n/subcontroller/ChartItemController",
         "sap/ui/mdc/p13n/subcontroller/FilterController",
         "sap/ui/mdc/p13n/subcontroller/SortController",
+        "sap/ui/mdc/p13n/subcontroller/ChartTypeController",
         "sap/ui/base/ManagedObjectObserver",
         "sap/ui/mdc/chart/DrillBreadcrumbs",
-        "sap/ui/mdc/actiontoolbar/ActionToolbarAction"
+        "sap/ui/mdc/actiontoolbar/ActionToolbarAction",
+        "sap/ui/thirdparty/jquery"
     ],
     function (
         Core,
@@ -40,9 +42,11 @@ sap.ui.define([
         ChartItemController,
         FilterController,
         SortController,
+        ChartTypeController,
         ManagedObjectObserver,
         Breadcrumbs,
-        ActionToolbarAction
+        ActionToolbarAction,
+        jQuery
     ) {
         "use strict";
 
@@ -132,7 +136,7 @@ sap.ui.define([
                     },
 
                     /**
-                     * Set chart's legend properties.
+                     * Enables the legend of the chart.
                      *
                      * @since 1.88
                      */
@@ -188,11 +192,11 @@ sap.ui.define([
                      * @since 1.99
                      */
                      filterConditions: {
-                        type: "object"
+                        type: "object",
+                        defaultValue: {}
                     },
                     /**
-                     * Controls the visibility of the chart tooltip. If set to <code>true </code>, an instance of sap.viz.ui5.controls.VizTooltip will
-                     * be created and shown when hovering over a data point.
+                     * Controls the visibility of the chart tooltip. If set to <code>true</code>, an instance of {@link sap.viz.ui5.controls.VizTooltip} is created and shown when hovering over a data point.
                      *
                      * @since 1.88
                      */
@@ -202,7 +206,8 @@ sap.ui.define([
                         defaultValue: true
                     },
                     /**
-                     * Binds the chart automatically after the initial creation of the chart
+                     * If set to <code>true</code>, the chart is automatically bound after initialization.
+                     * If set to <code>false</code>, the chart is bound after the first call to <code>rebind</code>.
                      */
                     autoBindOnInit: {
                         type: "boolean",
@@ -211,7 +216,7 @@ sap.ui.define([
                     },
 
                     /**
-                     * Specifies the type of chart to be created by the SmartChart control.
+                     * Specifies the type of chart to be created by the <code>Chart</code> control.
                      */
                     chartType: {
                         type: "string",
@@ -222,6 +227,17 @@ sap.ui.define([
                         type: "boolean",
                         group: "Misc",
                         defaultValue: true
+                    },
+                    /**
+                     * Specifies the filter metadata.<br>
+                     * <b>Note</b>: This property must not be bound.<br>
+                     * <b>Note</b>: This property is used exclusively for SAPUI5 flexibility/ Fiori Elements. Do not use it otherwise.
+                     *
+                     * @since 1.99
+                     */
+                    propertyInfo: {
+                        type: "object",
+                        defaultValue: []
                     }
                 },
                 aggregations: {
@@ -341,6 +357,9 @@ sap.ui.define([
             this.setModel(this._oManagedObjectModel, "$mdcChart");
             this._bNewP13n = true;//TODO: remove with migration
             Control.prototype.init.apply(this, arguments);
+
+            this._setupPropertyInfoStore("propertyInfo");
+            this._setPropertyHelperClass(PropertyHelper);
         };
 
         Chart.prototype.setP13nMode = function(aMode) {
@@ -364,6 +383,7 @@ sap.ui.define([
                 }
                 if (mKeys.Type) {
                     this._typeBtnActive = true;
+                    aSortedKeys.push("Type");
                 } else {
                     this._typeBtnActive = false;
                 }
@@ -386,7 +406,8 @@ sap.ui.define([
             var mRegistryOptions = {
                 Item: ChartItemController,
                 Sort: SortController,
-                Filter: FilterController
+                Filter: FilterController,
+                Type: ChartTypeController
             };
 
             if (aMode && aMode.length > 0) {
@@ -440,6 +461,7 @@ sap.ui.define([
          * @ui5-restricted sap.ui.mdc
          */
         Chart.prototype.applySettings = function (mSettings, oScope) {
+            this._setPropertyHelperClass(PropertyHelper);
             Control.prototype.applySettings.apply(this, arguments);
 
             this.initializedPromise = new Promise(function (resolve, reject) {
@@ -469,6 +491,7 @@ sap.ui.define([
                 aInitPromises.push(this.retrieveInbuiltFilter());
             }
 
+            //TODO: Refactor this so we use awaitPropertyHelper
             Promise.all(aInitPromises).then(function(){
                 this._initInnerControls();
             }.bind(this));
@@ -480,6 +503,7 @@ sap.ui.define([
          * Inner chart is initialized via the delegate
          */
         Chart.prototype._initInnerControls = function () {
+
             this.getControlDelegate().initializeInnerChart(this).then(function (oInnerChart) {
 
                 this.setBusyIndicatorDelay(0);
@@ -489,16 +513,14 @@ sap.ui.define([
 
                 if (this.getAutoBindOnInit()) {
                     this.setBusy(true);
-                    this._createContentfromPropertyInfos();
+                    this._createContentfromPropertyInfos(oInnerChart);
                 }
 
                 this.setAggregation("_innerChart", oInnerChart);
-
                 this._bInnerChartReady = true;
-
                 this._fnResolveInitialized();
-                // eslint-disable-next-line no-empty
                 this.invalidate();
+
             }.bind(this)).catch(function (error) {
                 this._fnRejectInitialized(error);
             }.bind(this));
@@ -515,27 +537,27 @@ sap.ui.define([
          *
          * Is called during init when autoBindOnInit = "true", if "false" then this is called by _rebind()
          */
-        Chart.prototype._createContentfromPropertyInfos = function () {
-            this.initPropertyHelper(PropertyHelper).then(function () {
+        Chart.prototype._createContentfromPropertyInfos = function (oInnerChart) {
+
+            //Make sure all MDC Items have the necessary information to create a chart
+            this.getControlDelegate().checkAndUpdateMDCItems(this).then(function(){
                 //Create content on inner chart instance
-                this.getControlDelegate().createInnerChartContent(this, this._innerChartDataLoadComplete.bind(this));
+                this.getControlDelegate().createInnerChartContent(this, this._innerChartDataLoadComplete.bind(this)).then(function(){
+                    this._createBreadcrumbs();
+                    //From now on, listen to changes on Items Aggregation and sync them with inner chart
+                    this._oObserver = new ManagedObjectObserver(this._propagateItemChangeToInnerChart.bind(this));
+                    this._oObserver.observe(this, {
+                        aggregations: [
+                            "items"
+                        ]
+                    });
 
-                this._createBreadcrumbs();
-                //From now on, listen to changes on Items Aggregation and sync them with inner chart
-                this._oObserver = new ManagedObjectObserver(this._propagateItemChangeToInnerChart.bind(this));
-                this._oObserver.observe(this, {
-                    aggregations: [
-                        "items"
-                    ]
-                });
+                    //Sync MDC Chart properties with inner chart
+                    this._propagatePropertiesToInnerChart();
 
-                //Sync MDC Chart properties with inner chart
-                this._propagatePropertiesToInnerChart();
-
-                this._fnResolveInnerChartBound();
-
+                    this._fnResolveInnerChartBound();
+                }.bind(this));
             }.bind(this));
-
         };
 
         Chart.prototype.setHeight = function(iHeight) {
@@ -665,10 +687,6 @@ sap.ui.define([
             }
 
             var oBindingInfo = this.getControlDelegate()._getBindingInfo(this);
-
-            if (oBindingInfo) {
-                oBindingInfo.sorter = this._getSorters();
-            }
 
             this.getControlDelegate().updateBindingInfo(this, oBindingInfo); //Applies filters
             this.getControlDelegate().rebind(this, oBindingInfo);
@@ -1037,6 +1055,10 @@ sap.ui.define([
                 if (aP13nMode.indexOf("Filter") > -1) {
                     oState.filter = this.getFilterConditions();
                 }
+
+                if (aP13nMode.indexOf("Type") > -1) {
+                    oState.chartType = this.getChartType();
+                }
             }
 
             return oState;
@@ -1073,46 +1095,6 @@ sap.ui.define([
         };
 
         /**
-         * Returns sorters available for the data
-         *
-         * @returns {array} Array containing available sorters
-         *
-         * @experimental
-         * @private
-         * @ui5-restricted sap.ui.mdc
-         */
-        Chart.prototype._getSorters = function () {
-            var aSorters;
-            var aSorterProperties = this.getSortConditions() ? this.getSortConditions().sorters : [];
-
-            aSorterProperties.forEach(function (oSortProp) {
-
-                var oMDCItem = this.getItems().find(function (oProp) {
-                    return oProp.getName() === oSortProp.name;
-                });
-
-                //Ignore not visible Items
-                if (!oMDCItem) {
-                    return;
-                }
-
-                //TODO: Check for inResultDimensions
-                var oSorter = this.getControlDelegate().getSorterForItem(oMDCItem, oSortProp);
-
-                if (aSorters) {
-                    aSorters.push(oSorter);
-                } else {
-                    aSorters = [
-                        oSorter
-                    ];//[] has special meaning in sorting
-                }
-            }.bind(this));
-
-            return aSorters;
-
-        };
-
-        /**
          * Returns the fetched properties from the delegate
          *
          * @private
@@ -1131,6 +1113,24 @@ sap.ui.define([
 
         Chart.prototype._getTypeBtnActive = function(){
             return !!this._typeBtnActive;
+        };
+
+        /**
+         * Sets the <code>noDataText</code> property.
+         * <code>noDataText</code> is displayed if the chart has no data to show.
+         * @param {string} sText New value for <code>noDataText</code>
+         * @returns {sap.ui.mdc.Chart} Reference to the <code>Chart</code>
+         */
+        Chart.prototype.setNoDataText = function(sText) {
+            this.setProperty("noDataText", sText);
+
+            try {
+                this.getControlDelegate().setNoDataText(this, sText);
+            } catch (error) {
+                //Nothing to do here as this is done during init
+            }
+
+            return this;
         };
 
         /**

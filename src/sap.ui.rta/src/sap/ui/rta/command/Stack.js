@@ -205,17 +205,18 @@ sap.ui.define([
 		}).then(function() {
 			var oCommand = this._getCommandToBeExecuted();
 			if (oCommand) {
+				var mParam = {
+					command: oCommand,
+					undo: false
+				};
 				return oCommand.execute()
+
+				.then(this._waitForCommandExecutionHandler.bind(this, mParam))
 
 				.then(function() {
 					this._toBeExecuted--;
-					var mParam = {
-						command: oCommand,
-						undo: false
-					};
 					this.fireCommandExecuted(mParam);
 					this.fireModified();
-					return this._waitForCommandExecutionHandler(mParam);
 				}.bind(this))
 
 				.catch(function(oError) {
@@ -237,15 +238,17 @@ sap.ui.define([
 			this._toBeExecuted++;
 			var oCommand = this._getCommandToBeExecuted();
 			if (oCommand) {
+				var mParam = {
+					command: oCommand,
+					undo: true
+				};
 				return oCommand.undo()
+
+				.then(this._waitForCommandExecutionHandler.bind(this, mParam))
+
 				.then(function() {
-					var mParam = {
-						command: oCommand,
-						undo: true
-					};
 					this.fireCommandExecuted(mParam);
 					this.fireModified();
-					return this._waitForCommandExecutionHandler(mParam);
 				}.bind(this));
 			}
 			return Promise.resolve();

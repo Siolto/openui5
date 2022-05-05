@@ -1,4 +1,4 @@
-sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/common/thirdparty/base/renderer/LitRenderer', 'sap/ui/webc/common/thirdparty/base/delegate/ResizeHandler', 'sap/ui/webc/common/thirdparty/base/delegate/ItemNavigation', 'sap/ui/webc/common/thirdparty/base/Device', 'sap/ui/webc/common/thirdparty/base/Render', 'sap/ui/webc/common/thirdparty/base/util/TabbableElements', 'sap/ui/webc/common/thirdparty/base/Keys', 'sap/ui/webc/common/thirdparty/base/types/Integer', 'sap/ui/webc/common/thirdparty/base/types/NavigationMode', 'sap/ui/webc/common/thirdparty/base/util/AriaLabelHelper', 'sap/ui/webc/common/thirdparty/base/i18nBundle', 'sap/ui/webc/common/thirdparty/base/util/debounce', 'sap/ui/webc/common/thirdparty/base/util/isElementInView', './types/ListMode', './types/ListGrowingMode', './types/ListSeparators', './BusyIndicator', './generated/templates/ListTemplate.lit', './generated/themes/List.css', './generated/i18n/i18n-defaults'], function (UI5Element, litRender, ResizeHandler, ItemNavigation, Device, Render, TabbableElements, Keys, Integer, NavigationMode, AriaLabelHelper, i18nBundle, debounce, isElementInView, ListMode, ListGrowingMode, ListSeparators, BusyIndicator, ListTemplate_lit, List_css, i18nDefaults) { 'use strict';
+sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/common/thirdparty/base/renderer/LitRenderer', 'sap/ui/webc/common/thirdparty/base/delegate/ResizeHandler', 'sap/ui/webc/common/thirdparty/base/delegate/ItemNavigation', 'sap/ui/webc/common/thirdparty/base/Device', 'sap/ui/webc/common/thirdparty/base/Render', 'sap/ui/webc/common/thirdparty/base/util/TabbableElements', 'sap/ui/webc/common/thirdparty/base/Keys', 'sap/ui/webc/common/thirdparty/base/types/Integer', 'sap/ui/webc/common/thirdparty/base/types/NavigationMode', 'sap/ui/webc/common/thirdparty/base/util/AriaLabelHelper', 'sap/ui/webc/common/thirdparty/base/i18nBundle', 'sap/ui/webc/common/thirdparty/base/util/debounce', 'sap/ui/webc/common/thirdparty/base/util/isElementInView', './types/ListMode', './types/ListGrowingMode', './types/ListSeparators', './BusyIndicator', './generated/templates/ListTemplate.lit', './generated/themes/List.css', './generated/themes/BrowserScrollbar.css', './generated/i18n/i18n-defaults'], function (UI5Element, litRender, ResizeHandler, ItemNavigation, Device, Render, TabbableElements, Keys, Integer, NavigationMode, AriaLabelHelper, i18nBundle, debounce, isElementInView, ListMode, ListGrowingMode, ListSeparators, BusyIndicator, ListTemplate_lit, List_css, BrowserScrollbar_css, i18nDefaults) { 'use strict';
 
 	function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e['default'] : e; }
 
@@ -118,7 +118,7 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 			return ListTemplate_lit;
 		}
 		static get styles() {
-			return List_css;
+			return [BrowserScrollbar_css, List_css];
 		}
 		static async onDefine() {
 			List.i18nBundle = await i18nBundle.getI18nBundle("@ui5/webcomponents");
@@ -365,8 +365,15 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 				this._loadMoreActive = true;
 			}
 			if (Keys.isTabNext(event)) {
-				this.setPreviouslyFocusedItem(event.target);
 				this.focusAfterElement();
+			}
+			if (Keys.isTabPrevious(event)) {
+				if (this.getPreviouslyFocusedItem()) {
+					this.focusPreviouslyFocusedItem();
+				} else {
+					this.focusFirstItem();
+				}
+				event.preventDefault();
 			}
 		}
 		_onLoadMoreKeyup(event) {
@@ -412,13 +419,14 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 			}
 		}
 		_onfocusin(event) {
-			if (!this.isForwardElement(this.getNormalizedTarget(event.target))) {
+			const target = this.getNormalizedTarget(event.target);
+			if (!this.isForwardElement(target)) {
 				event.stopImmediatePropagation();
 				return;
 			}
 			if (!this.getPreviouslyFocusedItem()) {
-				if (this.getFirstItem(x => x.selected && !x.disabled)) {
-					this.focusFirstSelectedItem();
+				if (this.growsWithButton && this.isForwardAfterElement(target)) {
+					this.focusGrowingButton();
 				} else {
 					this.focusFirstItem();
 				}
@@ -426,22 +434,27 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 				return;
 			}
 			if (!this.getForwardingFocus()) {
-				if (this.getFirstItem(x => x.selected && !x.disabled)) {
-					this.focusFirstSelectedItem();
-				} else {
-					this.focusPreviouslyFocusedItem();
+				if (this.growsWithButton && this.isForwardAfterElement(target)) {
+					this.focusGrowingButton();
+					event.stopImmediatePropagation();
+					return;
 				}
+				this.focusPreviouslyFocusedItem();
 				event.stopImmediatePropagation();
 			}
 			this.setForwardingFocus(false);
 		}
 		isForwardElement(node) {
 			const nodeId = node.id;
-			const afterElement = this.getAfterElement();
 			const beforeElement = this.getBeforeElement();
 			if (this._id === nodeId || (beforeElement && beforeElement.id === nodeId)) {
 				return true;
 			}
+			return this.isForwardAfterElement(node);
+		}
+		isForwardAfterElement(node) {
+			const nodeId = node.id;
+			const afterElement = this.getAfterElement();
 			return afterElement && afterElement.id === nodeId;
 		}
 		onItemFocused(event) {
@@ -492,6 +505,9 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 			this.setPreviouslyFocusedItem(event.target);
 			if (!this.growsWithButton) {
 				this.focusAfterElement();
+			} else {
+				this.focusGrowingButton();
+				event.preventDefault();
 			}
 		}
 		focusBeforeElement() {
@@ -501,6 +517,15 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 		focusAfterElement() {
 			this.setForwardingFocus(true);
 			this.getAfterElement().focus();
+		}
+		focusGrowingButton() {
+			const growingBtn = this.getGrowingButton();
+			if (growingBtn) {
+				growingBtn.focus();
+			}
+		}
+		getGrowingButton() {
+			return this.shadowRoot.querySelector(`#${this._id}-growing-btn`);
 		}
 		focusFirstItem() {
 			const firstItem = this.getFirstItem(x => !x.disabled);

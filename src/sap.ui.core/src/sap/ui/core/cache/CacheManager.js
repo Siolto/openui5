@@ -108,7 +108,7 @@ sap.ui.define([
 				if (isSwitchedOn() && this._isSupportedEnvironment()) {
 					return LRUPersistentCache;
 				} else {
-					Log.warning("UI5 Cache Manager is switched off");
+					Log.debug("UI5 Cache Manager is switched off");
 					return CacheManagerNOP;
 				}
 			},
@@ -211,6 +211,33 @@ sap.ui.define([
 					throw e;
 				});
 				oMsr.endSync();
+				return pDel;
+			},
+
+			/**
+			 * Deletes entries, filtered using several criteria.
+			 * @param {object} [filters] The filters that will be applied to find the entries for deletion. If not
+			 * provided - all entries are included.
+			 * @param {string} [filters.prefix] Only includes entries that have a key starting with this prefix.
+			 * If not provided - entries with all keys are included.
+			 * @param {Date} [filters.olderThan] Only includes entries with older usage dates. If not provided
+			 * - entries with any/no usage date are included.
+			 * @returns {Promise} A promise that would be resolved in case of successful operation or rejected with
+			 * value of the error message if the operation fails.
+			 * @public
+			 * @since 1.102.0
+			 */
+			delWithFilters: function(filters) {
+				var pDel;
+				Log.debug("Cache Manager: delWithFilters called.");
+
+				pDel = this._callInstanceMethod("delWithFilters", arguments).then(function callInstanceHandler() {
+					Log.debug("Cache Manager: delWithFilters completed successfully.");
+				}, function (e) {
+					Log.debug("Cache Manager: delWithFilters failed. Error: " + e);
+					throw e;
+				});
+
 				return pDel;
 			},
 

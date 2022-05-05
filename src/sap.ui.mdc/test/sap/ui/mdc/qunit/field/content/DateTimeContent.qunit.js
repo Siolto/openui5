@@ -7,8 +7,14 @@ sap.ui.define([
 	"sap/ui/mdc/field/FieldInput",
 	"sap/ui/mdc/field/FieldMultiInput",
 	"sap/m/Token",
-	"sap/m/DateTimePicker"
-], function(QUnit, DateTimeContent, Field, Text, FieldInput, FieldMultiInput, Token, DateTimePicker) {
+	"sap/m/DateTimePicker",
+	"sap/m/DynamicDateRange",
+	"sap/ui/mdc/condition/OperatorDynamicDateOption",
+	"sap/ui/mdc/field/DynamicDateRangeConditionsType",
+	"sap/m/StandardDynamicDateRangeKeys",
+	"sap/m/DynamicDateUtil",
+	"sap/m/DynamicDateFormat"
+], function(QUnit, DateTimeContent, Field, Text, FieldInput, FieldMultiInput, Token, DateTimePicker, DynamicDateRange, OperatorDynamicDateOption, DynamicDateRangeConditionsType, StandardDynamicDateRangeKeys, DynamicDateUtil, DynamicDateFormat) {
 	"use strict";
 
 	var oControlMap = {
@@ -20,8 +26,8 @@ sap.ui.define([
 		},
 		"Edit": {
 			getPathsFunction: "getEdit",
-			paths: ["sap/ui/mdc/field/FieldInput"],
-			instances: [FieldInput],
+			paths: ["sap/m/DynamicDateRange", "sap/ui/mdc/condition/OperatorDynamicDateOption", "sap/ui/mdc/field/DynamicDateRangeConditionsType", "sap/m/StandardDynamicDateRangeKeys", "sap/m/DynamicDateUtil", "sap/m/DynamicDateFormat"],
+			instances: [DynamicDateRange, OperatorDynamicDateOption, DynamicDateRangeConditionsType, StandardDynamicDateRangeKeys, DynamicDateUtil, DynamicDateFormat],
 			createFunction: "createEdit"
 		},
 		"EditMultiValue": {
@@ -69,23 +75,25 @@ sap.ui.define([
 
 	QUnit.test("getControlNames", function(assert) {
 		/* no need to use oOperator here as there is no editOperator*/
-		assert.deepEqual(DateTimeContent.getControlNames(null), ["sap/ui/mdc/field/FieldInput"], "Correct controls returned for ContentMode null");
-		assert.deepEqual(DateTimeContent.getControlNames(undefined), ["sap/ui/mdc/field/FieldInput"], "Correct controls returned for ContentMode undefined");
-		assert.deepEqual(DateTimeContent.getControlNames("idghsoidpgdfhkfokghkl"), ["sap/ui/mdc/field/FieldInput"], "Correct controls returned for not specified ContentMode");
+		assert.deepEqual(DateTimeContent.getControlNames(null), ["sap/m/DynamicDateRange", "sap/ui/mdc/condition/OperatorDynamicDateOption", "sap/ui/mdc/field/DynamicDateRangeConditionsType", "sap/m/StandardDynamicDateRangeKeys", "sap/m/DynamicDateUtil", "sap/m/DynamicDateFormat"], "Correct controls returned for ContentMode null");
+		assert.deepEqual(DateTimeContent.getControlNames(undefined), ["sap/m/DynamicDateRange", "sap/ui/mdc/condition/OperatorDynamicDateOption", "sap/ui/mdc/field/DynamicDateRangeConditionsType", "sap/m/StandardDynamicDateRangeKeys", "sap/m/DynamicDateUtil", "sap/m/DynamicDateFormat"], "Correct controls returned for ContentMode undefined");
+		assert.deepEqual(DateTimeContent.getControlNames("idghsoidpgdfhkfokghkl"), ["sap/m/DynamicDateRange", "sap/ui/mdc/condition/OperatorDynamicDateOption", "sap/ui/mdc/field/DynamicDateRangeConditionsType", "sap/m/StandardDynamicDateRangeKeys", "sap/m/DynamicDateUtil", "sap/m/DynamicDateFormat"], "Correct controls returned for not specified ContentMode");
 
-		assert.deepEqual(DateTimeContent.getControlNames("Edit"), ["sap/ui/mdc/field/FieldInput"], "Correct controls returned for ContentMode 'Edit'");
+		assert.deepEqual(DateTimeContent.getControlNames("Edit"), ["sap/m/DynamicDateRange", "sap/ui/mdc/condition/OperatorDynamicDateOption", "sap/ui/mdc/field/DynamicDateRangeConditionsType", "sap/m/StandardDynamicDateRangeKeys", "sap/m/DynamicDateUtil", "sap/m/DynamicDateFormat"], "Correct controls returned for ContentMode 'Edit'");
 		assert.deepEqual(DateTimeContent.getControlNames("Display"), ["sap/m/Text"], "Correct controls returned for ContentMode 'Display'");
 		assert.deepEqual(DateTimeContent.getControlNames("EditMultiValue"), ["sap/ui/mdc/field/FieldMultiInput", "sap/m/Token"], "Correct controls returned for ContentMode 'EditMultiValue'");
 		assert.deepEqual(DateTimeContent.getControlNames("EditMultiLine"), [null], "Correct controls returned for ContentMode 'EditMultiLine'");
 		assert.deepEqual(DateTimeContent.getControlNames("EditOperator"), [null], "Correct controls returned for ContentMode 'EditOperator'");
+		assert.deepEqual(DateTimeContent.getControlNames("EditOperator", "EQ"), ["sap/m/DateTimePicker"], "Correct controls returned for ContentMode 'EditOperator' and 'EQ'");
 	});
 
 	QUnit.module("Content creation", {
 		beforeEach: function() {
-			this.oField = new Field({});
+			this.oField = new Field("F1", {dataType: "sap.ui.model.type.DateTime", dataTypeFormatOptions: {style: "long", calendarType: "Gregorian", UTC: true}});
 			this.aControls = [];
 		},
 		afterEach: function() {
+			this.oField.destroy();
 			delete this.oField;
 			while (this.aControls.length > 0) {
 				var oControl = this.aControls.pop();
@@ -180,6 +188,12 @@ sap.ui.define([
 			var aControls = DateTimeContent._createDatePickerControl(oContentFactory, [DateTimePicker], "createDatePickerControl");
 
 			assert.ok(aControls[0] instanceof DateTimePicker, "Correct control created in '_createDatePickerControl'.");
+			assert.notOk(aControls[0].getShowTimezone(), "No Timezone shown");
+			assert.notOk(aControls[0].getBindingInfo("timezone"), "Timezone not bound");
+			assert.notOk(oContentFactory.getUnitType(), "No ConditionsType for Timezone");
+			for (var i = 0; i < aControls.length; i++) {
+				aControls[i].destroy();
+			}
 			done();
 		});
 	});
@@ -198,6 +212,59 @@ sap.ui.define([
 					);
 				},
 				"createEditMultiLine throws an error.");
+			done();
+		});
+	});
+
+	QUnit.module("Content creation for Timezone", {
+		beforeEach: function() {
+			this.oField = new Field("F1", {dataType: "sap.ui.model.odata.type.DateTimeWithTimezone", dataTypeFormatOptions: {style: "long", calendarType: "Gregorian", UTC: true, showTimezone: true}});
+			this.aControls = [];
+		},
+		afterEach: function() {
+			this.oField.destroy();
+			delete this.oField;
+			while (this.aControls.length > 0) {
+				var oControl = this.aControls.pop();
+				if (oControl) {
+					oControl.destroy();
+				}
+			}
+		}
+	});
+
+	QUnit.test("_createDatePickerControl", function(assert) {
+		var done = assert.async();
+		var oContentFactory = this.oField._oContentFactory;
+		this.oField.awaitControlDelegate().then(function() {
+			var aControls = DateTimeContent._createDatePickerControl(oContentFactory, [DateTimePicker], "createDatePickerControl");
+
+			assert.ok(aControls[0] instanceof DateTimePicker, "Correct control created in '_createDatePickerControl'.");
+			var oType = oContentFactory.getDataType();
+			assert.ok(oType, "'cloned' type used");
+			assert.equal(oType.getFormatOptions().showTimezone, false, "'cloned' type hides timezone");
+			assert.ok(!oType.getFormatOptions().hasOwnProperty("showDate") || oType.getFormatOptions().showDate, "'cloned' type shows date");
+			assert.ok(!oType.getFormatOptions().hasOwnProperty("showTime") || oType.getFormatOptions().showTime, "'cloned' type shows time");
+			oType = oContentFactory.getDateOriginalType();
+			assert.ok(oType, "Original type stored");
+			assert.equal(oType.getFormatOptions().showTimezone, true, "Original type shows timezone");
+			assert.ok(!oType.getFormatOptions().hasOwnProperty("showDate") || oType.getFormatOptions().showDate, "Original type shows date");
+			assert.ok(!oType.getFormatOptions().hasOwnProperty("showTime") || oType.getFormatOptions().showTime, "Original type shows time");
+			assert.ok(aControls[0].getShowTimezone(), "Timezone shown");
+			oType = oContentFactory.getUnitType();
+			assert.ok(oType, "own type for Timezone");
+			assert.equal(oType.getFormatOptions().showTimezone, true, "timezone-type shows timezone");
+			assert.equal(oType.getFormatOptions().showDate, false, "timezone-type don't shows date");
+			assert.equal(oType.getFormatOptions().showTime, false, "timezone-type don't shows time");
+			oType = oContentFactory.getUnitConditionsType(true);
+			assert.ok(oType, "own ConditionsType for Timezone");
+			var oBindingInfo = aControls[0].getBindingInfo("timezone");
+			assert.ok(oBindingInfo, "Timezone bound");
+			assert.equal(oBindingInfo && oBindingInfo.type, oType, "Timezone bound using own ConditionsType");
+
+			for (var i = 0; i < aControls.length; i++) {
+				aControls[i].destroy();
+			}
 			done();
 		});
 	});

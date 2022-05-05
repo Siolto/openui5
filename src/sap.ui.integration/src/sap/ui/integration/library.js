@@ -14,8 +14,17 @@ sap.ui.define([
 ], function (DataType) {
 	"use strict";
 
-	// delegate further initialization of this library to the Core
-	sap.ui.getCore().initLibrary({
+	/**
+	 * SAPUI5 library with controls specialized for SAP Fiori apps.
+	 *
+	 * @namespace
+	 * @alias sap.ui.integration
+	 * @author SAP SE
+	 * @version ${version}
+	 * @since 1.62
+	 * @public
+	 */
+	var thisLib = sap.ui.getCore().initLibrary({
 		name: "sap.ui.integration",
 		version: "${version}",
 		dependencies: ["sap.ui.core", "sap.f", "sap.m"],
@@ -42,18 +51,6 @@ sap.ui.define([
 	});
 
 	/**
-	 * SAPUI5 library with controls specialized for SAP Fiori apps.
-	 *
-	 * @namespace
-	 * @alias sap.ui.integration
-	 * @author SAP SE
-	 * @version ${version}
-	 * @since 1.62
-	 * @public
-	 */
-	var thisLib = sap.ui.integration;
-
-	/**
 	 * Enumeration of possible card action types.
 	 *
 	 * @enum {string}
@@ -64,19 +61,19 @@ sap.ui.define([
 	 */
 	thisLib.CardActionType = {
 		/**
-		 * Used for navigation actions
+		 * Used for navigation actions.
 		 * @public
 		 */
 		Navigation: "Navigation",
 
 		/**
-		 * Used for submit actions
+		 * Used for submit actions.
 		 * @public
 		 */
 		Submit: "Submit",
 
 		/**
-		 * Used for custom actions
+		 * Used for custom actions.
 		 * @public
 		 * @experimental Since 1.76
 		 */
@@ -94,7 +91,21 @@ sap.ui.define([
 		 * @public
 		 * @experimental Since 1.87
 		 */
-		MonthChange: "MonthChange"
+		MonthChange: "MonthChange",
+
+		/**
+		 * Used for showing more details about the card.
+		 * @public
+		 * @experimental Since 1.100
+		 */
+		ShowCard: "ShowCard",
+
+		/**
+		 * Used for hiding the appeared details about the card.
+		 * @public
+		 * @experimental Since 1.100
+		 */
+		HideCard: "HideCard"
 	};
 
 	/**

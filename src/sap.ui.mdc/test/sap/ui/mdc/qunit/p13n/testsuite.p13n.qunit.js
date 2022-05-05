@@ -183,15 +183,6 @@ sap.ui.define(["sap/ui/Device"], function (Device) {
 					]
 				}
 			},*/
-			"BasePanel": {
-				group: "UI Panels",
-				module: "./BasePanel.qunit",
-				ui5: {
-					libs: [
-						"sap.ui.mdc"
-					]
-				}
-			},
 			"AdaptFiltersPanel": {
 				group: "UI Panels",
 				module: "./panels/AdaptFiltersPanel.qunit",
@@ -201,36 +192,9 @@ sap.ui.define(["sap/ui/Device"], function (Device) {
 					]
 				}
 			},
-			"ListView": {
-				group: "UI Panels",
-				module: "./panels/ListView.qunit",
-				ui5: {
-					libs: [
-						"sap.ui.mdc"
-					]
-				}
-			},
 			"GroupView": {
 				group: "UI Panels",
 				module: "./panels/GroupView.qunit",
-				ui5: {
-					libs: [
-						"sap.ui.mdc"
-					]
-				}
-			},
-			"SelectionPanel": {
-				group: "UI Panels",
-				module: "./SelectionPanel.qunit",
-				ui5: {
-					libs: [
-						"sap.ui.mdc"
-					]
-				}
-			},
-			"SortPanel": {
-				group: "UI Panels",
-				module: "./SortPanel.qunit",
 				ui5: {
 					libs: [
 						"sap.ui.mdc"
@@ -380,6 +344,16 @@ sap.ui.define(["sap/ui/Device"], function (Device) {
 					]
 				}
 			},
+			"TableColumnMenuPersonalization": {
+				group: "Table UI Test",
+				autostart: false,
+				module: "./OpaTests/P13nOpa.qunit",
+				ui5: {
+					libs: [
+						"sap.ui.fl", "sap.ui.mdc"
+					]
+				}
+			},
 			"AdaptFiltersJourneyGeneral": {
 				group: "FilterBar UI Test",
 				autostart: false,
@@ -449,8 +423,17 @@ sap.ui.define(["sap/ui/Device"], function (Device) {
 				}
 			},
 			"AggregationConfigFlex": {
-				group: "changehandler tests",
+				group: "xConfig tests",
 				module: "./AggregationConfigFlex.qunit",
+				ui5: {
+					libs: [
+						"sap.ui.fl", "sap.ui.mdc"
+					]
+				}
+			},
+			"xConfigAPI": {
+				group: "xConfig tests",
+				module: "./modules/xConfigAPI.qunit",
 				ui5: {
 					libs: [
 						"sap.ui.fl", "sap.ui.mdc"

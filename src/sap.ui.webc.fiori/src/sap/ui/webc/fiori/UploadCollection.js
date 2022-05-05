@@ -41,7 +41,7 @@ sap.ui.define([
 			properties: {
 
 				/**
-				 * Sets the accessible aria name of the component.
+				 * Defines the accessible aria name of the component.
 				 */
 				accessibleName: {
 					type: "string",
@@ -53,7 +53,6 @@ sap.ui.define([
 				 */
 				height: {
 					type: "sap.ui.core.CSSSize",
-					defaultValue: null,
 					mapping: "style"
 				},
 
@@ -106,7 +105,6 @@ sap.ui.define([
 				 */
 				width: {
 					type: "sap.ui.core.CSSSize",
-					defaultValue: null,
 					mapping: "style"
 				}
 			},
@@ -180,7 +178,8 @@ sap.ui.define([
 						}
 					}
 				}
-			}
+			},
+			designtime: "sap/ui/webc/fiori/designtime/UploadCollection.designtime"
 		}
 	});
 

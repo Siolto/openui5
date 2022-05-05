@@ -1,7 +1,6 @@
 /*!
  * ${copyright}
  */
-/*global QUnit */
 QUnit.config.autostart = false;
 
 sap.ui.getCore().attachInit(function () {
@@ -12,11 +11,9 @@ sap.ui.getCore().attachInit(function () {
 		"sap/ui/core/sample/common/Helper",
 		"sap/ui/core/sample/common/pages/Any",
 		"sap/ui/core/sample/odata/v4/MultipleInlineCreationRowsGrid/pages/Main",
-		"sap/ui/test/Opa5",
 		"sap/ui/test/opaQunit",
 		"sap/ui/test/TestUtils"
-	], function (Log, Helper, Any, Main, Opa5, opaTest, TestUtils) {
-
+	], function (Log, Helper, Any, Main, opaTest, TestUtils) {
 		Helper.qUnitModule("sap.ui.core.sample.odata.v4.MultipleInlineCreationRowsGrid");
 
 		if (TestUtils.isRealOData()) {
@@ -73,10 +70,6 @@ sap.ui.getCore().attachInit(function () {
 				Then.onTheObjectPage.checkPart(7, "", "inactive");
 				When.onTheMessagePopover.close();
 				if (bSubmitModeAPI) {
-					// test selection mode NONE, try to select Product 20
-					When.onTheListReport.selectProduct(1);
-					Then.onTheObjectPage.checkPartsTableTitle("Product: 10, 5 Parts");
-
 					// delete row 5 (has to be deleted before activating and submitting row 6)
 					When.onTheObjectPage.pressCancel();
 					Then.onTheObjectPage.checkPartsLength(7);
@@ -92,6 +85,14 @@ sap.ui.getCore().attachInit(function () {
 					Then.onTheObjectPage.checkPart(4, "", "inactive");
 					Then.onTheObjectPage.checkPart(5, "101", "persisted");
 					Then.onTheObjectPage.checkPart(6, "", "inactive");
+
+					// delete row 6
+					When.onTheObjectPage.pressDeletePartButton(5);
+					When.onTheObjectPage.confirmDeletion();
+					Then.onTheObjectPage.checkPartsLength(7);
+					Then.onTheObjectPage.checkPartsTableTitle("Product: 10, 4 Parts");
+					Then.onTheObjectPage.checkPart(4, "", "inactive");
+					Then.onTheObjectPage.checkPart(5, "", "inactive");
 				} else {
 					// activate row 6
 					When.onTheObjectPage.enterPartId(5, "101", bSubmitModeAPI);
@@ -108,6 +109,20 @@ sap.ui.getCore().attachInit(function () {
 					Then.onTheObjectPage.checkPart(4, "101", "persisted");
 					Then.onTheObjectPage.checkPart(5, "", "inactive");
 					Then.onTheObjectPage.checkPart(6, "", "inactive");
+					Then.onTheObjectPage.checkPart(7, "", "inactive");
+
+					When.onTheListReport.selectProduct(1);
+					When.onTheListReport.selectProduct(0);
+					// Note: a reread of the parts is expected, see FIORITECHP1-19539
+					Then.onTheObjectPage.checkPartsLength(8);
+					Then.onTheObjectPage.checkPart(0, "1", "persisted", "Part 1 reread");
+					Then.onTheObjectPage.checkPart(1, "2", "persisted", "Part 2 reread");
+					Then.onTheObjectPage.checkPart(2, "3", "persisted", "Part 3 reread");
+					Then.onTheObjectPage.checkPart(3, "99", "persisted", "Part 99 reread");
+					Then.onTheObjectPage.checkPart(4, "101", "persisted", "Part 101 reread");
+					Then.onTheObjectPage.checkPart(5, "", "inactive");
+					Then.onTheObjectPage.checkPart(6, "", "inactive");
+					Then.onTheObjectPage.checkPart(7, "", "inactive");
 				}
 				When.onTheListReport.selectProduct(1); // setContext detects no transient active
 				Then.onTheObjectPage.checkPartsLength(6);

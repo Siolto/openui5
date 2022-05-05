@@ -131,7 +131,8 @@ sap.ui.define([
 				.accessibilityState(oPage, {
 					role: "option",
 					posinset: iIndex + 1,
-					setsize: aArray.length
+					setsize: aArray.length,
+					selected: oCarousel.getActivePage() === oPage.getId() ? true : false
 				}).openEnd();
 
 			CarouselRenderer._renderPageInScrollContainer(oRM, oCarousel, oPage);
@@ -306,7 +307,8 @@ sap.ui.define([
 	 * effect with an offset for the page indicator.
 	 *
 	 * @param {sap.ui.core.RenderManager} oRM The RenderManager that can be used for writing to the render output buffer
-	 * @param oPage the page to check
+	 * @param {sap.m.Carousel} oCarousel the carousel containg the page
+	 * @param {sap.ui.core.Control} oPage the page to check
 	 * @private
 	 */
 	CarouselRenderer._renderPageInScrollContainer = function (oRM, oCarousel, oPage) {

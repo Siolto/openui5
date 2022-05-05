@@ -6,9 +6,11 @@
 sap.ui.define([
 	"sap/ui/webc/common/WebComponent",
 	"./library",
+	"sap/ui/core/EnabledPropagator",
 	"sap/ui/core/library",
-	"./thirdparty/DatePicker"
-], function(WebComponent, library, coreLibrary) {
+	"./thirdparty/DatePicker",
+	"./thirdparty/features/InputElementsFormSupport"
+], function(WebComponent, library, EnabledPropagator, coreLibrary) {
 	"use strict";
 
 	var CalendarType = coreLibrary.CalendarType;
@@ -79,12 +81,16 @@ sap.ui.define([
 	 * @since 1.92.0
 	 * @experimental Since 1.92.0 This control is experimental and its API might change significantly.
 	 * @alias sap.ui.webc.main.DatePicker
+	 * @implements sap.ui.core.IFormContent
 	 * @ui5-metamodel This control/element also will be described in the UI5 (legacy) designtime metamodel
 	 */
 	var DatePicker = WebComponent.extend("sap.ui.webc.main.DatePicker", {
 		metadata: {
 			library: "sap.ui.webc.main",
 			tag: "ui5-date-picker-ui5",
+			interfaces: [
+				"sap.ui.core.IFormContent"
+			],
 			properties: {
 
 				/**
@@ -95,11 +101,16 @@ sap.ui.define([
 				},
 
 				/**
-				 * Determines whether the component is displayed as disabled.
+				 * Defines whether the control is enabled. A disabled control can't be interacted with, and it is not in the tab chain.
 				 */
-				disabled: {
+				enabled: {
 					type: "boolean",
-					defaultValue: false
+					defaultValue: true,
+					mapping: {
+						type: "attribute",
+						to: "disabled",
+						formatter: "_mapEnabled"
+					}
 				},
 
 				/**
@@ -241,7 +252,6 @@ sap.ui.define([
 				 */
 				width: {
 					type: "sap.ui.core.CSSSize",
-					defaultValue: null,
 					mapping: "style"
 				}
 			},
@@ -307,7 +317,8 @@ sap.ui.define([
 				}
 			},
 			methods: ["closePicker", "formatValue", "isInValidRange", "isOpen", "isValid", "openPicker"],
-			getters: ["dateValue"]
+			getters: ["dateValue"],
+			designtime: "sap/ui/webc/main/designtime/DatePicker.designtime"
 		}
 	});
 
@@ -362,6 +373,8 @@ sap.ui.define([
 	 * @name sap.ui.webc.main.DatePicker#getDateValue
 	 * @function
 	 */
+
+	EnabledPropagator.call(DatePicker.prototype);
 
 	/* CUSTOM CODE START */
 	/* CUSTOM CODE END */

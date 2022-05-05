@@ -246,6 +246,16 @@ sap.ui.define([
 					libs: ["sap.m", "sap.ui.unified"] // to compensate sync loadLibrary
 				}
 			},
+			DateTimePickerOData: {
+				title: "DateTimePickerOData - sap.m",
+				coverage: {
+					only: ["sap/m/DateTimePicker"]
+				},
+				ui5: {
+					language: "en-US",
+					libs: ["sap.m", "sap.ui.unified"]
+				}
+			},
 			Dialog: {
 				title: "QUnit Page for sap.m.Dialog",
 				sinon: {
@@ -371,9 +381,6 @@ sap.ui.define([
 				module: "./ExploredSamples.qunit",
 				autostart: false
 			},
-			EnforceSemanticRendering: {
-				title: "QUnit Page for Semantic Rendering Coverage"
-			},
 			FacetFilter: {
 				title: "FacetFilter - sap.m",
 				ui5: {
@@ -461,6 +468,9 @@ sap.ui.define([
 				ui5: {
 					language: "en"
 				}
+			},
+			"Generic Testsuite": {
+				page: "test-resources/sap/m/qunit/testsuite.generic.qunit.html"
 			},
 			GrowingEnablement: {
 				title: "QUnit Page for sap.m.GrowingEnablement",
@@ -2093,7 +2103,10 @@ sap.ui.define([
 				title: "Test Page for sap.m.semantic.ShareMenu"
 			},
 			"table/Util": {
-				title: "Test Page for sap.m.table.Util"
+				title: "Test Page for sap.m.table.Util",
+				ui5: {
+					language: "en-US"
+				}
 			}
 		}
 	};

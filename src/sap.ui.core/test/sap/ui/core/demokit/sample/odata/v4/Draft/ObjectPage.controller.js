@@ -2,18 +2,17 @@
  * ${copyright}
  */
 sap.ui.define([
-	"sap/f/library",
 	"sap/m/MessageBox",
 	"sap/ui/core/UIComponent",
 	"sap/ui/core/sample/common/Controller"
-], function (library, MessageBox, UIComponent, Controller) {
+], function (MessageBox, UIComponent, Controller) {
 	"use strict";
 
 	return Controller.extend("sap.ui.core.sample.odata.v4.Draft.ObjectPage", {
 		getKeyPredicate : function (oContext) {
 			var sPath = oContext.getPath();
 
-			return sPath.slice(sPath.indexOf('(', sPath.lastIndexOf('/')));
+			return sPath.slice(sPath.indexOf("(", sPath.lastIndexOf("/")));
 		},
 
 		hasPendingChanges : function (vBindingOrContext, sVerb, bIgnoreKeptAlive) {
@@ -78,26 +77,14 @@ sap.ui.define([
 			if (oContext && oContext !== this.oActiveContext) {
 				oContext.setKeepAlive(false);
 			}
-			oContext = oView.getModel().getKeepAliveContext(sPath);
-			if (!oContext) { // TODO needed because getKeepAliveContext is not finished
-				oContext = oView.getModel().bindContext(sPath, undefined,
-					{$$patchWithoutSideEffects : true}).getBoundContext();
-			}
+			oContext = oView.getModel().getKeepAliveContext(sPath, false,
+				{$$patchWithoutSideEffects : true});
 			oView.setBindingContext(oContext);
 			oView.setBusy(true);
 			oContext.requestProperty("ID").finally(function () {
 				oView.setBusy(false);
 			});
 			this.setShowList(!oEvent.getParameter("config").pattern.endsWith("?noList"));
-		},
-
-		onRefreshProduct : function () {
-			var oContext = this.byId("objectPage").getBindingContext();
-
-			if (this.hasPendingChanges(oContext, "refreshing")) {
-				return;
-			}
-			oContext.refresh(undefined, true);
 		},
 
 		onSave : function () {

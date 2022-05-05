@@ -17,23 +17,26 @@ sap.ui.define([
 	"sap/ui/model/FilterOperator",
 	"sap/ui/model/Sorter",
 	"sap/ui/model/json/JSONModel",
+	"sap/ui/model/message/MessageModel",
 	"sap/ui/model/odata/CountMode",
 	"sap/ui/model/odata/MessageScope",
 	"sap/ui/model/odata/v2/Context",
 	"sap/ui/model/odata/v2/ODataModel",
+	"sap/ui/model/xml/XMLModel",
 	"sap/ui/test/TestUtils",
 	"sap/ui/thirdparty/datajs",
 	"sap/ui/util/XMLHelper"
 	// load Table resources upfront to avoid loading times > 1 second for the first test using Table
 	// "sap/ui/table/Table"
 ], function (Log, uid, Input, Device, ManagedObjectObserver, SyncPromise, coreLibrary, Message,
-		Controller, View, BindingMode, Filter, FilterOperator, Sorter, JSONModel, CountMode,
-		MessageScope, Context, ODataModel, TestUtils, datajs, XMLHelper) {
+		Controller, View, BindingMode, Filter, FilterOperator, Sorter, JSONModel, MessageModel,
+		CountMode, MessageScope, Context, ODataModel, XMLModel, TestUtils, datajs, XMLHelper) {
 	/*global QUnit, sinon*/
 	/*eslint max-nested-callbacks: 0, no-warning-comments: 0, quote-props: 0*/
 	"use strict";
 
 	var sDefaultLanguage = sap.ui.getCore().getConfiguration().getLanguage(),
+		sDefaultTimezone = sap.ui.getCore().getConfiguration().getTimezone(),
 		MessageType = coreLibrary.MessageType, // shortcut for sap.ui.core.MessageType
 		NO_CONTENT = {/*204 no content*/},
 		sODataMessageParserClassName = "sap.ui.model.odata.ODataMessageParser",
@@ -470,6 +473,8 @@ sap.ui.define([
 			}
 			// reset the language
 			sap.ui.getCore().getConfiguration().setLanguage(sDefaultLanguage);
+			// reset the time zone
+			sap.ui.getCore().getConfiguration().setTimezone(sDefaultTimezone);
 		},
 
 		/**
@@ -558,19 +563,6 @@ sap.ui.define([
 
 			assert.deepEqual(aCurrentMessages, aExpectedMessages,
 				this.aMessages.length + " expected messages in message manager");
-		},
-
-		/**
-		 * Checks the text of the 'More' button for a sap.m.Table with the given ID.
-		 *
-		 * @param {object} assert The QUnit assert object
-		 * @param {string} sTableID The ID of the sap.m.Table
-		 * @param {string} sExpected The expected count as text w/o "More" without spaces,
-		 *    e.g. "[5/10]"
-		 */
-		 checkMoreButton : function (assert, sTableID, sExpected) {
-			assert.strictEqual(this.oView.byId(sTableID + "-trigger").getDomRef().innerText
-				.replace(/\s/g, ""), "More" + sExpected, "check More button: " + sExpected);
 		},
 
 		/**
@@ -870,6 +862,7 @@ sap.ui.define([
 				delete oActualRequest["updateAggregatedMessages"];
 				delete oActualRequest["user"];
 				delete oActualRequest["contentID"];
+				delete oActualRequest["sideEffects"];
 				that.iRequestNo += 1;
 				if (oExpectedRequest) {
 					oExpectedResponse = oExpectedRequest.response;
@@ -1373,7 +1366,7 @@ sap.ui.define([
 			}
 			// ensure that these properties are defined (required for deepEqual)
 			if (vRequest.deepPath === undefined) {
-				vRequest.deepPath = "/" + vRequest.requestUri
+				vRequest.deepPath = "/" + vRequest.requestUri.split("?")[0]
 					+ (vRequest.created ? "('~key~')" : "");
 			}
 			vRequest.headers = vRequest.headers || {};
@@ -7610,31 +7603,48 @@ ToProduct/ToSupplier/BusinessPartnerID\'}}">\
 
 	//*********************************************************************************************
 	// Scenario: Messages for parts of the composite binding are propagated based on the format
-	// option showTimezone.
+	// options showDate, showTime and showTimezone.
 	// JIRA: CPOUI5MODELS-752
 	QUnit.test("Messages: sap.ui.model.odata.type.DateTimeWithTimezone", function (assert) {
 		var oDateWarning = this.createResponseMessage("DateTime", "Foo", "warning"),
-			oModel = createSpecialCasesModel(),
+			oModel = createSpecialCasesModel({
+				defaultBindingMode : BindingMode.TwoWay
+			}),
 			sView = '\
 <FlexBox id="objectPage" binding="{/DateTimeWithTimezoneSet(\'1\')}">\
-	<Input id="Hide" value="{\
-		formatOptions : {showTimezone : \'Hide\'},\
-		mode : \'TwoWay\',\
-		parts : [{path : \'DateTime\'}, {path : \'TimezoneID\'}],\
+	<Input id="dateAndTime" value="{\
+		formatOptions : {showDate : true, showTime : true, showTimezone : false},\
+		parts : [\
+			{path : \'DateTime\', parameters : {useUndefinedIfUnresolved : true}},\
+			{path : \'TimezoneID\', parameters : {useUndefinedIfUnresolved : true}}\
+		],\
 		type : \'sap.ui.model.odata.type.DateTimeWithTimezone\'}" />\
-	<Input id="Only" value="{\
-		formatOptions : {showTimezone : \'Only\'},\
-		mode : \'TwoWay\',\
-		parts : [{path : \'DateTime\'}, {path : \'TimezoneID\'}],\
+	<Input id="date" value="{\
+		formatOptions : {showDate : true, showTime : false, showTimezone : false},\
+		parts : [\
+			{path : \'DateTime\', parameters : {useUndefinedIfUnresolved : true}},\
+			{path : \'TimezoneID\', parameters : {useUndefinedIfUnresolved : true}}\
+		],\
 		type : \'sap.ui.model.odata.type.DateTimeWithTimezone\'}" />\
-	<Input id="Show" value="{\
-		formatOptions : {showTimezone : \'Show\'},\
-		mode : \'TwoWay\',\
-		parts : [{path : \'DateTime\'}, {path : \'TimezoneID\'}],\
+	<Input id="time" value="{\
+		formatOptions : {showDate : false, showTime : true, showTimezone : false},\
+		parts : [\
+			{path : \'DateTime\', parameters : {useUndefinedIfUnresolved : true}},\
+			{path : \'TimezoneID\', parameters : {useUndefinedIfUnresolved : true}}\
+		],\
 		type : \'sap.ui.model.odata.type.DateTimeWithTimezone\'}" />\
-	<Input id="NoFormatOption" value="{\
-		mode : \'TwoWay\',\
-		parts : [{path : \'DateTime\'}, {path : \'TimezoneID\'}],\
+	<Input id="timezone" value="{\
+		formatOptions : {showDate : false, showTime : false, showTimezone : true},\
+		parts : [\
+			{path : \'DateTime\', parameters : {useUndefinedIfUnresolved : true}},\
+			{path : \'TimezoneID\', parameters : {useUndefinedIfUnresolved : true}}\
+		],\
+		type : \'sap.ui.model.odata.type.DateTimeWithTimezone\'}" />\
+	<Input id="default" value="{\
+		parts : [\
+			{path : \'DateTime\', parameters : {useUndefinedIfUnresolved : true}},\
+			{path : \'TimezoneID\', parameters : {useUndefinedIfUnresolved : true}}\
+		],\
 		type : \'sap.ui.model.odata.type.DateTimeWithTimezone\'}" />\
 </FlexBox>',
 			that = this;
@@ -7645,15 +7655,17 @@ ToProduct/ToSupplier/BusinessPartnerID\'}}">\
 				ID : "1",
 				TimezoneID : "America/New_York"
 			}, {"sap-message" : getMessageHeader(oDateWarning)})
-			.expectValue("Hide", "Jan 17, 2022, 4:54:48 AM")
-			.expectValue("Only", "America/New_York")
-			.expectValue("Show", "Jan 17, 2022, 4:54:48 AM America/New_York")
-			.expectValue("NoFormatOption", "Jan 17, 2022, 4:54:48 AM America/New_York")
+			.expectValue("dateAndTime", "Jan 17, 2022, 4:54:48 AM")
+			.expectValue("date", "Jan 17, 2022")
+			.expectValue("time", "4:54:48 AM")
+			.expectValue("timezone", "Americas, New York")
+			.expectValue("default", "Jan 17, 2022, 4:54:48 AM Americas, New York")
 			.expectMessage(oDateWarning, "/DateTimeWithTimezoneSet('1')/")
-			.expectValueState("Hide", "Warning", "Foo")
-			.expectValueState("Only", "None", "")
-			.expectValueState("Show", "Warning", "Foo")
-			.expectValueState("NoFormatOption", "Warning", "Foo");
+			.expectValueState("dateAndTime", "Warning", "Foo")
+			.expectValueState("date", "Warning", "Foo")
+			.expectValueState("time", "Warning", "Foo")
+			.expectValueState("timezone", "None", "")
+			.expectValueState("default", "Warning", "Foo");
 
 		// code under test
 		return this.createView(assert, sView, oModel).then(function () {
@@ -7665,15 +7677,76 @@ ToProduct/ToSupplier/BusinessPartnerID\'}}">\
 					TimezoneID : "America/New_York"
 				}, {"sap-message" : getMessageHeader(oTimezoneWarning)})
 				.expectMessage(oTimezoneWarning, "/DateTimeWithTimezoneSet('1')/", undefined, true)
-				.expectValueState("Hide", "None", "")
-				.expectValueState("Only", "Warning", "Bar")
-				.expectValueState("Show", "Warning", "Bar")
-				.expectValueState("NoFormatOption", "Warning", "Bar");
+				.expectValueState("dateAndTime", "None", "")
+				.expectValueState("date", "None", "")
+				.expectValueState("time", "None", "")
+				.expectValueState("timezone", "Warning", "Bar")
+				.expectValueState("default", "Warning", "Bar");
 
 			// code under test
 			oModel.refresh();
 
 			return that.waitForChanges(assert);
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: DateTimeWithTimezone type parses empty input for time zone to empty string instead
+	// of null if the corresponding part has format option parseKeepsEmptyString.
+	// JIRA: CPOUI5MODELS-858
+	QUnit.test("Empty string: sap.ui.model.odata.type.DateTimeWithTimezone", function (assert) {
+		var oModel = createSpecialCasesModel({defaultBindingMode : BindingMode.TwoWay}),
+			sView = '\
+<FlexBox id="objectPage" binding="{/DateTimeWithTimezoneSet(\'1\')}">\
+	<Input id="timezone" value="{\
+		formatOptions : {showDate : false, showTime : false},\
+		parts : [\
+			{path : \'DateTime\', parameters : {useUndefinedIfUnresolved : true}},\
+			{\
+				constraints : {nullable : false},\
+				formatOptions : {parseKeepsEmptyString : true},\
+				parameters : {useUndefinedIfUnresolved : true},\
+				path : \'TimezoneID\',\
+				type : \'sap.ui.model.odata.type.String\'\
+			}\
+		],\
+		type : \'sap.ui.model.odata.type.DateTimeWithTimezone\'}" />\
+</FlexBox>',
+		that = this;
+
+		sap.ui.getCore().getConfiguration().setTimezone("Europe/London");
+
+		this.expectHeadRequest()
+			.expectRequest("DateTimeWithTimezoneSet('1')", {
+				DateTime : new Date(1642413288000),
+				ID : "1",
+				TimezoneID : ""
+			})
+			.expectValue("timezone", "Europe, London");
+
+		// code under test
+		return this.createView(assert, sView, oModel).then(function () {
+			that.expectValue("timezone", "Americas, New York");
+
+			// code under test
+			that.oView.byId("timezone").setValue("Americas, New York");
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			assert.strictEqual(oModel.getProperty("/DateTimeWithTimezoneSet('1')/TimezoneID"),
+				"America/New_York");
+
+			that.expectValue("timezone", "Europe, London")
+				.expectValue("timezone", "Europe, London")
+				.expectValueState("timezone", "None", "");
+
+			// code under test
+			that.oView.byId("timezone").setValue("");
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			assert.strictEqual(oModel.getProperty("/DateTimeWithTimezoneSet('1')/TimezoneID"),
+				"", "time zone value in model is empty string, not null");
 		});
 	});
 
@@ -9112,6 +9185,48 @@ ToProduct/ToSupplier/BusinessPartnerID\'}}">\
 	});
 
 	//*********************************************************************************************
+	// Scenario: If operation mode auto and a threshold is set as binding parameter and a count
+	// request returns a count smaller than the threshold then this count is used as the $top
+	// value for requesting the complete tree data.
+	// BCP: 2270014869
+	QUnit.test("ODataTreeBinding: _loadCompleteTreeWithAnnotations sets $top URL parameter",
+			function (assert) {
+		var oModel = createSpecialCasesModel(),
+			sView = '\
+<t:TreeTable rows="{\
+			parameters : {\
+				countMode : \'Inline\',\
+				numberOfExpandedLevels : 2,\
+				operationMode : \'Auto\',\
+				rootLevel : 0,\
+				threshold : 200,\
+				treeAnnotationProperties : {\
+					hierarchyDrillStateFor : \'OrderOperationIsExpanded\',\
+					hierarchyLevelFor : \'OrderOperationRowLevel\',\
+					hierarchyNodeFor : \'OrderOperationRowID\',\
+					hierarchyParentNodeFor : \'OrderOperationParentRowID\'\
+				}\
+			},\
+			path : \'/C_RSHMaintSchedSmltdOrdAndOp\'\
+		}"\
+		visibleRowCount="2"\
+		visibleRowCountMode="Fixed" \>\
+	<Text text="{MaintenanceOrder}" />\
+</t:TreeTable>';
+
+		this.expectHeadRequest()
+			.expectRequest("C_RSHMaintSchedSmltdOrdAndOp?$top=0&$inlinecount=allpages", {
+				__count : "150",
+				results : []
+			})
+			.expectRequest("C_RSHMaintSchedSmltdOrdAndOp?$top=150", {
+				results : [/*data not neccessary*/]
+			});
+
+		return this.createView(assert, sView, oModel);
+	});
+
+	//*********************************************************************************************
 	// Scenario: If the OData service works with code list for units, the OData Unit type uses this
 	// information for formatting and parsing.
 	// JIRA: CPOUI5MODELS-437
@@ -10346,6 +10461,305 @@ ToProduct/ToSupplier/BusinessPartnerID\'}}">\
 	});
 
 	//*********************************************************************************************
+	// Scenario: Create a new entity and modify data before response is processed. Another call of
+	// ODataModel#submitChanges must not create a second POST request but has to create a MERGE
+	// request with the etag received from the POST request.
+	// BCP: 2270069046
+[false, true].forEach(function (bCustomChangeGroup) {
+	var sTitle = "ODataListBinding#create: create, modify before create is done"
+			+ (bCustomChangeGroup ? "; with custom change group" : "");
+
+	QUnit.test(sTitle, function (assert) {
+		var oBinding, oCreatedContext, fnResolve, oTable,
+			oModel = createSalesOrdersModel({
+				defaultBindingMode : BindingMode.TwoWay,
+				refreshAfterChange : false
+			}),
+			sView = '\
+<Table growing="true" growingThreshold="2" id="table" items="{/SalesOrderSet}">\
+	<Input id="note" value="{Note}" />\
+	<Input id="customerID" value="{CustomerID}" />\
+</Table>',
+			that = this;
+
+		function fnSubmitChanges() {
+			var mParams = {groupId : bCustomChangeGroup ? "~groupId" : undefined};
+
+			oModel.submitChanges(mParams);
+		}
+
+		this.expectHeadRequest()
+			.expectRequest("SalesOrderSet?$skip=0&$top=2", {
+				results : []
+			});
+
+		if (bCustomChangeGroup) {
+			oModel.setDeferredGroups(["~groupId"]);
+			oModel.setChangeGroups({"*":{groupId: "~groupId"}});
+		}
+
+		return this.createView(assert, sView, oModel).then(function () {
+			oTable = that.oView.byId("table");
+			oBinding = oTable.getBinding("items");
+
+			that.expectValue("customerID", [""])
+				.expectValue("note", ["foo"]);
+
+			// code under test
+			oCreatedContext = oBinding.create({Note : "foo"});
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest({
+					created : true,
+					data : {
+						__metadata : {
+							type : "GWSAMPLE_BASIC.SalesOrder"
+						},
+						Note : "foo"
+					},
+					deepPath : "/SalesOrderSet('~key~')",
+					method : "POST",
+					requestUri : "SalesOrderSet"
+				}, new Promise(function (resolve) { fnResolve = resolve; }));
+
+			fnSubmitChanges();
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectValue("customerID", ["13"]);
+
+			oTable.getItems()[0].getCells()[1].setValue("13");
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectValue("note", ["bar"]);
+
+			fnResolve({
+				data : {
+					__metadata : {
+						etag : "W/\"2022-04-14T08:08:58.312Z\"",
+						uri : "SalesOrderSet('42')"
+					},
+					CustomerID : "0",
+					Note : "bar",
+					SalesOrderID : "42"
+				},
+				statusCode : 201
+			});
+
+			return Promise.all([
+				// code under test
+				oCreatedContext.created(),
+				that.waitForChanges(assert)
+			]);
+		}).then(function () {
+			that.expectRequest({
+					data : {
+						__metadata : {
+							etag : "W/\"2022-04-14T08:08:58.312Z\"",
+							uri : "SalesOrderSet('42')"
+						},
+						CustomerID : "13"
+					},
+					deepPath : "/SalesOrderSet('42')",
+					headers : {
+						"If-Match" : "W/\"2022-04-14T08:08:58.312Z\""
+					},
+					key : "SalesOrderSet('42')",
+					method : "MERGE",
+					requestUri : "SalesOrderSet('42')"
+				}, {
+					data : NO_CONTENT,
+					headers : {etag : "W/\"2020-05-19T08:10:00.146Z\""},
+					statusCode : 204
+				});
+
+			// code under test
+			fnSubmitChanges();
+
+			return that.waitForChanges(assert);
+		});
+	});
+});
+
+	//*********************************************************************************************
+	// Scenario: Create a new entity and modify data before response is processed. After the
+	// response has failed, another call of ODataModel#submitChanges leads to a second POST request
+	// with combined data of the failed request and the modification.
+	// BCP: 2270069046
+	QUnit.test("ODataListBinding#create: create, modify before create is done; first #submitChanges"
+			+ " failed", function (assert) {
+		var oBinding, oCreatedContext, fnResolve, oTable,
+			oModel = createSalesOrdersModel({
+				defaultBindingMode : BindingMode.TwoWay,
+				refreshAfterChange : false
+			}),
+			sView = '\
+<Table growing="true" growingThreshold="2" id="table" items="{/SalesOrderSet}">\
+	<Input id="note" value="{Note}" />\
+	<Input id="customerID" value="{CustomerID}" />\
+</Table>',
+			that = this;
+
+		this.expectHeadRequest()
+			.expectRequest("SalesOrderSet?$skip=0&$top=2", {
+				results : []
+			});
+
+		return this.createView(assert, sView, oModel).then(function () {
+			oTable = that.oView.byId("table");
+			oBinding = oTable.getBinding("items");
+
+			that.expectValue("customerID", [""])
+				.expectValue("note", ["foo"]);
+
+			// code under test
+			oCreatedContext = oBinding.create({Note : "foo"});
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest({
+					created : true,
+					data : {
+						__metadata : {
+							type : "GWSAMPLE_BASIC.SalesOrder"
+						},
+						Note : "foo"
+					},
+					deepPath : "/SalesOrderSet('~key~')",
+					method : "POST",
+					requestUri : "SalesOrderSet"
+				}, new Promise(function (resolve) { fnResolve = resolve; }));
+
+			oModel.submitChanges();
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectValue("customerID", ["13"]);
+
+			oTable.getItems()[0].getCells()[1].setValue("13");
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.oLogMock.expects("error")
+				.withExactArgs("Request failed with status code 400: POST SalesOrderSet",
+					/*details not relevant*/ sinon.match.string, sODataMessageParserClassName);
+
+			fnResolve({
+				response : createErrorResponse({message : "POST failed", statusCode : 400})
+			});
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest({
+					created : true,
+					data : {
+						__metadata : {
+							type : "GWSAMPLE_BASIC.SalesOrder"
+						},
+						CustomerID : "13",
+						Note : "foo"
+					},
+					deepPath : "/SalesOrderSet('~key~')",
+					method : "POST",
+					requestUri : "SalesOrderSet"
+				}, {
+					data : {
+						__metadata : {uri : "SalesOrderSet('42')"},
+						CustomerID : "15",
+						Note : "bar",
+						SalesOrderID : "42"
+					},
+					statusCode : 201
+				})
+				.expectValue("customerID", ["15"])
+				.expectValue("note", ["bar"]);
+
+			// code under test
+			oModel.submitChanges();
+
+			return Promise.all([
+				// code under test
+				oCreatedContext.created(),
+				that.waitForChanges(assert)
+			]);
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: Create a new entity with complex type. The response contains an updated property
+	// within this complex type. Therefore the changed entity handling works correct and a second
+	// ODataModel#submitChanges triggers no MERGE request.
+	// BCP: 2270069046
+	// BCP: 2270084110
+	QUnit.test("ODataListBinding#create: create with complex type results in no pending changes",
+			function (assert) {
+		var oBinding, oCreatedContext,
+			oModel = createSalesOrdersModel({refreshAfterChange : false}),
+			sView = '\
+<Table growing="true" growingThreshold="2" id="table" items="{/BusinessPartnerSet}">\
+	<Input id="country" value="{Address/Country}" />\
+</Table>',
+			that = this;
+
+		this.expectHeadRequest()
+			.expectRequest("BusinessPartnerSet?$skip=0&$top=2", {
+				results : []
+			});
+
+		return this.createView(assert, sView, oModel).then(function () {
+			oBinding = that.oView.byId("table").getBinding("items");
+
+			that.expectValue("country", ["de"]);
+
+			// code under test
+			oCreatedContext = oBinding.create({Address : {Country : "de"}});
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest({
+					created : true,
+					data : {
+						__metadata : {
+							type : "GWSAMPLE_BASIC.BusinessPartner"
+						},
+						Address : {Country : "de"}
+					},
+					deepPath : "/BusinessPartnerSet('~key~')",
+					method : "POST",
+					requestUri : "BusinessPartnerSet"
+				}, {
+					data : {
+						__metadata : {
+							etag : "W/\"2022-04-14T08:08:58.312Z\"",
+							uri : "BusinessPartnerSet('42')"
+						},
+						BusinessPartnerID : "42",
+						Address : {Country : "DE"}
+					},
+					statusCode : 201
+				})
+				.expectValue("country", ["DE"]);
+
+			oModel.submitChanges();
+
+			return Promise.all([
+				// code under test
+				oCreatedContext.created(),
+				that.waitForChanges(assert)
+			]);
+		}).then(function () {
+			assert.strictEqual(oModel.hasPendingChanges(), false);
+
+			// code under test
+			oModel.submitChanges();
+
+			return that.waitForChanges(assert);
+		});
+	});
+
+	//*********************************************************************************************
 	// Scenario: All pairs test for multi create (1)
 	// Number of transient: 2
 	// Delete: ODataModel.resetChanges
@@ -10401,10 +10815,10 @@ ToProduct/ToSupplier/BusinessPartnerID\'}}">\
 					statusCode : 201
 				})
 				.expectValue("id", ["43"]);
+			oModel.submitChanges();
 
 			return Promise.all([
 				oCreatedContext0.created(),
-				that.oModel.submitChanges(),
 				that.waitForChanges(assert)
 			]);
 		}).then(function () {
@@ -10548,11 +10962,11 @@ ToProduct/ToSupplier/BusinessPartnerID\'}}">\
 					statusCode : 201
 				})
 				.expectValue("id", ["44", "43"]);
+			oModel.submitChanges();
 
 			return Promise.all([
 				oCreatedContext0.created(),
 				oCreatedContext1.created(),
-				that.oModel.submitChanges(),
 				that.waitForChanges(assert)
 			]);
 		}).then(function () {
@@ -10821,12 +11235,12 @@ ToProduct/ToSupplier/BusinessPartnerID\'}}">\
 					statusCode : 201
 				})
 				.expectValue("id", ["45", "44", "43"]);
+			oModel.submitChanges();
 
 			return Promise.all([
 				oCreatedContext0.created(),
 				oCreatedContext1.created(),
 				oCreatedContext2.created(),
-				that.oModel.submitChanges(),
 				that.waitForChanges(assert)
 			]);
 		}).then(function () {
@@ -10939,11 +11353,11 @@ ToProduct/ToSupplier/BusinessPartnerID\'}}">\
 					statusCode : 201
 				})
 				.expectValue("id", ["43", "44"], 1);
+			oModel.submitChanges();
 
 			return Promise.all([
 				oCreatedContext0.created(),
 				oCreatedContext1.created(),
-				that.oModel.submitChanges(),
 				that.waitForChanges(assert)
 			]);
 		}).then(function () {
@@ -11106,10 +11520,10 @@ ToProduct/ToSupplier/BusinessPartnerID\'}}">\
 					statusCode : 201
 				})
 				.expectValue("id", "43", 1);
+			oModel.submitChanges();
 
 			return Promise.all([
 				oCreatedContext0.created(),
-				that.oModel.submitChanges(),
 				that.waitForChanges(assert)
 			]);
 		}).then(function () {
@@ -11269,12 +11683,12 @@ ToProduct/ToSupplier/BusinessPartnerID\'}}">\
 					statusCode : 201
 				})
 				.expectValue("id", ["43", "44", "45"], 1);
+			oModel.submitChanges();
 
 			return Promise.all([
 				oCreatedContext0.created(),
 				oCreatedContext1.created(),
 				oCreatedContext2.created(),
-				that.oModel.submitChanges(),
 				that.waitForChanges(assert)
 			]);
 		}).then(function () {
@@ -11366,10 +11780,10 @@ ToProduct/ToSupplier/BusinessPartnerID\'}}">\
 					statusCode : 201
 				})
 				.expectValue("id", "43", 0);
+			oModel.submitChanges();
 
 			return Promise.all([
 				oCreatedContext0.created(),
-				that.oModel.submitChanges(),
 				that.waitForChanges(assert)
 			]);
 		}).then(function () {
@@ -11610,11 +12024,11 @@ ToProduct/ToSupplier/BusinessPartnerID\'}}">\
 					statusCode : 201
 				})
 				.expectValue("id", ["43", "44"]);
+			oModel.submitChanges();
 
 			return Promise.all([
 				oCreatedContext0.created(),
 				oCreatedContext1.created(),
-				that.oModel.submitChanges(),
 				that.waitForChanges(assert)
 			]);
 		}).then(function () {
@@ -11758,12 +12172,12 @@ ToProduct/ToSupplier/BusinessPartnerID\'}}">\
 					statusCode : 201
 				})
 				.expectValue("id", ["43", "44", "45"]);
+			oModel.submitChanges();
 
 			return Promise.all([
 				oCreatedContext0.created(),
 				oCreatedContext1.created(),
 				oCreatedContext2.created(),
-				that.oModel.submitChanges(),
 				that.waitForChanges(assert)
 			]);
 		}).then(function () {
@@ -12041,11 +12455,11 @@ ToProduct/ToSupplier/BusinessPartnerID\'}}">\
 					statusCode : 201
 				})
 				.expectValue("id", ["44"]);
+			oModel.submitChanges();
 
 			return Promise.all([
 				oCreatedContext0.created(),
 				oCreatedContext1.created(),
-				that.oModel.submitChanges(),
 				that.waitForChanges(assert)
 			]);
 		}).then(function () {
@@ -12164,11 +12578,11 @@ ToProduct/ToSupplier/BusinessPartnerID\'}}">\
 					statusCode : 201
 				})
 				.expectValue("id", ["44", "43"]);
+			oModel.submitChanges();
 
 			return Promise.all([
 				oCreatedContext0.created(),
 				oCreatedContext1.created(),
-				that.oModel.submitChanges(),
 				that.waitForChanges(assert)
 			]);
 		}).then(function () {
@@ -12298,7 +12712,7 @@ ToProduct/ToSupplier/BusinessPartnerID\'}}">\
 			+ " are displayed; count mode: " + sCountMode;
 
 	QUnit.test(sTitle, function (assert) {
-		var oBinding,
+		var oBinding, oTable,
 			bInlineCount = sCountMode !== CountMode.Request,
 			oModel = createSalesOrdersModel({defaultCountMode : sCountMode}),
 			oResponse = {
@@ -12322,15 +12736,16 @@ ToProduct/ToSupplier/BusinessPartnerID\'}}">\
 			.expectValue("id", ["42"]);
 
 		return this.createView(assert, sView, oModel).then(function () {
-			oBinding = that.oView.byId("table").getBinding("items");
+			oTable = that.oView.byId("table");
+			oBinding = oTable.getBinding("items");
 
-			that.checkMoreButton(assert, "table", "[1/17]");
+			assert.deepEqual(oTable.getGrowingInfo(), {actual : 1, total : 17});
 
 			that.expectValue("id", [""]);
 
 			oBinding.create({}, false);
 
-			that.checkMoreButton(assert, "table", "[1/18]");
+			assert.deepEqual(oTable.getGrowingInfo(), {actual : 1, total : 18});
 
 			return that.waitForChanges(assert);
 		}).then(function () {
@@ -12352,7 +12767,7 @@ ToProduct/ToSupplier/BusinessPartnerID\'}}">\
 			return that.waitForChanges(assert);
 		}).then(function () {
 			assert.strictEqual(oBinding.getCount(), 12);
-			that.checkMoreButton(assert, "table", "[1/12]");
+			assert.deepEqual(oTable.getGrowingInfo(), {actual : 1, total : 12});
 
 			return that.waitForChanges(assert);
 		});
@@ -12534,11 +12949,76 @@ ToProduct/ToSupplier/BusinessPartnerID\'}}">\
 				.expectValue("id", "43", 1);
 
 			// code under test
+			oModel.submitChanges();
+
 			return Promise.all([
 				oCreatedContext.created(),
-				oModel.submitChanges(),
 				that.waitForChanges(assert)
 			]);
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: A created inactive entity is activated. In its triggered createActivate-event the
+	// modified data which has led to the activation can already be accessed via the model; the
+	// model has now pending changes. The same entity value can be overwritten in this event again.
+	// JIRA: CPOUI5MODELS-805
+	QUnit.test("Inactive entity is accessible while activation", function (assert) {
+		var oBinding, oCreatedContext, oTable,
+			oModel = createSalesOrdersModel({defaultBindingMode : BindingMode.TwoWay}),
+			sView = '\
+<t:Table id="table" rows="{/BusinessPartnerSet}" visibleRowCount="2">\
+	<Text id="id" text="{BusinessPartnerID}"/>\
+	<Input id="company" value="{CompanyName}"/>\
+</t:Table>',
+			that = this;
+
+		this.expectHeadRequest()
+			.expectRequest("BusinessPartnerSet?$skip=0&$top=102", {
+				results : [{
+					__metadata : {uri : "BusinessPartnerSet('42')"},
+					BusinessPartnerID : "42",
+					CompanyName : "SAP"
+				}]
+			})
+			.expectValue("id", ["42", ""])
+			.expectValue("company", ["SAP", ""]);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			oTable = that.oView.byId("table");
+			oBinding = oTable.getBinding("rows");
+
+			that.expectValue("company", "Initial", 1);
+
+			// code under test
+			oCreatedContext = oBinding.create({
+				CompanyName : "Initial"
+			}, /*bAtEnd*/true, {inactive : true});
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			var oCreatedItemCompanyInput = oTable.getRows()[1].getCells()[1],
+				oEntityData = oModel.getObject(oCreatedContext.getPath());
+
+			assert.strictEqual(oEntityData.CompanyName, "Initial");
+			assert.strictEqual(oModel.hasPendingChanges(), false);
+
+			that.expectValue("company", "Activation", 1);
+
+			// code under test
+			oBinding.attachEvent("createActivate", function () {
+				oEntityData = oModel.getObject(oCreatedContext.getPath());
+
+				assert.strictEqual(oEntityData.CompanyName, "Activation");
+				assert.strictEqual(oModel.hasPendingChanges(), true);
+
+				that.expectValue("company", "Activation - modified", 1);
+
+				oCreatedItemCompanyInput.setValue("Activation - modified");
+			});
+			oCreatedItemCompanyInput.setValue("Activation");
+
+			return that.waitForChanges(assert);
 		});
 	});
 
@@ -12641,6 +13121,167 @@ ToProduct/ToSupplier/BusinessPartnerID\'}}">\
 		});
 	});
 
+	//*********************************************************************************************
+	// Scenario: The contexts status inactive, transient and created contexts can be retrieved via
+	// the instance annotation of the contexts.
+	// JIRA: CPOUI5MODELS-721
+	QUnit.test("Create inactive and transient entity and activate it", function (assert) {
+		var oCreatedContext, oTable,
+			oModel = createSalesOrdersModel({defaultBindingMode : BindingMode.TwoWay}),
+			sView = '\
+<t:Table id="table" rows="{/SalesOrderSet}" threshold="0" visibleRowCount="2">\
+	<Input id="note" value="{Note}"/>\
+	<Text id="inactive" text="{= %{@$ui5.context.isInactive} }"/>\
+	<Text id="transient" text="{= %{@$ui5.context.isTransient} }"/>\
+</t:Table>',
+			that = this;
+
+		this.expectHeadRequest()
+			.expectRequest("SalesOrderSet?$skip=0&$top=2", {
+				results : [{
+					__metadata : {uri : "SalesOrderSet('1')"},
+					Note : "SO1",
+					SalesOrderID : "1"
+				}, {
+					__metadata : {uri : "SalesOrderSet('2')"},
+					Note : "SO2",
+					SalesOrderID : "2"
+				}]
+			})
+			.expectValue("note", ["SO1", "SO2"])
+			.expectValue("inactive", ["false", "false"])
+			.expectValue("transient", ["", ""]);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			oTable = that.oView.byId("table");
+
+			that.expectValue("note", ["", "SO1"])
+				.expectValue("inactive", ["true"])
+				.expectValue("transient", ["true"]);
+
+			// code under test
+			oCreatedContext = oTable.getBinding("rows").create({}, /*bAtEnd*/false,
+				{inactive : true});
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectValue("note", ["SONew"])
+				.expectValue("inactive", ["false"]);
+
+			// code under test
+			oTable.getRows()[0].getCells()[0].setValue("SONew");
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest({
+					created : true,
+					data : {
+						__metadata : {type : "GWSAMPLE_BASIC.SalesOrder"},
+						Note : "SONew"
+					},
+					method : "POST",
+					requestUri : "SalesOrderSet"
+				}, {
+					data : {
+						__metadata : {uri : "SalesOrderSet('3')"},
+						Note : "SONew",
+						SalesOrderID : "3"
+					},
+					statusCode : 201
+				})
+				.expectValue("transient", ["false"]);
+
+			// code under test
+			oModel.submitChanges();
+
+			return Promise.all([
+				oCreatedContext.created(),
+				that.waitForChanges(assert)
+			]);
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: In a table with an inactive, transient and persistent entry all entries are deleted
+	// via v2.Context#delete.
+	// JIRA: CPOUI5MODELS-806
+	QUnit.test("Delete inactive, transient and persisted entity", function (assert) {
+		var oContext, sContextPath, oTable, oTableBinding,
+			oModel = createSalesOrdersModel(),
+			sView = '\
+<t:Table id="table" rows="{/SalesOrderSet}" threshold="0" visibleRowCount="3">\
+	<Text id="note" text="{Note}"/>\
+</t:Table>',
+			that = this;
+
+		this.expectHeadRequest()
+			.expectRequest("SalesOrderSet?$skip=0&$top=3", {
+				results : [{
+					__metadata : {uri : "SalesOrderSet('1')"},
+					Note : "SO1",
+					SalesOrderID : "1"
+				}]
+			})
+			.expectValue("note", ["SO1", "", ""]);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			oTable = that.oView.byId("table");
+			oTableBinding = oTable.getBinding("rows");
+
+			that.expectValue("note", ["SO inactive/transient", "SO1"]);
+
+			oTableBinding.create({Note : "SO inactive/transient"}, /*bAtEnd*/false,
+				{inactive : true});
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectValue("note", ["SO active/transient", "SO inactive/transient", "SO1"]);
+
+			oTableBinding.create({Note : "SO active/transient"}, /*bAtEnd*/false);
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			oContext = oTable.getRows()[0].getBindingContext();
+			that.expectValue("note", "", 0)
+				.expectValue("note", ["SO inactive/transient", "SO1", ""]);
+
+			sContextPath = oContext.getPath();
+
+			return Promise.all([
+				// code under test
+				oContext.delete(),
+				that.waitForChanges(assert)
+			]);
+		}).then(function () {
+			oContext = oTable.getRows()[0].getBindingContext();
+			that.expectValue("note", "", 0)
+				.expectValue("note", ["SO1", ""]);
+			assert.strictEqual(oModel.getObject(sContextPath), undefined,
+				"data of active/transient context removed");
+
+			sContextPath = oContext.getPath();
+
+			return Promise.all([
+				// code under test
+				oContext.delete(),
+				that.waitForChanges(assert)
+			]);
+		}).then(function () {
+			that.expectRequest({
+					method : "DELETE",
+					requestUri : "SalesOrderSet('1')"
+				}, NO_CONTENT)
+				.expectValue("note", [""]);
+			assert.strictEqual(oModel.getObject(sContextPath), undefined,
+				"data of inactive/transient context removed");
+
+			return Promise.all([
+				// code under test
+				oTable.getRows()[0].getBindingContext().delete({refreshAfterChange : false}),
+				that.waitForChanges(assert)
+			]);
+		});
+	});
 
 	//*********************************************************************************************
 	// Scenario: On calling a function import (or using a different API to trigger a write request)
@@ -12761,6 +13402,1646 @@ ToProduct/ToSupplier/BusinessPartnerID\'}}">\
 			return that.waitForChanges(assert);
 		});
 	});
+
+	//*********************************************************************************************
+	// Scenario: If no expand parameter is provided when an entry is created via an ODataListBinding
+	// then the expand parameter of the ODataListBinding is used.
+	// JIRA: CPOUI5MODELS-695
+	QUnit.test("ODataListBinding#create: use expand from binding", function (assert) {
+		var oModel = createSalesOrdersModel(),
+			sView = '\
+<Table id="table" items="{path : \'/ProductSet\',\
+		parameters : {\
+			expand : \'ToSupplier\',\
+			select : \'Name,ToSupplier/Company\'}}">\
+	<Text id="name" text="{Name}" />\
+	<Text id="companyName" text="{ToSupplier/CompanyName}" />\
+</Table>',
+			that = this;
+
+		this.expectHeadRequest()
+			.expectRequest("ProductSet?$skip=0&$top=100"
+					+ "&$expand=ToSupplier&$select=Name%2cToSupplier%2fCompany", {
+				results : [{
+					__metadata : {uri : "/ProductSet('1')"},
+					Name : "Laptop",
+					ToSupplier : {
+						__metadata : {uri : "BusinessPartnerSet('42')"},
+						CompanyName : "SAP"
+					}
+				}]
+			})
+			.expectValue("name", ["Laptop"])
+			.expectValue("companyName", ["SAP"]);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			that.expectRequest({
+					created : true,
+					data : {
+						__metadata : {type : "GWSAMPLE_BASIC.Product"},
+						Name : "iPhone"
+					},
+					deepPath : "/ProductSet('~key~')",
+					headers : {"sap-messages": "transientOnly"},
+					method : "POST",
+					requestUri : "ProductSet"
+				}, {
+					data : {
+						__metadata : {uri : "ProductSet('2')"},
+						Name : "iPhone"
+					},
+					statusCode : 201
+				}).expectRequest({
+					deepPath : "/$~key~",
+					requestUri : "$~key~?$expand=ToSupplier&$select=ToSupplier"
+				}, {
+					__metadata : {uri : "ProductSet('2')"},
+					ToSupplier : {
+						__metadata : {uri : "BusinessPartnerSet('42')"},
+						CompanyName : "SAP"
+					}
+				})
+				.expectValue("name", ["iPhone", "Laptop"])
+				.expectValue("companyName", ["", "SAP"])
+				.expectValue("companyName", "SAP", 0);
+
+			that.oView.byId("table").getBinding("items").create({Name : "iPhone"});
+
+			oModel.submitChanges();
+
+			return that.waitForChanges(assert);
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: Request side effects for entities on object page properly read data for a table on
+	// the object page with creation-rows and its nested lists (Select controls). In the sample, the
+	// table has all kind of rows: transient, created and persisted and read from server. Following
+	// aspects are considered after the side effects have been executed:
+	// 1. The order of rows is kept
+	// 2. Creation-rows which are persisted keep their position and are updated with side effects
+	// 3. Created, persisted rows are not considered in the response to the side-effect read
+	//    request in order to avoid duplicates
+	// 4. Nested collections are updated
+	// JIRA: CPOUI5MODELS-656
+	QUnit.test("Request side effects: $batch, nested collections", function (assert) {
+		var oBinding, oTable,
+			oModel = createSalesOrdersModel(),
+			sView = '\
+<FlexBox id="objectPage" binding="{/BusinessPartnerSet(\'42\')}">\
+	<Text id="businessPartnerID" text="{BusinessPartnerID}"/>\
+	<t:Table id="table" rows="{\
+				path : \'ToSalesOrders\',\
+				parameters : {\
+					expand : \'ToBusinessPartner\',\
+					select : \'SalesOrderID,Note,ToBusinessPartner/CompanyName\'\
+				}\
+			}" visibleRowCount="4">\
+		<Text id="salesOrderID" text="{SalesOrderID}"/>\
+		<Text id="note" text="{Note}"/>\
+		<Select items="{path : \'ToLineItems\', templateShareable : true}">\
+			<MenuItem text="{Note}" />\
+		</Select>\
+		<Text id="name" text="{ToBusinessPartner/CompanyName}"/>\
+	</t:Table>\
+</FlexBox>',
+			that = this;
+
+		this.expectHeadRequest()
+			.expectRequest({
+				batchNo : 1,
+				requestUri : "BusinessPartnerSet('42')"
+			}, {
+				__metadata : {uri : "BusinessPartnerSet('42')"},
+				BusinessPartnerID : "42"
+			})
+			.expectRequest({
+				batchNo : 2,
+				requestUri : "BusinessPartnerSet('42')/ToSalesOrders?$skip=0&$top=104"
+					+ "&$expand=ToBusinessPartner"
+					+ "&$select=SalesOrderID%2cNote%2cToBusinessPartner%2fCompanyName"
+			}, {
+				results : [{
+					__metadata : {uri : "SalesOrderSet('1')"},
+					SalesOrderID : "1",
+					Note : "Sales Order 1",
+					ToBusinessPartner : {
+						__metadata : {uri : "BusinessPartnerSet('42')"},
+						BusinessPartnerID : "42",
+						CompanyName : "SAP"
+					}
+				}]
+			})
+			.expectRequest({
+				batchNo : 3,
+				deepPath : "/BusinessPartnerSet('42')/ToSalesOrders('1')/ToLineItems",
+				requestUri : "SalesOrderSet('1')/ToLineItems?$skip=0&$top=100"
+			}, {
+				results : [{
+					__metadata : {
+						uri : "SalesOrderLineItemSet(SalesOrderID='1',ItemPosition='10')"
+					},
+					SalesOrderID : "1",
+					ItemPosition : "10",
+					Note : "Sales Order Line Item 1"
+				}]
+			})
+			.expectValue("businessPartnerID", "42")
+			.expectValue("salesOrderID", ["1", "", "", ""])
+			.expectValue("note", ["Sales Order 1", "", "", ""])
+			.expectValue("name", ["SAP", "", "", ""]);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			var aSelectItems;
+
+			oTable = that.oView.byId("table");
+			aSelectItems = oTable.getRows()[0].getCells()[2].getItems();
+
+			assert.strictEqual(aSelectItems.length, 1);
+			assert.strictEqual(aSelectItems[0].getText(), "Sales Order Line Item 1");
+
+			// the relative ODLB for select control of the second row gets a context after the
+			// create and therefore requests data
+			that.expectRequest({
+					batchNo : 4,
+					deepPath : "/BusinessPartnerSet('42')/ToSalesOrders('1')/ToLineItems",
+					requestUri : "SalesOrderSet('1')/ToLineItems?$skip=0&$top=100"
+				}, {
+					results : [{
+						__metadata : {
+							uri : "SalesOrderLineItemSet(SalesOrderID='1',ItemPosition='10')"
+						},
+						SalesOrderID : "1",
+						ItemPosition : "10",
+						Note : "Sales Order Line Item 1"
+					}]
+				})
+				.expectValue("salesOrderID", ["", "1"])
+				.expectValue("note", ["Sales Order New 1", "Sales Order 1"])
+				.expectValue("name", ["", "SAP"]);
+
+			oBinding = oTable.getBinding("rows");
+			oBinding.create({Note : "Sales Order New 1"}, false, {expand : "ToBusinessPartner"});
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			var aSelectItems = oTable.getRows()[0].getCells()[2].getItems();
+
+			assert.strictEqual(aSelectItems.length, 0);
+			aSelectItems = oTable.getRows()[1].getCells()[2].getItems();
+			assert.strictEqual(aSelectItems.length, 1);
+			assert.strictEqual(aSelectItems[0].getText(), "Sales Order Line Item 1");
+
+			that.expectRequest({
+					batchNo : 5,
+					created : true,
+					data : {
+						__metadata : {type : "GWSAMPLE_BASIC.SalesOrder"},
+						Note : "Sales Order New 1"
+					},
+					deepPath : "/BusinessPartnerSet('42')/ToSalesOrders('~key~')",
+					headers : {"sap-messages": "transientOnly"},
+					method : "POST",
+					requestUri : "BusinessPartnerSet('42')/ToSalesOrders"
+				}, {
+					data : {
+						__metadata : {uri : "SalesOrderSet('2')"},
+						Note : "Sales Order New 1",
+						SalesOrderID : "2"
+					},
+					statusCode : 201
+				})
+				.expectRequest({
+					batchNo : 5,
+					deepPath : "/$~key~",
+					requestUri : "$~key~?$expand=ToBusinessPartner&$select=ToBusinessPartner"
+				}, {
+					__metadata : {uri : "SalesOrderSet('2')"},
+					ToBusinessPartner : {
+						__metadata : {uri : "BusinessPartnerSet('42')"},
+						BusinessPartnerID : "42",
+						CompanyName : "SAP"
+					}
+				})
+				.expectValue("salesOrderID", "2", 0)
+				.expectValue("name", "SAP", 0);
+
+			oModel.submitChanges();
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			// the relative ODLB for select control of the third row gets a context after the create
+			// and therefore requests data
+			that.expectRequest({
+					batchNo : 6,
+					deepPath : "/BusinessPartnerSet('42')/ToSalesOrders('1')/ToLineItems",
+					requestUri : "SalesOrderSet('1')/ToLineItems?$skip=0&$top=100"
+				}, {
+					results : [{
+						__metadata : {
+							uri : "SalesOrderLineItemSet(SalesOrderID='1',ItemPosition='10')"
+						},
+						SalesOrderID : "1",
+						ItemPosition : "10",
+						Note : "Sales Order Line Item 1"
+					}]
+				})
+				.expectValue("salesOrderID", ["", "1"], 1)
+				.expectValue("note", ["Sales Order New 2", "Sales Order 1"], 1)
+				.expectValue("name", ["", "SAP"], 1);
+
+			oBinding.create({Note : "Sales Order New 2"}, true, {expand : "ToBusinessPartner"});
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest({
+					batchNo : 7,
+					deepPath : "/BusinessPartnerSet('42')",
+					requestUri : "BusinessPartnerSet('42')"
+						+ "?$expand=ToSalesOrders%2CToSalesOrders%2FToBusinessPartner"
+						+ "%2CToSalesOrders%2FToLineItems"
+						+ "&$select=ToSalesOrders%2FSalesOrderID%2CToSalesOrders%2FNote%2C"
+						+ "ToSalesOrders%2FToBusinessPartner%2FCompanyName%2C"
+						+ "ToSalesOrders%2FToLineItems%2FSalesOrderID%2C"
+						+ "ToSalesOrders%2FToLineItems%2FItemPosition%2C"
+						+ "ToSalesOrders%2FToLineItems%2FNote"
+				}, {
+					__metadata : {uri : "BusinessPartnerSet('42')"},
+					ToSalesOrders : {
+						results : [{
+							__metadata : {uri : "SalesOrderSet('1')"},
+							Note : "Sales Order 1 - SideEffect",
+							SalesOrderID : "1",
+							ToBusinessPartner : {
+								__metadata : {uri : "BusinessPartnerSet('42')"},
+								BusinessPartnerID : "42",
+								CompanyName : "SAP - SideEffect"
+							},
+							ToLineItems : {
+								results : [{
+									__metadata : {
+										uri : "SalesOrderLineItemSet(SalesOrderID='1',"
+											+ "ItemPosition='10')"
+									},
+									SalesOrderID : "1",
+									ItemPosition : "10",
+									Note : "Sales Order Line Item 1 - SideEffect"
+								}]
+							}
+						}, {
+							__metadata : {uri : "SalesOrderSet('2')"},
+							Note : "Sales Order New 1 - SideEffect",
+							SalesOrderID : "2",
+							ToBusinessPartner : {
+								__metadata : {uri : "BusinessPartnerSet('42')"},
+								BusinessPartnerID : "42",
+								CompanyName : "SAP - SideEffect"
+							},
+							ToLineItems : {
+								results : [{
+									__metadata : {
+										uri : "SalesOrderLineItemSet(SalesOrderID='2',"
+											+ "ItemPosition='10')"
+									},
+									SalesOrderID : "2",
+									ItemPosition : "10",
+									Note : "New Sales Order Line Item 1 - SideEffect"
+								}]
+							}
+						}]
+					}
+				})
+				.expectValue("note", "Sales Order New 1 - SideEffect", 0)
+				.expectValue("note", "Sales Order 1 - SideEffect", 2)
+				.expectValue("name", "SAP - SideEffect", 0)
+				.expectValue("name", "SAP - SideEffect", 2);
+
+			// code under test
+			oModel.requestSideEffects(that.oView.byId("objectPage").getBindingContext(), {
+				urlParameters : {
+					$expand : "ToSalesOrders,ToSalesOrders/ToBusinessPartner,"
+						+ "ToSalesOrders/ToLineItems",
+					$select : "ToSalesOrders/SalesOrderID,ToSalesOrders/Note,"
+						+ "ToSalesOrders/ToBusinessPartner/CompanyName,"
+						+ "ToSalesOrders/ToLineItems/SalesOrderID,"
+						+ "ToSalesOrders/ToLineItems/ItemPosition,ToSalesOrders/ToLineItems/Note"
+				}
+			});
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			var aSelectItems = oTable.getRows()[0].getCells()[2].getItems();
+
+			assert.strictEqual(aSelectItems.length, 1);
+			assert.strictEqual(aSelectItems[0].getText(),
+				"New Sales Order Line Item 1 - SideEffect");
+			aSelectItems = oTable.getRows()[1].getCells()[2].getItems();
+			assert.strictEqual(aSelectItems.length, 0);
+			aSelectItems = oTable.getRows()[2].getCells()[2].getItems();
+			assert.strictEqual(aSelectItems.length, 1);
+			assert.strictEqual(aSelectItems[0].getText(), "Sales Order Line Item 1 - SideEffect");
+
+			return that.waitForChanges(assert);
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: Changing entities after a side-effect request does not cause duplicates or missing
+	// entries. Creation of new entities is still possible after a side-effect request. Side effects
+	// are also supported in non-batch scenarios.
+	// JIRA: CPOUI5MODELS-656
+	QUnit.test("Request side effects: no duplicates/missing entries; no $batch", function (assert) {
+		var oBinding, oTable,
+			oModel = createSalesOrdersModel({
+				defaultBindingMode : BindingMode.TwoWay,
+				useBatch : false
+			}),
+			sView = '\
+<FlexBox id="objectPage" binding="{/BusinessPartnerSet(\'42\')}">\
+	<Text id="businessPartnerID" text="{BusinessPartnerID}"/>\
+	<t:Table id="table" rows="{ToSalesOrders}" visibleRowCount="5">\
+		<Text id="salesOrderID" text="{SalesOrderID}"/>\
+		<Input id="note" value="{Note}"/>\
+	</t:Table>\
+</FlexBox>',
+			that = this;
+
+		this.expectRequest("BusinessPartnerSet('42')", {
+				__metadata : {uri : "BusinessPartnerSet('42')"},
+				BusinessPartnerID : "42"
+			})
+			.expectRequest("BusinessPartnerSet('42')/ToSalesOrders?$skip=0&$top=105", {
+				results : [{
+					__metadata : {uri : "SalesOrderSet('1')"},
+					SalesOrderID : "1",
+					Note : "Sales Order 1"
+				}]
+			})
+			.expectValue("businessPartnerID", "42")
+			.expectValue("salesOrderID", ["1", "", "", "", ""])
+			.expectValue("note", ["Sales Order 1", "", "", "", ""]);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			oTable = that.oView.byId("table");
+
+			that.expectValue("salesOrderID", ["", "1"])
+				.expectValue("note", ["Sales Order New 1", "Sales Order 1"]);
+
+			oBinding = oTable.getBinding("rows");
+			oBinding.create({Note : "Sales Order New 1"}, false);
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectHeadRequest()
+				.expectRequest({
+					created : true,
+					data : {
+						__metadata : {type : "GWSAMPLE_BASIC.SalesOrder"},
+						Note : "Sales Order New 1"
+					},
+					deepPath : "/BusinessPartnerSet('42')/ToSalesOrders('~key~')",
+					headers : {},
+					method : "POST",
+					requestUri : "BusinessPartnerSet('42')/ToSalesOrders"
+				}, {
+					data : {
+						__metadata : {uri : "SalesOrderSet('2')"},
+						Note : "Sales Order New 1",
+						SalesOrderID : "2"
+					},
+					statusCode : 201
+				})
+				.expectValue("salesOrderID", "2", 0);
+
+			oModel.submitChanges();
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectValue("salesOrderID", ["", "1"], 1)
+				.expectValue("note", ["Sales Order New 2", "Sales Order 1"], 1);
+
+			oBinding.create({Note : "Sales Order New 2"}, true);
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest({
+					deepPath : "/BusinessPartnerSet('42')",
+					requestUri : "BusinessPartnerSet('42')?$expand=ToSalesOrders"
+				}, {
+					__metadata : {uri : "BusinessPartnerSet('42')"},
+					BusinessPartnerID : "42",
+					ToSalesOrders : {
+						results : [{
+							__metadata : {uri : "SalesOrderSet('1')"},
+							Note : "Sales Order 1 - SideEffect",
+							SalesOrderID : "1"
+						}, {
+							__metadata : {uri : "SalesOrderSet('2')"},
+							Note : "Sales Order New 1 - SideEffect",
+							SalesOrderID : "2"
+						}]
+					}
+				})
+				.expectValue("note", "Sales Order New 1 - SideEffect", 0)
+				.expectValue("note", "Sales Order 1 - SideEffect", 2);
+
+			// code under test
+			oModel.requestSideEffects(that.oView.byId("objectPage").getBindingContext(), {
+				urlParameters : {$expand : "ToSalesOrders"}
+			});
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectValue("salesOrderID", ["", "1"], 2)
+				.expectValue("note", ["Sales Order New 3", "Sales Order 1 - SideEffect"], 2);
+
+			oBinding.create({Note : "Sales Order New 3"}, true);
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectValue("note", "Foo - New 3", 2);
+
+			oTable.getRows()[2].getCells()[1].setValue("Foo - New 3");
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest({
+					created : true,
+					data : {
+						__metadata : {type : "GWSAMPLE_BASIC.SalesOrder"},
+						Note : "Sales Order New 2"
+					},
+					deepPath : "/BusinessPartnerSet('42')/ToSalesOrders('~key~')",
+					headers : {},
+					method : "POST",
+					requestUri : "BusinessPartnerSet('42')/ToSalesOrders"
+				}, {
+					data : {
+						__metadata : {uri : "SalesOrderSet('3')"},
+						Note : "Sales Order New 2",
+						SalesOrderID : "3"
+					},
+					statusCode : 201
+				})
+				.expectRequest({
+					created : true,
+					data : {
+						__metadata : {type : "GWSAMPLE_BASIC.SalesOrder"},
+						Note : "Foo - New 3"
+					},
+					deepPath : "/BusinessPartnerSet('42')/ToSalesOrders('~key~')",
+					headers : {},
+					method : "POST",
+					requestUri : "BusinessPartnerSet('42')/ToSalesOrders"
+				}, {
+					data : {
+						__metadata : {uri : "SalesOrderSet('4')"},
+						Note : "Foo - New 3",
+						SalesOrderID : "4"
+					},
+					statusCode : 201
+				})
+				.expectValue("salesOrderID", ["3", "4"], 1);
+
+			oModel.submitChanges();
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest("BusinessPartnerSet('42')/ToSalesOrders?$skip=0&$top=4"
+					+ "&$orderby=SalesOrderID desc",
+				{
+					results : [{
+						__metadata : {uri : "SalesOrderSet('4')"},
+						Note : "Foo - New 3",
+						SalesOrderID : "4"
+					}, {
+						__metadata : {uri : "SalesOrderSet('3')"},
+						Note : "Sales Order New 2",
+						SalesOrderID : "3"
+					}, {
+						__metadata : {uri : "SalesOrderSet('2')"},
+						Note : "Sales Order New 1 - SideEffect",
+						SalesOrderID : "2"
+					}, {
+						__metadata : {uri : "SalesOrderSet('1')"},
+						Note : "Sales Order 1 - SideEffect",
+						SalesOrderID : "1"
+					}]
+				})
+				// sales orders "1" resp. "3" are already in 4th resp. 2nd line -> no value changes
+				.expectValue("note", "Foo - New 3", 0)
+				.expectValue("note", "Sales Order New 1 - SideEffect", 2)
+				.expectValue("salesOrderID", "4", 0)
+				.expectValue("salesOrderID", "2", 2);
+
+			oBinding.sort(new Sorter("SalesOrderID", /*bDescending*/true));
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectValue("note", "Bar", 2);
+
+			oTable.getRows()[2].getCells()[1].setValue("Bar");
+
+			return that.waitForChanges(assert);
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: The side-effects response contains the complete data for the binding in "Client"
+	// mode, no additional GET request is needed.
+	// JIRA: CPOUI5MODELS-780
+	QUnit.test("Request side effects: no second request in 'Client' mode", function (assert) {
+		var oModel = createSalesOrdersModel({defaultOperationMode : "Client"}),
+			sView = '\
+<FlexBox id="objectPage" binding="{/BusinessPartnerSet(\'42\')}">\
+	<t:Table id="table" rows="{ToSalesOrders}" visibleRowCount="2">\
+		<Input id="note" value="{Note}"/>\
+	</t:Table>\
+</FlexBox>',
+			that = this;
+
+		this.expectHeadRequest()
+			.expectRequest("BusinessPartnerSet('42')", {
+				__metadata : {uri : "BusinessPartnerSet('42')"},
+				BusinessPartnerID : "42"
+			})
+			.expectRequest("BusinessPartnerSet('42')/ToSalesOrders", {
+				results : [{
+					__metadata : {uri : "SalesOrderSet('1')"},
+					SalesOrderID : "1",
+					Note : "Sales Order 1"
+				}, {
+					__metadata : {uri : "SalesOrderSet('2')"},
+					SalesOrderID : "2",
+					Note : "Sales Order 2"
+				}]
+			})
+			.expectValue("note", ["Sales Order 1", "Sales Order 2"]);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			that.expectRequest("BusinessPartnerSet('42')?$expand=ToSalesOrders", {
+					__metadata : {uri : "BusinessPartnerSet('42')"},
+					BusinessPartnerID : "42",
+					ToSalesOrders : {
+						results : [{
+							__metadata : {uri : "SalesOrderSet('1')"},
+							SalesOrderID : "1",
+							Note : "Sales Order 1 - SideEffect"
+						}, {
+							__metadata : {uri : "SalesOrderSet('2')"},
+							SalesOrderID : "2",
+							Note : "Sales Order 2 - SideEffect"
+						}]
+					}
+				})
+				.expectValue("note", ["Sales Order 1 - SideEffect", "Sales Order 2 - SideEffect"]);
+
+			// code under test
+			oModel.requestSideEffects(that.oView.byId("objectPage").getBindingContext(), {
+				urlParameters : {$expand : "ToSalesOrders"}
+			});
+
+			return that.waitForChanges(assert);
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: Messages that are no longer valid after a side-effects request are removed
+	// JIRA: CPOUI5MODELS-656
+	QUnit.test("Request side effects: correct message handling", function (assert) {
+		var oModel = createSalesOrdersModelMessageScope(),
+			oMsgSalesOrder = this.createResponseMessage("SalesOrderID", "Foo"),
+			oMsgSalesOrderToLineItems1 = this.createResponseMessage(
+				"ToLineItems(SalesOrderID='1',ItemPosition='1')/Note", "Bar"),
+			oMsgSalesOrderItem1 = cloneODataMessage(oMsgSalesOrderToLineItems1,
+				"(SalesOrderID='1',ItemPosition='1')/Note"),
+			sView = '\
+<FlexBox id="objectPage" binding="{/SalesOrderSet(\'1\')}">\
+	<Text id="salesOrderID" text="{SalesOrderID}"/>\
+	<t:Table id="table" rows="{\
+			path : \'ToLineItems\',\
+			parameters : {transitionMessagesOnly : true}\
+		}" visibleRowCount="2">\
+		<Text id="itemPosition" text="{ItemPosition}"/>\
+		<Input id="note" value="{Note}"/>\
+	</t:Table>\
+</FlexBox>',
+			that = this;
+
+		oModel.setMessageScope(MessageScope.BusinessObject);
+
+		this.expectHeadRequest({"sap-message-scope" : "BusinessObject"})
+			.expectRequest({
+				requestUri : "SalesOrderSet('1')",
+				headers : {"sap-message-scope" : "BusinessObject"}
+			}, {
+				__metadata : {uri : "SalesOrderSet('1')"},
+				SalesOrderID : "1"
+			}, {"sap-message" : getMessageHeader([oMsgSalesOrder, oMsgSalesOrderToLineItems1])})
+			.expectRequest({
+				requestUri : "SalesOrderSet('1')/ToLineItems?$skip=0&$top=102",
+				headers : {"sap-message-scope" : "BusinessObject", "sap-messages" : "transientOnly"}
+			}, {
+				results : [{
+					__metadata : {uri : "SalesOrderLineItemSet(SalesOrderID='1',ItemPosition='1')"},
+					SalesOrderID : "1",
+					ItemPosition : "1",
+					Note : "Item 1"
+				}, {
+					__metadata : {uri : "SalesOrderLineItemSet(SalesOrderID='1',ItemPosition='2')"},
+					SalesOrderID : "1",
+					ItemPosition : "2",
+					Note : "Item 2"
+				}]
+			})
+			.expectMessage(oMsgSalesOrder, "/SalesOrderSet('1')/")
+			.expectMessage(oMsgSalesOrderItem1, "/SalesOrderLineItemSet",
+				"/SalesOrderSet('1')/ToLineItems")
+			.expectValue("salesOrderID", "1")
+			.expectValue("itemPosition", ["1", "2"])
+			.expectValue("note", ["Item 1", "Item 2"]);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			that.expectRequest({
+					requestUri : "SalesOrderSet('1')?$expand=ToLineItems",
+					headers : {"sap-message-scope" : "BusinessObject"}
+				}, {
+					__metadata : {uri : "SalesOrderSet('1')"},
+					SalesOrderID : "1",
+					ToLineItems : {
+						results : [{
+							__metadata : {
+								uri : "SalesOrderLineItemSet(SalesOrderID='1',ItemPosition='2')"
+							},
+							SalesOrderID : "1",
+							ItemPosition : "2",
+							Note : "Item 2"
+						}, {
+							__metadata : {
+								uri : "SalesOrderLineItemSet(SalesOrderID='1',ItemPosition='3')"
+							},
+							SalesOrderID : "1",
+							ItemPosition : "3",
+							Note : "Item 3"
+						}]
+					}
+				}, {"sap-message" : getMessageHeader([oMsgSalesOrder])})
+				.expectValue("itemPosition", ["2", "3"])
+				.expectValue("note", ["Item 2", "Item 3"])
+				.expectMessage(oMsgSalesOrder, "/SalesOrderSet('1')/", undefined, true);
+
+			// code under test
+			oModel.requestSideEffects(that.oView.byId("objectPage").getBindingContext(), {
+				urlParameters : {$expand : "ToLineItems"}
+			});
+
+			return that.waitForChanges(assert);
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: Request side effects also updates bindings with custom parameters.
+	// JIRA: CPOUI5MODELS-838
+	QUnit.test("Request side effects: updates bindings with custom parameters", function (assert) {
+		var oBinding, oTable,
+			oModel = createSalesOrdersModel({preliminaryContext : true}),
+			sView = '\
+<FlexBox id="objectPage" binding="{/BusinessPartnerSet(\'42\')}">\
+	<Text id="businessPartnerID" text="{BusinessPartnerID}"/>\
+	<t:Table id="table" rows="{\
+				path : \'ToSalesOrders\',\
+				parameters : {\
+					custom : {\
+						\'foo\' : \'bar\'\
+					}\
+				}\
+			}" visibleRowCount="5">\
+		<Text id="salesOrderID" text="{SalesOrderID}"/>\
+		<Input id="note" value="{Note}"/>\
+	</t:Table>\
+</FlexBox>',
+			that = this;
+
+		this.expectHeadRequest()
+			.expectRequest({
+				batchNo : 1,
+				requestUri : "BusinessPartnerSet('42')"
+			}, {
+				__metadata : {uri : "BusinessPartnerSet('42')"},
+				BusinessPartnerID : "42"
+			})
+			.expectRequest({
+				batchNo : 1,
+				requestUri : "BusinessPartnerSet('42')/ToSalesOrders?$skip=0&$top=105&foo=bar"
+			}, {
+				results : [{
+					__metadata : {uri : "SalesOrderSet('1')"},
+					SalesOrderID : "1",
+					Note : "Sales Order 1"
+				}]
+			})
+			.expectValue("businessPartnerID", "42")
+			.expectValue("salesOrderID", ["1", "", "", "", ""])
+			.expectValue("note", ["Sales Order 1", "", "", "", ""]);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			oTable = that.oView.byId("table");
+
+			that.expectValue("salesOrderID", ["", "1"])
+				.expectValue("note", ["Sales Order New 1", "Sales Order 1"]);
+
+			oBinding = oTable.getBinding("rows");
+			oBinding.create({Note : "Sales Order New 1"}, false);
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest({
+					batchNo : 2,
+					created : true,
+					data : {
+						__metadata : {type : "GWSAMPLE_BASIC.SalesOrder"},
+						Note : "Sales Order New 1"
+					},
+					deepPath : "/BusinessPartnerSet('42')/ToSalesOrders('~key~')",
+					headers : {},
+					method : "POST",
+					requestUri : "BusinessPartnerSet('42')/ToSalesOrders"
+				}, {
+					data : {
+						__metadata : {uri : "SalesOrderSet('2')"},
+						Note : "Sales Order New 1",
+						SalesOrderID : "2"
+					},
+					statusCode : 201
+				})
+				.expectValue("salesOrderID", "2", 0);
+
+			oModel.submitChanges();
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectValue("salesOrderID", ["", "1"], 1)
+				.expectValue("note", ["Sales Order New 2", "Sales Order 1"], 1);
+
+			oBinding.create({Note : "Sales Order New 2"}, true);
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest({
+					batchNo : 3,
+					requestUri : "BusinessPartnerSet('42')?$expand=ToSalesOrders"
+				}, {
+					__metadata : {uri : "BusinessPartnerSet('42')"},
+					BusinessPartnerID : "42",
+					ToSalesOrders : {
+						results : [{
+							__metadata : {uri : "SalesOrderSet('1')"},
+							Note : "Sales Order 1 - SideEffect",
+							SalesOrderID : "1"
+						}, {
+							__metadata : {uri : "SalesOrderSet('2')"},
+							Note : "Sales Order New 1 - SideEffect",
+							SalesOrderID : "2"
+						}, {
+							__metadata : {uri : "SalesOrderSet('42')"},
+							Note : "Added via side effect",
+							SalesOrderID : "42"
+						}]
+					}
+				})
+				.expectValue("note", "Sales Order New 1 - SideEffect", 0)
+				.expectValue("note", "Sales Order 1 - SideEffect", 2)
+				.expectRequest({
+					batchNo : 3,
+					requestUri : "BusinessPartnerSet('42')/ToSalesOrders?$skip=0&$top=105"
+						+ "&$filter=not(SalesOrderID%20eq%20%272%27)&foo=bar"
+				}, {
+					results : [{
+						__metadata : {uri : "SalesOrderSet('1')"},
+						Note : "Sales Order 1 - SideEffect",
+						SalesOrderID : "1"
+					}, {
+						__metadata : {uri : "SalesOrderSet('42')"},
+						Note : "Added via side effect",
+						SalesOrderID : "42"
+					}]
+				})
+				.expectValue("salesOrderID", "42", 3)
+				.expectValue("note", "Added via side effect", 3);
+
+			// code under test
+			oModel.requestSideEffects(that.oView.byId("objectPage").getBindingContext(), {
+				groupId : "~groupId",
+				urlParameters : {$expand : "ToSalesOrders"}
+			});
+
+			return that.waitForChanges(assert);
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: A created persisted entity is not part of a side-effects response. Therefore this
+	// created persisted entity gets removed from the list and all related messages and pending
+	// changes are discarded.
+	// JIRA: CPOUI5MODELS-843
+	QUnit.test("Request side effects: Removes created persisted entities", function (assert) {
+		var oBinding, oTable,
+			oModel = createSalesOrdersModelMessageScope({defaultBindingMode : BindingMode.TwoWay}),
+			sView = '\
+<FlexBox id="objectPage" binding="{/BusinessPartnerSet(\'42\')}">\
+	<Text id="businessPartnerID" text="{BusinessPartnerID}"/>\
+	<t:Table id="table" rows="{ToSalesOrders}" visibleRowCount="2">\
+		<Text id="salesOrderID" text="{SalesOrderID}"/>\
+		<Input id="note" value="{Note}"/>\
+	</t:Table>\
+</FlexBox>',
+			that = this;
+
+		this.expectHeadRequest({"sap-message-scope" : "BusinessObject"})
+			.expectRequest({
+				headers : {"sap-message-scope" : "BusinessObject"},
+				requestUri : "BusinessPartnerSet('42')"
+			}, {
+				__metadata : {uri : "BusinessPartnerSet('42')"},
+				BusinessPartnerID : "42"
+			})
+			.expectRequest({
+				headers : {"sap-message-scope" : "BusinessObject"},
+				requestUri : "BusinessPartnerSet('42')/ToSalesOrders?$skip=0&$top=102"
+			}, {
+				results : [{
+					__metadata : {uri : "SalesOrderSet('1')"},
+					SalesOrderID : "1",
+					Note : "Sales Order 1"
+				}]
+			})
+			.expectValue("businessPartnerID", "42")
+			.expectValue("salesOrderID", ["1", ""])
+			.expectValue("note", ["Sales Order 1", ""]);
+
+		oModel.setMessageScope(MessageScope.BusinessObject);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			oTable = that.oView.byId("table");
+			oBinding = oTable.getBinding("rows");
+
+			that.expectValue("salesOrderID", ["", "1"])
+				.expectValue("note", ["Sales Order New 1", "Sales Order 1"]);
+
+			oBinding.create({Note : "Sales Order New 1"}, false);
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			var oNoteError = that.createResponseMessage("Note");
+
+			that.expectRequest({
+					created : true,
+					data : {
+						__metadata : {type : "gwsample_basic.SalesOrder"},
+						Note : "Sales Order New 1"
+					},
+					deepPath : "/BusinessPartnerSet('42')/ToSalesOrders('~key~')",
+					headers : {
+						"sap-message-scope" : "BusinessObject"
+					},
+					method : "POST",
+					requestUri : "BusinessPartnerSet('42')/ToSalesOrders"
+				}, {
+					data : {
+						__metadata : {uri : "SalesOrderSet('2')"},
+						Note : "Sales Order New 1",
+						SalesOrderID : "2"
+					},
+					statusCode : 201
+				}, {
+					location : "/SalesOrderSrv/SalesOrderSet('2')",
+					"sap-message" : getMessageHeader(oNoteError)
+				})
+				.expectValue("salesOrderID", "2", 0)
+				.expectMessage(oNoteError, "/SalesOrderSet('2')/",
+					"/BusinessPartnerSet('42')/ToSalesOrders('2')/");
+
+			oModel.submitChanges();
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectValue("note", "Sales Order New 1 - pending change", 0);
+
+			oTable.getRows()[0].getCells()[1].setValue("Sales Order New 1 - pending change");
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest({
+					deepPath : "/BusinessPartnerSet('42')/ToSalesOrders('1')",
+					headers : {"sap-message-scope" : "BusinessObject"},
+					requestUri : "SalesOrderSet('1')?$expand=ToBusinessPartner"
+						+ "%2CToBusinessPartner%2FToSalesOrders"
+				}, {
+					__metadata : {uri : "SalesOrderSet('1')"},
+					SalesOrderID : "1",
+					Note : "Sales Order 1 - SideEffect",
+					ToBusinessPartner : {
+						__metadata : {uri : "BusinessPartnerSet('42')"},
+						BusinessPartnerID : "42",
+						ToSalesOrders : {
+							results : [{
+								__metadata : {uri : "SalesOrderSet('1')"},
+								SalesOrderID : "1",
+								Note : "Sales Order 1 - SideEffect"
+							}]
+						}
+					}
+				})
+				.expectValue("salesOrderID", "", 0)
+				.expectValue("note", ["", "Sales Order 1 - SideEffect"])
+				.expectValue("salesOrderID", ["1", ""])
+				.expectValue("note", ["Sales Order 1 - SideEffect", ""])
+				.expectMessages([]);
+
+			// code under test: using a context NOT starting at root level ("objectPage") leads to a
+			// different deep path; this ensures the existing message is not removed via the usual
+			// business object lifecycle
+			oModel.requestSideEffects(/*SalesOrderSet('1')*/oBinding.getAllCurrentContexts()[1], {
+				urlParameters : {$expand : "ToBusinessPartner,ToBusinessPartner/ToSalesOrders"}
+			});
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			assert.notOk(oModel.hasPendingChanges());
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: An entity is created in an empty list. After submitting this entry and refreshing
+	// it via side effects, the entry is no longer contained in the side effects response. Therefore
+	// this created persisted entity and its bound context is removed from the table.
+	// JIRA: CPOUI5MODELS-843
+	QUnit.test("Request side effects: Removes created persisted entities (empty table)",
+			function (assert) {
+		var oTable,
+			oModel = createSalesOrdersModel(),
+			sView = '\
+<FlexBox id="objectPage" binding="{/BusinessPartnerSet(\'42\')}">\
+	<Text id="businessPartnerID" text="{BusinessPartnerID}"/>\
+	<t:Table id="table" rows="{ToSalesOrders}" visibleRowCount="2">\
+		<Text id="salesOrderID" text="{SalesOrderID}"/>\
+		<Input id="note" value="{Note}"/>\
+	</t:Table>\
+</FlexBox>',
+			that = this;
+
+		this.expectHeadRequest()
+			.expectRequest("BusinessPartnerSet('42')", {
+				__metadata : {uri : "BusinessPartnerSet('42')"},
+				BusinessPartnerID : "42"
+			})
+			.expectRequest("BusinessPartnerSet('42')/ToSalesOrders?$skip=0&$top=102", {
+				results : []
+			})
+			.expectValue("businessPartnerID", "42")
+			.expectValue("salesOrderID", ["", ""])
+			.expectValue("note", ["", ""]);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			oTable = that.oView.byId("table");
+
+			that.expectValue("note", "Sales Order New 1", 0);
+
+			oTable.getBinding("rows").create({Note : "Sales Order New 1"}, false);
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest({
+					created : true,
+					data : {
+						__metadata : {type : "GWSAMPLE_BASIC.SalesOrder"},
+						Note : "Sales Order New 1"
+					},
+					deepPath : "/BusinessPartnerSet('42')/ToSalesOrders('~key~')",
+					method : "POST",
+					requestUri : "BusinessPartnerSet('42')/ToSalesOrders"
+				}, {
+					data : {
+						__metadata : {uri : "SalesOrderSet('2')"},
+						Note : "Sales Order New 1",
+						SalesOrderID : "2"
+					},
+					statusCode : 201
+				})
+				.expectValue("salesOrderID", "2", 0);
+
+			oModel.submitChanges();
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest("BusinessPartnerSet('42')?$expand=ToSalesOrders", {
+					__metadata : {uri : "BusinessPartnerSet('42')"},
+					BusinessPartnerID : "42",
+					ToSalesOrders : {
+						results : []
+					}
+				})
+				.expectValue("salesOrderID", "", 0)
+				.expectValue("note", "", 0);
+
+			// code under test
+			oModel.requestSideEffects(that.oView.byId("objectPage").getBindingContext(), {
+				urlParameters : {$expand : "ToSalesOrders"}
+			});
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			assert.strictEqual(oTable.getRows()[0].getBindingContext(), null);
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: An entity is created in an empty list. After submitting this entry and refreshing
+	// it via side effects, the entry is no longer contained in the side effects response, but
+	// another new entity is contained in this response. Therefore this created persisted entity is
+	// replaced with the new responded entity from back end.
+	// JIRA: CPOUI5MODELS-844
+	QUnit.test("Request side effects: Remove created persisted entity, response with new entity",
+			function (assert) {
+		var oModel = createSalesOrdersModel(),
+			sView = '\
+<FlexBox id="objectPage" binding="{/BusinessPartnerSet(\'42\')}">\
+	<Text id="businessPartnerID" text="{BusinessPartnerID}"/>\
+	<t:Table id="table" rows="{ToSalesOrders}" visibleRowCount="2">\
+		<Text id="salesOrderID" text="{SalesOrderID}"/>\
+		<Input id="note" value="{Note}"/>\
+	</t:Table>\
+</FlexBox>',
+			that = this;
+
+		this.expectHeadRequest()
+			.expectRequest("BusinessPartnerSet('42')", {
+				__metadata : {uri : "BusinessPartnerSet('42')"},
+				BusinessPartnerID : "42"
+			})
+			.expectRequest("BusinessPartnerSet('42')/ToSalesOrders?$skip=0&$top=102", {
+				results : []
+			})
+			.expectValue("businessPartnerID", "42")
+			.expectValue("salesOrderID", ["", ""])
+			.expectValue("note", ["", ""]);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			that.expectValue("note", "Sales Order New 1", 0);
+
+			that.oView.byId("table").getBinding("rows").create({Note : "Sales Order New 1"}, false);
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest({
+					created : true,
+					data : {
+						__metadata : {type : "GWSAMPLE_BASIC.SalesOrder"},
+						Note : "Sales Order New 1"
+					},
+					deepPath : "/BusinessPartnerSet('42')/ToSalesOrders('~key~')",
+					method : "POST",
+					requestUri : "BusinessPartnerSet('42')/ToSalesOrders"
+				}, {
+					data : {
+						__metadata : {uri : "SalesOrderSet('2')"},
+						SalesOrderID : "2",
+						Note : "Sales Order New 1"
+					},
+					statusCode : 201
+				})
+				.expectValue("salesOrderID", "2", 0);
+
+			oModel.submitChanges();
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest("BusinessPartnerSet('42')?$expand=ToSalesOrders", {
+					__metadata : {uri : "BusinessPartnerSet('42')"},
+					BusinessPartnerID : "42",
+					ToSalesOrders : {
+						results : [{
+							__metadata : {uri : "SalesOrderSet('3')"},
+							SalesOrderID : "3",
+							Note : "Sales Order 3 - SideEffect"
+						}]
+					}
+				})
+				.expectValue("salesOrderID", "", 0)
+				.expectValue("note", "", 0)
+				.expectValue("salesOrderID", "3", 0)
+				.expectValue("note", "Sales Order 3 - SideEffect", 0);
+
+			// code under test
+			oModel.requestSideEffects(that.oView.byId("objectPage").getBindingContext(), {
+				urlParameters : {$expand : "ToSalesOrders"}
+			});
+
+			return that.waitForChanges(assert);
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: A created persisted entity is added in a table, but the entity is not visible
+	// because its creation was at the end of the list. The created persisted entity is not part of
+	// a side-effects response. Therefore this created persisted entity gets removed from the list.
+	// Change events are triggered as expected.
+	// JIRA: CPOUI5MODELS-844
+	QUnit.test("Request side effects: Removed created persisted entity not visible",
+			function (assert) {
+		var oBinding,
+			oModel = createSalesOrdersModel(),
+			oUiModel = new JSONModel({itemsCount : 0}),
+			sView = '\
+<FlexBox id="objectPage" binding="{/BusinessPartnerSet(\'42\')}">\
+	<Text id="businessPartnerID" text="{BusinessPartnerID}"/>\
+	<Text id="count" text="{ui>/itemsCount}"/>\
+	<t:Table id="table" rows="{ToSalesOrders}" visibleRowCount="2">\
+		<Text id="salesOrderID" text="{SalesOrderID}"/>\
+		<Input id="note" value="{Note}"/>\
+	</t:Table>\
+</FlexBox>',
+			that = this;
+
+		this.expectHeadRequest()
+			.expectRequest("BusinessPartnerSet('42')", {
+				__metadata : {uri : "BusinessPartnerSet('42')"},
+				BusinessPartnerID : "42"
+			})
+			.expectRequest("BusinessPartnerSet('42')/ToSalesOrders?$skip=0&$top=102", {
+				results : [{
+					__metadata : {uri : "SalesOrderSet('1')"},
+					SalesOrderID : "1",
+					Note : "Sales Order 1"
+				}, {
+					__metadata : {uri : "SalesOrderSet('2')"},
+					SalesOrderID : "2",
+					Note : "Sales Order 2"
+				}]
+			})
+			.expectValue("businessPartnerID", "42")
+			.expectValue("count", "0")
+			.expectValue("salesOrderID", ["1", "2"])
+			.expectValue("note", ["Sales Order 1", "Sales Order 2"]);
+
+		return this.createView(assert, sView, {undefined : oModel, ui : oUiModel}).then(
+				function () {
+			oBinding = that.oView.byId("table").getBinding("rows");
+
+			oBinding.attachChange(function () {
+				that.oView.byId("count").getBinding("text").getModel()
+					.setProperty("/itemsCount", oBinding.getCount());
+			});
+		}).then(function () {
+			that.expectValue("count", "3");
+
+			oBinding.create({Note : "Sales Order New 1"}, true);
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest({
+					created : true,
+					data : {
+						__metadata : {type : "GWSAMPLE_BASIC.SalesOrder"},
+						Note : "Sales Order New 1"
+					},
+					deepPath : "/BusinessPartnerSet('42')/ToSalesOrders('~key~')",
+					method : "POST",
+					requestUri : "BusinessPartnerSet('42')/ToSalesOrders"
+				}, {
+					data : {
+						__metadata : {uri : "SalesOrderSet('42')"},
+						SalesOrderID : "42",
+						Note : "Sales Order New 1"
+					},
+					statusCode : 201
+				});
+
+			oModel.submitChanges();
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectValue("count", "2");
+
+			that.expectRequest("BusinessPartnerSet('42')?$expand=ToSalesOrders", {
+					__metadata : {uri : "BusinessPartnerSet('42')"},
+					BusinessPartnerID : "42",
+					ToSalesOrders : {
+						results : [{
+							__metadata : {uri : "SalesOrderSet('1')"},
+							SalesOrderID : "1",
+							Note : "Sales Order 1"
+						}, {
+							__metadata : {uri : "SalesOrderSet('2')"},
+							SalesOrderID : "2",
+							Note : "Sales Order 2"
+						}]
+					}
+				});
+
+			// code under test
+			oModel.requestSideEffects(that.oView.byId("objectPage").getBindingContext(), {
+				urlParameters : {$expand : "ToSalesOrders"}
+			});
+
+			return that.waitForChanges(assert);
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: A created persisted entity is added in a table using custom parameters, but the
+	// entity is not visible because its creation was at the end of the list. The created persisted
+	// entity is not part of a side-effects response. Therefore this created persisted entity gets
+	// removed from the list.
+	// JIRA: CPOUI5MODELS-844
+	QUnit.test("Request side effects: Removed created persisted entity not visible (custom params)",
+			function (assert) {
+		var oBinding,
+			oModel = createSalesOrdersModel(),
+			sView = '\
+<FlexBox id="objectPage" binding="{/BusinessPartnerSet(\'42\')}">\
+	<Text id="businessPartnerID" text="{BusinessPartnerID}"/>\
+	<t:Table id="table" rows="{\
+				path : \'ToSalesOrders\',\
+				parameters : {\
+					custom : {\
+						\'foo\' : \'bar\'\
+					}\
+				}\
+			}" visibleRowCount="2">\
+		<Text id="salesOrderID" text="{SalesOrderID}"/>\
+		<Input id="note" value="{Note}"/>\
+	</t:Table>\
+</FlexBox>',
+			that = this;
+
+		this.expectHeadRequest()
+			.expectRequest("BusinessPartnerSet('42')", {
+				__metadata : {uri : "BusinessPartnerSet('42')"},
+				BusinessPartnerID : "42"
+			})
+			.expectRequest("BusinessPartnerSet('42')/ToSalesOrders?$skip=0&$top=102&foo=bar", {
+				results : [{
+					__metadata : {uri : "SalesOrderSet('1')"},
+					SalesOrderID : "1",
+					Note : "Sales Order 1"
+				}, {
+					__metadata : {uri : "SalesOrderSet('2')"},
+					SalesOrderID : "2",
+					Note : "Sales Order 2"
+				}]
+			})
+			.expectValue("businessPartnerID", "42")
+			.expectValue("salesOrderID", ["1", "2"])
+			.expectValue("note", ["Sales Order 1", "Sales Order 2"]);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			oBinding = that.oView.byId("table").getBinding("rows");
+
+			oBinding.create({Note : "Sales Order New 1"}, true);
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest({
+					created : true,
+					data : {
+						__metadata : {type : "GWSAMPLE_BASIC.SalesOrder"},
+						Note : "Sales Order New 1"
+					},
+					deepPath : "/BusinessPartnerSet('42')/ToSalesOrders('~key~')",
+					method : "POST",
+					requestUri : "BusinessPartnerSet('42')/ToSalesOrders"
+				}, {
+					data : {
+						__metadata : {uri : "SalesOrderSet('42')"},
+						SalesOrderID : "42",
+						Note : "Sales Order New 1"
+					},
+					statusCode : 201
+				});
+
+			oModel.submitChanges();
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			assert.strictEqual(oBinding.getCount(), 3);
+
+			that.expectRequest("BusinessPartnerSet('42')?$expand=ToSalesOrders", {
+					__metadata : {uri : "BusinessPartnerSet('42')"},
+					BusinessPartnerID : "42",
+					ToSalesOrders : {
+						results : [{
+							__metadata : {uri : "SalesOrderSet('1')"},
+							SalesOrderID : "1",
+							Note : "Sales Order 1"
+						}, {
+							__metadata : {uri : "SalesOrderSet('2')"},
+							SalesOrderID : "2",
+							Note : "Sales Order 2"
+						}]
+					}
+				})
+				.expectRequest("BusinessPartnerSet('42')/ToSalesOrders?$skip=0&$top=102"
+						+ "&$filter=not(SalesOrderID%20eq%20%2742%27)&foo=bar", {
+					results : [{
+						__metadata : {uri : "SalesOrderSet('1')"},
+						SalesOrderID : "1",
+						Note : "Sales Order 1"
+					}, {
+						__metadata : {uri : "SalesOrderSet('2')"},
+						SalesOrderID : "2",
+						Note : "Sales Order 2"
+					}]
+				});
+
+			// code under test
+			oModel.requestSideEffects(that.oView.byId("objectPage").getBindingContext(), {
+				urlParameters : {$expand : "ToSalesOrders"}
+			});
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			assert.strictEqual(oBinding.getCount(), 2);
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: After a list binding is suspended, a created persisted entity is not part of a
+	// side-effects response. The created persisted entity gets removed from the list, either after
+	// resuming the list binding, or after rebinding the table.
+	// JIRA: CPOUI5MODELS-844
+[false, true].forEach(function (bRebind) {
+	var sTitle = "Request side effects: Remove created persisted after "
+			+ (bRebind ? "rebind" : "resume");
+
+	QUnit.test(sTitle, function (assert) {
+		var oBinding, oTable,
+			oModel = createSalesOrdersModel(),
+			sView = '\
+<FlexBox id="objectPage" binding="{/BusinessPartnerSet(\'42\')}">\
+	<Text id="businessPartnerID" text="{BusinessPartnerID}"/>\
+	<t:Table id="table" rows="{ToSalesOrders}" visibleRowCount="2">\
+		<Text id="salesOrderID" text="{SalesOrderID}"/>\
+		<Input id="note" value="{Note}"/>\
+	</t:Table>\
+</FlexBox>',
+			that = this;
+
+		this.expectHeadRequest()
+			.expectRequest("BusinessPartnerSet('42')", {
+				__metadata : {uri : "BusinessPartnerSet('42')"},
+				BusinessPartnerID : "42"
+			})
+			.expectRequest("BusinessPartnerSet('42')/ToSalesOrders?$skip=0&$top=102", {
+				results : [{
+					__metadata : {uri : "SalesOrderSet('1')"},
+					SalesOrderID : "1",
+					Note : "Sales Order 1"
+				}]
+			})
+			.expectValue("businessPartnerID", "42")
+			.expectValue("salesOrderID", ["1", ""])
+			.expectValue("note", ["Sales Order 1", ""]);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			oTable = that.oView.byId("table");
+			oBinding = oTable.getBinding("rows");
+
+			that.expectValue("note", "Sales Order New 1", 1);
+
+			oBinding.create({Note : "Sales Order New 1"}, true);
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest({
+					created : true,
+					data : {
+						__metadata : {type : "GWSAMPLE_BASIC.SalesOrder"},
+						Note : "Sales Order New 1"
+					},
+					deepPath : "/BusinessPartnerSet('42')/ToSalesOrders('~key~')",
+					method : "POST",
+					requestUri : "BusinessPartnerSet('42')/ToSalesOrders"
+				}, {
+					data : {
+						__metadata : {uri : "SalesOrderSet('2')"},
+						SalesOrderID : "2",
+						Note : "Sales Order New 1"
+					},
+					statusCode : 201
+				})
+				.expectValue("salesOrderID", "2", 1);
+
+			oModel.submitChanges();
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest("BusinessPartnerSet('42')?$expand=ToSalesOrders", {
+					__metadata : {uri : "BusinessPartnerSet('42')"},
+					BusinessPartnerID : "42",
+					ToSalesOrders : {
+						results : [{
+							__metadata : {uri : "SalesOrderSet('1')"},
+							SalesOrderID : "1",
+							Note : "Sales Order 1"
+						}]
+					}
+				});
+
+			// code under test
+			oBinding.suspend();
+			oModel.requestSideEffects(that.oView.byId("objectPage").getBindingContext(), {
+				urlParameters : {$expand : "ToSalesOrders"}
+			});
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectValue("salesOrderID", "", 1)
+				.expectValue("note", "", 1);
+
+			if (bRebind) {
+				that.expectRequest("BusinessPartnerSet('42')/ToSalesOrders?$skip=0&$top=102", {
+						results : [{
+							__metadata : {uri : "SalesOrderSet('1')"},
+							SalesOrderID : "1",
+							Note : "Sales Order 1"
+						}]
+					});
+
+				// code under test: rebind
+				oTable.bindRows(oTable.getBindingInfo("rows"));
+			} else {
+				// code under test: resume
+				oBinding.resume();
+			}
+
+			return that.waitForChanges(assert);
+		});
+	});
+});
+
+	//*********************************************************************************************
+	// Scenario: When a table with created persisted entries is refreshed, then the created
+	// persisted entries are removed from the creation area and are inserted in the order as given
+	// in the response of the refresh. If a side-effects request is within the same batch, the order
+	// of the requests (requestSideEffects and then refresh, and vice versa) has no impact on the
+	// final result.
+	// JIRA: CPOUI5MODELS-844
+[
+	["refresh", "requestSideEffects"],
+	["requestSideEffects", "refresh"]
+].forEach(function (aOrderedFunctions) {
+	var sTitle = "Request side effects: refresh overrules the side-effects response; applied "
+			+ "order: " + JSON.stringify(aOrderedFunctions);
+
+	QUnit.test(sTitle, function (assert) {
+		var oBinding,
+			oModel = createSalesOrdersModel({preliminaryContext : true}),
+			sView = '\
+<FlexBox id="objectPage" binding="{/BusinessPartnerSet(\'42\')}">\
+	<Text id="businessPartnerID" text="{BusinessPartnerID}"/>\
+	<t:Table id="table" rows="{ToSalesOrders}" visibleRowCount="5">\
+		<Text id="salesOrderID" text="{SalesOrderID}"/>\
+		<Text id="note" text="{Note}"/>\
+	</t:Table>\
+</FlexBox>',
+			that = this;
+
+		this.expectHeadRequest()
+			.expectRequest({
+				batchNo : 1,
+				requestUri : "BusinessPartnerSet('42')"
+			}, {
+				__metadata : {uri : "BusinessPartnerSet('42')"},
+				BusinessPartnerID : "42"
+			})
+			.expectValue("businessPartnerID", "42")
+			.expectRequest({
+				batchNo : 1,
+				requestUri : "BusinessPartnerSet('42')/ToSalesOrders?$skip=0&$top=105"
+			}, {
+				results : [{
+					__metadata : {uri : "SalesOrderSet('1')"},
+					SalesOrderID : "1",
+					Note : "Sales Order 1"
+				}]
+			})
+			.expectValue("salesOrderID", ["1", "", "", "", ""])
+			.expectValue("note", ["Sales Order 1", "", "", "", ""]);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			oBinding = that.oView.byId("table").getBinding("rows");
+
+			that.expectRequest({
+					batchNo : 2,
+					created : true,
+					data : {
+						__metadata : {type : "GWSAMPLE_BASIC.SalesOrder"},
+						Note : "Sales Order New: created persisted"
+					},
+					deepPath : "/BusinessPartnerSet('42')/ToSalesOrders('~key~')",
+					headers : {},
+					method : "POST",
+					requestUri : "BusinessPartnerSet('42')/ToSalesOrders"
+				}, {
+					data : {
+						__metadata : {uri : "SalesOrderSet('2')"},
+						SalesOrderID : "2",
+						Note : "Sales Order New: created persisted"
+					},
+					statusCode : 201
+				})
+				.expectValue("salesOrderID", ["", "1"])
+				.expectValue("note", ["Sales Order New: created persisted", "Sales Order 1"])
+				.expectValue("salesOrderID", "2", 0);
+
+			// code under test: new created persisted entity
+			oBinding.create({Note : "Sales Order New: created persisted"}, false);
+			oModel.submitChanges();
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectValue("salesOrderID", ["", "1"], 1)
+				.expectValue("note", ["Sales Order New: transient", "Sales Order 1"], 1);
+
+			// code under test: new transient entity
+			oBinding.create({Note : "Sales Order New: transient"}, true);
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			var mFunctions = {
+					refresh : function () {
+						oBinding.refresh();
+					},
+					requestSideEffects : function () {
+						oModel.requestSideEffects(that.oView.byId("objectPage").getBindingContext(),
+							{urlParameters : {$expand : "ToSalesOrders"}});
+					}
+				};
+
+			that.expectRequest({
+					batchNo : 3,
+					requestNo : (aOrderedFunctions.indexOf("requestSideEffects") + 1),
+					requestUri : "BusinessPartnerSet('42')?$expand=ToSalesOrders"
+				}, {
+					__metadata : {uri : "BusinessPartnerSet('42')"},
+					BusinessPartnerID : "42",
+					ToSalesOrders : {
+						results : [{
+							__metadata : {uri : "SalesOrderSet('1')"},
+							SalesOrderID : "1",
+							Note : "Sales Order 1 - SideEffect"
+						}, {
+							__metadata : {uri : "SalesOrderSet('2')"},
+							SalesOrderID : "2",
+							Note : "Sales Order New: created persisted - SideEffect"
+						}, {
+							__metadata : {uri : "SalesOrderSet('3')"},
+							SalesOrderID : "3",
+							Note : "Added via side effect - but unused due to refresh"
+						}]
+					}
+				})
+				.expectValue("note", "Sales Order New: created persisted - SideEffect", 0)
+				.expectValue("note", "Sales Order 1 - SideEffect", 2)
+				.expectRequest({
+					batchNo : 3,
+					requestNo : (aOrderedFunctions.indexOf("refresh") + 1),
+					requestUri : "BusinessPartnerSet('42')/ToSalesOrders?$skip=0&$top=105"
+				}, {
+					results : [{
+						__metadata : {uri : "SalesOrderSet('43')"},
+						SalesOrderID : "43",
+						Note : "Sales Order 43"
+					}, {
+						__metadata : {uri : "SalesOrderSet('2')"},
+						SalesOrderID : "2",
+						Note : "Sales Order New: created persisted - SideEffect"
+					}, {
+						__metadata : {uri : "SalesOrderSet('42')"},
+						SalesOrderID : "42",
+						Note : "Sales Order 42"
+					}, {
+						__metadata : {uri : "SalesOrderSet('1')"},
+						SalesOrderID : "1",
+						Note : "Sales Order 1 - SideEffect"
+					}]
+				})
+				.expectValue("salesOrderID", ["", "43", "2", "42", "1"])
+				.expectValue("note", ["Sales Order New: transient", "Sales Order 43",
+					"Sales Order New: created persisted - SideEffect", "Sales Order 42",
+					"Sales Order 1 - SideEffect"]);
+
+			// code under test: calling refresh and requestSideEffects (and vice versa) in one batch
+			// leads to the same result (refresh response wins)
+			aOrderedFunctions.forEach(function (sFunction) {
+				mFunctions[sFunction]();
+			});
+
+			return that.waitForChanges(assert);
+		});
+	});
+});
 
 	//*********************************************************************************************
 	// Scenario: When enforcing the update of a relative list binding with a transient context via
@@ -12895,6 +15176,853 @@ ToProduct/ToSupplier/BusinessPartnerID\'}}">\
 
 			// code under test
 			oTable.setBindingContext(null);
+
+			return that.waitForChanges(assert);
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: There is a list binding which is initially suspended. In it's suspended state a
+	// parent context is set which refreshes the binding. After that for example a function call
+	// triggers indirectly a call to ODataListBinding#_refresh. Later the list binding is resumed
+	// and needs to trigger a request to get its data.
+	// BCP: 2280074593
+	QUnit.test("Refresh of a suspended binding must not clear the bPendingRefresh flag",
+		function (assert) {
+		var oBinding,
+			oModel = createSalesOrdersModel(),
+			sView = '\
+<FlexBox id="objectPage" binding="{/SalesOrderSet(\'1\')}"/>\
+<t:Table id="lineItems" rows="{path : \'ToLineItems\', suspended : true}" visibleRowCount="1">\
+	<Text id="itemPosition" text="{ItemPosition}"/>\
+</t:Table>',
+			that = this;
+
+		this.expectHeadRequest()
+			.expectRequest("SalesOrderSet('1')", {
+				__metadata : {uri : "SalesOrderSet('1')"},
+				SalesOrderID : "1"
+			})
+			.expectValue("itemPosition", [""]);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			var oTable = that.oView.byId("lineItems");
+
+			oBinding = oTable.getBinding("rows");
+			oTable.setBindingContext(that.oView.byId("objectPage").getBindingContext());
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest({
+					encodeRequestUri : false,
+					method : "POST",
+					requestUri : "SalesOrder_Confirm?SalesOrderID='1'"
+				}, {
+					__metadata : {uri : "SalesOrderSet('1')"},
+					SalesOrderID : "1"
+				});
+
+			return Promise.all([
+				oModel.callFunction("/SalesOrder_Confirm", {
+					method : "POST",
+					urlParameters : {SalesOrderID : "1"}
+				}).contextCreated(),
+				that.waitForChanges(assert)
+			]);
+		}).then(function () {
+			that.expectRequest("SalesOrderSet('1')/ToLineItems?$skip=0&$top=101", {
+					results : [{
+						__metadata : {
+							uri : "SalesOrderLineItemSet(SalesOrderID='1',ItemPosition='1')"
+						},
+						SalesOrderID : "1",
+						ItemPosition : "1"
+					}]
+				})
+				.expectValue("itemPosition", ["1"]);
+
+			// code under test
+			oBinding.resume();
+
+			return that.waitForChanges(assert);
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: A binding which already requested data gets suspended. The binding itself is not
+	// refreshed and it is not affected by other changes (refreshAfterChange) then the binding does
+	// not trigger a request if it gets resumed.
+	// BCP: 2280074593
+	QUnit.test("Resuming an unmodified binding does not fire a request while resuming",
+		function (assert) {
+		var oBinding,
+			oModel = createSalesOrdersModel(),
+			sView = '\
+<t:Table id="table" rows="{/SalesOrderSet(\'1\')/ToLineItems}" threshold="0" visibleRowCount="1">\
+	<Text id="itemPosition" text="{ItemPosition}"/>\
+</t:Table>',
+			that = this;
+
+		this.expectHeadRequest()
+			.expectRequest("SalesOrderSet('1')/ToLineItems?$skip=0&$top=1", {
+				results : [{
+					__metadata : {
+						uri : "SalesOrderLineItemSet(SalesOrderID='1',ItemPosition='1')"
+					},
+					SalesOrderID : "1",
+					ItemPosition : "1"
+				}]
+			})
+			.expectValue("itemPosition", ["1"]);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			oBinding = that.oView.byId("table").getBinding("rows");
+
+			// code under test
+			oBinding.suspend();
+
+			that.expectRequest({
+					encodeRequestUri : false,
+					method : "POST",
+					requestUri : "SalesOrder_Confirm?SalesOrderID='2'"
+				}, {
+					__metadata : {uri : "SalesOrderSet('2')"},
+					SalesOrderID : "2"
+				});
+
+			return Promise.all([
+				oModel.callFunction("/SalesOrder_Confirm", {
+					method : "POST",
+					urlParameters : {SalesOrderID : "2"}
+				}).contextCreated(),
+				that.waitForChanges(assert)
+			]);
+		}).then(function () {
+			// code under test - no requests expected
+			oBinding.resume();
+
+			return that.waitForChanges(assert);
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: When growing a responsive table with created items using the requestItems API
+	// there is no unnecessary data request.
+	// CPOUI5MODELS-845
+	QUnit.test("No unnecessary data request after requestItems", function (assert) {
+		var oBinding, oTable,
+			oModel = createSalesOrdersModel({defaultCountMode : CountMode.Inline}),
+			sView = '\
+<Table growing="true" growingThreshold="1" id="table" items="{/SalesOrderSet}">\
+	<Text id="id" text="{SalesOrderID}"/>\
+	<Input id="note" value="{Note}"/>\
+</Table>',
+			that = this;
+
+		this.expectHeadRequest()
+			.expectRequest("SalesOrderSet?$skip=0&$top=1&$inlinecount=allpages", {
+				__count : "0",
+				results : []
+			});
+
+		return this.createView(assert, sView, oModel).then(function () {
+			oTable = that.oView.byId("table");
+			oBinding = oTable.getBinding("items");
+
+			assert.deepEqual(oTable.getGrowingInfo(), {actual : 0, total : 0});
+			that.expectValue("note", ["created"]);
+
+			oBinding.create({Note : "created"}, /*bAtEnd*/false);
+
+			assert.deepEqual(oTable.getGrowingInfo(), {actual : 1, total : 1});
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectValue("note", ["created - changed"]);
+
+			oTable.getItems()[0].getCells()[1].setValue("created - changed");
+			// code under test: no request, length 0 is final
+			oTable.requestItems(1);
+
+			assert.deepEqual(oTable.getGrowingInfo(), {actual : 1, total : 1});
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest("SalesOrderSet?$skip=0&$top=1&$inlinecount=allpages", {
+					__count : "17",
+					results : [
+						{__metadata : {uri : "SalesOrderSet('42')"},
+						SalesOrderID : "42",
+						Note : "note42"}
+					]
+				});
+
+			// code under test: collection in backend has updated to 17 sales orders
+			oBinding.refresh();
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			assert.deepEqual(oTable.getGrowingInfo(), {actual : 1, total : 18});
+			that.expectValue("id", ["42"], 1)
+				.expectValue("note", ["note42"], 1);
+
+			// code under test: still no request
+			oTable.requestItems(1);
+
+			assert.deepEqual(oTable.getGrowingInfo(), {actual : 2, total : 18});
+			return that.waitForChanges(assert);
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: On rebinding a table with a relative binding and with transient contexts at the
+	// end, the table only shows data when the backend request returns in order to avoid that the
+	// transient contexts are first shown at the beginning of the table and then moved to the end
+	// when backend data is available ("flickering").
+	// JIRA: CPOUI5MODELS-884
+	QUnit.test("Don't show created contexts at end with pending data request", function (assert) {
+		var fnResolve, oTable,
+			oModel = createSalesOrdersModel(),
+			oResponse = {
+				statusCode : 200,
+				data : {
+					results : [{
+						__metadata : {
+							uri : "SalesOrderLineItemSet(SalesOrderID='1',ItemPosition='10')"
+						},
+						Note : "Foo",
+						ItemPosition : "10",
+						SalesOrderID : "1"
+					}]
+				}
+			},
+			sView = '\
+<t:Table id="table" binding="{/SalesOrderSet(\'1\')}" rows="{ToLineItems}" visibleRowCount="2">\
+	<Text id="itemPosition" text="{ItemPosition}" />\
+	<Text id="itemNote" text="{Note}" />\
+</t:Table>',
+			that = this;
+
+		this.expectHeadRequest()
+			.expectRequest("SalesOrderSet('1')", {
+				SalesOrderID : "1"
+			})
+			.expectRequest("SalesOrderSet('1')/ToLineItems?$skip=0&$top=102", oResponse)
+			.expectValue("itemPosition", ["10", ""])
+			.expectValue("itemNote", ["Foo", ""]);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			oTable = that.oView.byId("table");
+			that.expectValue("itemNote", "New item", 1);
+
+			oTable.getBinding("rows").create({"Note" : "New item"}, true);
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest("SalesOrderSet('2')", {
+					SalesOrderID : "2"
+				}).expectRequest("SalesOrderSet('2')/ToLineItems?$skip=0&$top=102", {
+					results : [{
+						__metadata : {
+							uri : "SalesOrderLineItemSet(SalesOrderID='2',ItemPosition='22')"
+						},
+						Note : "Bar",
+						ItemPosition : "22",
+						SalesOrderID : "2"
+					}]
+				})
+				.expectValue("itemPosition", "22", 0)
+				.expectValue("itemNote", ["Bar", ""]);
+
+			oTable.bindElement("/SalesOrderSet('2')");
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest("SalesOrderSet('1')/ToLineItems?$skip=0&$top=102",
+					new Promise(function (resolve) { fnResolve = resolve; })
+				)
+				.expectValue("itemPosition", "", 0)
+				.expectValue("itemNote", "", 0);
+
+			// code under test: unbind + bind with already loaded entity
+			oTable.unbindElement();
+			oTable.bindElement({
+				path : "/SalesOrderSet('1')",
+				// prevent reload from server => same scenario as in SalesOrders app
+				parameters : {select : "SalesOrderID"}
+			});
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectValue("itemPosition", "10", 0)
+				.expectValue("itemNote", ["Foo", "New item"]);
+
+			// code under test: only backend response triggers UI update
+			fnResolve(oResponse);
+
+			return that.waitForChanges(assert);
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: User interactions (filter, sort, refresh) for a list binding in "Client" mode
+	// behave the same as in "Server" mode. During user interactions, transient entries are kept in
+	// the creation area. When these entries become created persisted, they are removed from the
+	// creation area and are handled as normal persisted entries.
+	// JIRA: CPOUI5MODELS-780
+["refresh", "filter", "sort"].forEach(function (sAction) {
+	QUnit.test("#create with OperationMode.Client: " + sAction, function (assert) {
+		var oBinding, oContext,
+			oModel = createSalesOrdersModel({defaultOperationMode : "Client"}),
+			sView = '\
+<Table id="table" items="{/SalesOrderSet}">\
+	<Input id="note" value="{Note}"/>\
+</Table>',
+			that = this;
+
+		this.expectHeadRequest()
+			.expectRequest("SalesOrderSet", {
+				results : [{
+					__metadata : {uri : "SalesOrderSet('1')"},
+					SalesOrderID : "1",
+					Note : "Note 1"
+				}, {
+					__metadata : {uri : "SalesOrderSet('2')"},
+					SalesOrderID : "2",
+					Note : "Note 2"
+				}]
+			})
+			.expectValue("note", ["Note 1", "Note 2"]);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			oBinding = that.oView.byId("table").getBinding("items");
+
+			that.expectValue("note", ["transient", "Note 1", "Note 2"]);
+
+			oContext = oBinding.create({Note : "transient"}, false);
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectValue("note", ["inactive", "Note 1", "Note 2"], 1);
+
+			oBinding.create({Note : "inactive"}, true, {inactive : true});
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			if (sAction === "refresh") {
+				that.expectRequest("SalesOrderSet", {
+						results : [{
+							__metadata : {uri : "SalesOrderSet('1')"},
+							SalesOrderID : "1",
+							Note : "Note 1"
+						}, {
+							__metadata : {uri : "SalesOrderSet('2')"},
+							SalesOrderID : "2",
+							Note : "Note 2"
+						}]
+					});
+
+				// code under test
+				oBinding.refresh();
+			} else if (sAction === "filter") {
+				that.expectValue("note", ["Note 2"], 2);
+
+				// code under test
+				oBinding.filter(new Filter("SalesOrderID", FilterOperator.EQ, "2"));
+			} else if (sAction === "sort") {
+				that.expectValue("note", ["Note 2", "Note 1"], 2);
+
+				// code under test
+				oBinding.sort(new Sorter("SalesOrderID", /*bDescending*/true));
+			}
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest({
+					created : true,
+					data : {
+						__metadata : {type : "GWSAMPLE_BASIC.SalesOrder"},
+						Note : "transient"
+					},
+					deepPath : "/SalesOrderSet('~key~')",
+					method : "POST",
+					requestUri : "SalesOrderSet"
+				}, {
+					data : {
+						__metadata : {uri : "SalesOrderSet('3')"},
+						SalesOrderID : "3",
+						Note : "persisted"
+					},
+					statusCode : 201
+				})
+				.expectValue("note", "persisted", 0);
+
+			oModel.submitChanges();
+
+			return Promise.all([
+				oContext.created(),
+				that.waitForChanges(assert)
+			]);
+		}).then(function () {
+			if (sAction === "refresh") {
+				that.expectRequest("SalesOrderSet", {
+						results : [{
+							__metadata : {uri : "SalesOrderSet('1')"},
+							SalesOrderID : "1",
+							Note : "Note 1"
+						}, {
+							__metadata : {uri : "SalesOrderSet('2')"},
+							SalesOrderID : "2",
+							Note : "Note 2"
+						}, {
+							__metadata : {uri : "SalesOrderSet('3')"},
+							SalesOrderID : "3",
+							Note : "persisted"
+						}]
+					})
+					.expectValue("note", ["inactive", "Note 1", "Note 2", "persisted"]);
+
+				// code under test
+				oBinding.refresh();
+			} else if (sAction === "filter") {
+				that.expectValue("note", ["inactive", "Note 1"])
+					// "Note 2" in row 3 is unchanged
+					.expectValue("note", "persisted", 3);
+
+				// code under test
+				oBinding.filter();
+			} else if (sAction === "sort") {
+				that.expectValue("note", ["inactive", "Note 1"])
+					// "Note 2" in row 3 is unchanged
+					.expectValue("note", "persisted", 3);
+
+				// code under test
+				oBinding.sort();
+			}
+
+			return that.waitForChanges(assert);
+		});
+	});
+});
+
+	//*********************************************************************************************
+	// Scenario: A list binding in "Client" mode has an inactive, a transient and a created
+	// persisted item. After switching the list binding's parent context and then switching it back
+	// to the initial context, the inactive and transient items are restored and the created
+	// persisted item is handled as a normal persisted item outside the creation area. This behaves
+	// the same as in "Server" mode.
+	// JIRA: CPOUI5MODELS-780
+	QUnit.test("#create with OperationMode.Client: switch context", function (assert) {
+		var oBinding, oContext,
+			oModel = createSalesOrdersModel({defaultOperationMode : "Client"}),
+			sView = '\
+<FlexBox id="objectPage" binding="{/BusinessPartnerSet(\'42\')}">\
+	<Text id="businessPartnerID" text="{BusinessPartnerID}"/>\
+	<Table id="table" items="{ToSalesOrders}">\
+		<Text id="salesOrderID" text="{SalesOrderID}"/>\
+		<Input id="note" value="{Note}"/>\
+	</Table>\
+</FlexBox>',
+			that = this;
+
+		this.expectHeadRequest()
+			.expectRequest("BusinessPartnerSet('42')", {
+				__metadata : {uri : "BusinessPartnerSet('42')"},
+				BusinessPartnerID : "42"
+			})
+			.expectRequest("BusinessPartnerSet('42')/ToSalesOrders", {
+				results : [{
+					__metadata : {uri : "SalesOrderSet('1')"},
+					SalesOrderID : "1",
+					Note : "Note 1"
+				}, {
+					__metadata : {uri : "SalesOrderSet('2')"},
+					SalesOrderID : "2",
+					Note : "Note 2"
+				}]
+			})
+			.expectValue("businessPartnerID", "42")
+			.expectValue("salesOrderID", ["1", "2"])
+			.expectValue("note", ["Note 1", "Note 2"]);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			oBinding = that.oView.byId("table").getBinding("items");
+
+			that.expectValue("salesOrderID", ["", "1", "2"])
+				.expectValue("note", ["inactive", "Note 1", "Note 2"]);
+
+			oBinding.create({Note : "inactive"}, false, {inactive : true});
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectValue("salesOrderID", ["", "1", "2"], 1)
+				.expectValue("note", ["transient", "Note 1", "Note 2"], 1);
+
+			oContext = oBinding.create({Note : "transient"}, true);
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest({
+					created : true,
+					data : {
+						__metadata : {type : "GWSAMPLE_BASIC.SalesOrder"},
+						Note : "transient"
+					},
+					deepPath : "/BusinessPartnerSet('42')/ToSalesOrders('~key~')",
+					method : "POST",
+					requestUri : "BusinessPartnerSet('42')/ToSalesOrders"
+				}, {
+					data : {
+						__metadata : {uri : "SalesOrderSet('3')"},
+						SalesOrderID : "3",
+						Note : "persisted"
+					},
+					statusCode : 201
+				})
+				.expectValue("salesOrderID", "3", 1)
+				.expectValue("note", "persisted", 1);
+
+			oModel.submitChanges();
+
+			return Promise.all([
+				oContext.created(),
+				that.waitForChanges(assert)
+			]);
+		}).then(function () {
+			that.expectValue("salesOrderID", ["", "1", "2"], 2)
+				.expectValue("note", ["transient", "Note 1", "Note 2"], 2);
+
+			oBinding.create({Note : "transient"}, true);
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest("BusinessPartnerSet('99')", {
+					__metadata : {uri : "BusinessPartnerSet('99')"},
+					BusinessPartnerID : "99"
+				})
+				.expectRequest("BusinessPartnerSet('99')/ToSalesOrders", {
+					results : [{
+						__metadata : {uri : "SalesOrderSet('11')"},
+						SalesOrderID : "11",
+						Note : "Note 11"
+					}, {
+						__metadata : {uri : "SalesOrderSet('12')"},
+						SalesOrderID : "12",
+						Note : "Note 12"
+					}]
+				})
+				.expectValue("businessPartnerID", "99")
+				// TODO: While context change, can we prevent the separate change event for removing
+				// first the transient and afterwards the persisted items and do one combined change
+				// event instead?
+				.expectValue("salesOrderID", ["1", "2"], 2)
+				.expectValue("note", ["Note 1", "Note 2"], 2)
+				.expectValue("salesOrderID", "2", 2)
+				.expectValue("note", "Note 2", 2)
+				.expectValue("salesOrderID", ["11", "12"])
+				.expectValue("note", ["Note 11", "Note 12"]);
+
+			that.oView.byId("objectPage").bindElement("/BusinessPartnerSet('99')");
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest("BusinessPartnerSet('42')", {
+					__metadata : {uri : "BusinessPartnerSet('42')"},
+					BusinessPartnerID : "42"
+				})
+				.expectRequest("BusinessPartnerSet('42')/ToSalesOrders", {
+					results : [{
+						__metadata : {uri : "SalesOrderSet('1')"},
+						SalesOrderID : "1",
+						Note : "Note 1"
+					}, {
+						__metadata : {uri : "SalesOrderSet('2')"},
+						SalesOrderID : "2",
+						Note : "Note 2"
+					}, {
+						__metadata : {uri : "SalesOrderSet('3')"},
+						SalesOrderID : "3",
+						Note : "persisted"
+					}]
+				})
+				.expectValue("businessPartnerID", "42")
+				.expectValue("salesOrderID", ["", "", "1", "2", "3"])
+				.expectValue("note", ["inactive", "transient", "Note 1", "Note 2", "persisted"]);
+
+			// code under test
+			that.oView.byId("objectPage").bindElement("/BusinessPartnerSet('42')");
+
+			return that.waitForChanges(assert);
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: deleting an inactive, a transient and a created persisted item from a list binding
+	// in "Client" mode. The binding behaves the same as in "Server" mode.
+	// JIRA: CPOUI5MODELS-780
+	QUnit.test("#create with OperationMode.Client: delete", function (assert) {
+		var oBinding, oContextInactive, oContextPersisted, oContextTransient,
+			oModel = createSalesOrdersModel({defaultOperationMode : "Client"}),
+			sView = '\
+<Table id="table" items="{/SalesOrderSet}">\
+	<Text id="note" text="{Note}"/>\
+</Table>',
+			that = this;
+
+		this.expectHeadRequest()
+			.expectRequest("SalesOrderSet", {
+				results : [{
+					__metadata : {uri : "SalesOrderSet('1')"},
+					Note : "from server",
+					SalesOrderID : "1"
+				}]
+			})
+			.expectValue("note", ["from server"]);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			oBinding = that.oView.byId("table").getBinding("items");
+
+			that.expectValue("note", ["inactive", "from server"]);
+
+			oContextInactive = oBinding.create({Note : "inactive"}, /*bAtEnd*/false,
+				{inactive : true});
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectValue("note", ["persisted", "from server"], 1);
+
+			oContextPersisted = oBinding.create({Note : "persisted"}, /*bAtEnd*/true);
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest({
+					created : true,
+					data : {
+						__metadata : {type : "GWSAMPLE_BASIC.SalesOrder"},
+						Note : "persisted"
+					},
+					method : "POST",
+					requestUri : "SalesOrderSet"
+				}, {
+					data : {
+						__metadata : {uri : "SalesOrderSet('2')"},
+						Note : "persisted",
+						SalesOrderID : "2"
+					},
+					statusCode : 201
+				});
+
+			// code under test
+			oModel.submitChanges();
+
+			return Promise.all([
+				oContextPersisted.created(),
+				that.waitForChanges(assert)
+			]);
+		}).then(function () {
+			that.expectValue("note", ["transient", "from server"], 2);
+
+			oContextTransient = oBinding.create({Note : "transient"}, /*bAtEnd*/true);
+
+			return that.waitForChanges(assert);
+		}).then(function () {
+			that.expectRequest({
+					method : "DELETE",
+					requestUri : "SalesOrderSet('2')"
+				}, {})
+				.expectRequest("SalesOrderSet?"
+					+ "$filter=not(SalesOrderID eq '2')", {
+					results : [{
+						__metadata : {uri : "SalesOrderSet('1')"},
+						Note : "from server",
+						SalesOrderID : "1"
+					}]
+				})
+				.expectValue("note", ["transient", "from server"], 1);
+
+			return Promise.all([
+				// code under test
+				oContextPersisted.delete(),
+				that.waitForChanges(assert)
+			]);
+		}).then(function () {
+			that.expectValue("note", ["from server"], 1);
+
+			return Promise.all([
+				// code under test
+				oContextTransient.delete(),
+				that.waitForChanges(assert)
+			]);
+		}).then(function () {
+			that.expectValue("note", ["from server"]);
+
+			return Promise.all([
+				// code under test
+				oContextInactive.delete(),
+				that.waitForChanges(assert)
+			]);
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: Calling ODataListBinding#getContexts with bKeepCurrent=true does not have an
+	// influence on ODataListBinding#getCurrentContexts.
+	// JIRA: CPOUI5MODELS-802
+	QUnit.test("ODataListBinding#getContexts: bKeepCurrent=true", function (assert) {
+		var oModel = createSalesOrdersModel(),
+			sView = '\
+<t:Table id="table" rows="{/SalesOrderSet}" threshold="0" visibleRowCount="2">\
+	<Text id="id" text="{SalesOrderID}"/>\
+</t:Table>',
+			that = this;
+
+		this.expectHeadRequest()
+			.expectRequest("SalesOrderSet?$skip=0&$top=2", {
+				results : [{
+					__metadata : {uri : "SalesOrderSet('1')"},
+					SalesOrderID : "1"
+				}, {
+					__metadata : {uri : "SalesOrderSet('2')"},
+					SalesOrderID : "2"
+				}]
+			})
+			.expectValue("id", ["1", "2"]);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			var oTable = that.oView.byId("table"),
+				oBinding = oTable.getBinding("rows"),
+				aContexts = oBinding.getCurrentContexts();
+
+			// code under test - getContextByIndex is calling getContexts with bKeepCurrent=true
+			assert.strictEqual(oTable.getContextByIndex(0), aContexts[0]);
+
+			// code under test
+			assert.deepEqual(oBinding.getCurrentContexts(), aContexts);
+
+			assert.throws(function () {
+				oBinding.getContexts(/*iStartIndex*/0, /*iLength*/1, /*iMaximumPrefetchSize*/1,
+					/*bKeepCurrent*/true);
+			}, Error("Unsupported operation: sap.ui.model.odata.v2.ODataListBinding#getContexts,"
+				+ " must not use both iMaximumPrefetchSize and bKeepCurrent"));
+
+			return that.waitForChanges(assert);
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: Calling JSONListBinding#getContexts with bKeepCurrent=true does not have an
+	// influence on JSONListBinding#getCurrentContexts.
+	// JIRA: CPOUI5MODELS-802
+	QUnit.test("JSONListBinding#getContexts: bKeepCurrent=true", function (assert) {
+		var oModel = new JSONModel({
+				data : [{ID : "1"}, {ID : "2"}, {ID : "3"}]
+			}),
+			sView = '\
+<t:Table id="table" rows="{/data}" visibleRowCount="2">\
+	<Text id="id" text="{ID}"/>\
+</t:Table>',
+			that = this;
+
+		this.expectValue("id", ["1", "2"]);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			var oTable = that.oView.byId("table"),
+				oBinding = oTable.getBinding("rows"),
+				aContexts = oBinding.getCurrentContexts();
+
+			// code under test - getContextByIndex is calling getContexts with bKeepCurrent=true
+			assert.strictEqual(oTable.getContextByIndex(0), aContexts[0]);
+
+			// code under test
+			assert.deepEqual(oBinding.getCurrentContexts(), aContexts);
+
+			assert.throws(function () {
+				oBinding.getContexts(/*iStartIndex*/0, /*iLength*/1, /*iMaximumPrefetchSize*/1,
+					/*bKeepCurrent*/true);
+			}, Error("Unsupported operation: sap.ui.model.json.JSONListBinding#getContexts, must"
+				+ " not use both iMaximumPrefetchSize and bKeepCurrent"));
+
+			return that.waitForChanges(assert);
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: Calling XMLListBinding#getContexts with bKeepCurrent=true does not have an
+	// influence on XMLListBinding#getCurrentContexts.
+	// JIRA: CPOUI5MODELS-802
+	QUnit.test("XMLListBinding#getContexts: bKeepCurrent=true", function (assert) {
+		var oModel = new XMLModel(),
+			sView = '\
+<t:Table id="table" rows="{/data}" visibleRowCount="2">\
+	<Text id="id" text="{@ID}"/>\
+</t:Table>',
+			that = this;
+
+		oModel.setXML('<?xml version="1.0"?><root><data ID="1" /><data ID="2" /><data ID="3" />'
+			+ '</root>');
+		this.expectValue("id", ["1", "2"]);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			var oTable = that.oView.byId("table"),
+				oBinding = oTable.getBinding("rows"),
+				aContexts = oBinding.getCurrentContexts();
+
+			// code under test - getContextByIndex is calling getContexts with bKeepCurrent=true
+			assert.strictEqual(oTable.getContextByIndex(0), aContexts[0]);
+
+			// code under test
+			assert.deepEqual(oBinding.getCurrentContexts(), aContexts);
+
+			assert.throws(function () {
+				oBinding.getContexts(/*iStartIndex*/0, /*iLength*/1, /*iMaximumPrefetchSize*/1,
+					/*bKeepCurrent*/true);
+			}, Error("Unsupported operation: sap.ui.model.xml.XMLListBinding#getContexts, must not"
+				+ " use both iMaximumPrefetchSize and bKeepCurrent"));
+
+			return that.waitForChanges(assert);
+		});
+	});
+
+	//*********************************************************************************************
+	// Scenario: Calling MessageListBinding#getContexts with bKeepCurrent=true does not have an
+	// influence on MessageListBinding#getCurrentContexts. MessageListBinding#getCurrentContexts
+	// returns only the messages that have been requested with the last call of
+	// MessageListBinding#getContexts.
+	// JIRA: CPOUI5MODELS-802
+	QUnit.test("MessageListBinding#getContexts: bKeepCurrent=true", function (assert) {
+		var aMessages = [
+				new Message({code : "1"}),
+				new Message({code : "2"}),
+				new Message({code : "3"})
+			],
+			oModel = new MessageModel(),
+			sView = '\
+<t:Table id="table" rows="{/}" visibleRowCount="2">\
+	<Text id="code" text="{code}"/>\
+</t:Table>',
+			that = this;
+
+		oModel.setData(aMessages);
+		this.expectValue("code", ["1", "2"]);
+
+		return this.createView(assert, sView, oModel).then(function () {
+			var oTable = that.oView.byId("table"),
+				oBinding = oTable.getBinding("rows"),
+				aContexts = oBinding.getCurrentContexts();
+
+			// code under test - only the context for the visible rows are returned
+			assert.strictEqual(aContexts.length, 2);
+
+			// code under test - getContextByIndex is calling getContexts with bKeepCurrent=true
+			assert.strictEqual(oTable.getContextByIndex(0), aContexts[0]);
+
+			// code under test
+			assert.deepEqual(oBinding.getCurrentContexts(), aContexts);
+
+			assert.throws(function () {
+				oBinding.getContexts(/*iStartIndex*/0, /*iLength*/1, /*iMaximumPrefetchSize*/1,
+					/*bKeepCurrent*/true);
+			}, Error("Unsupported operation: sap.ui.model.message.MessageListBinding#getContexts,"
+				+ " must not use both iMaximumPrefetchSize and bKeepCurrent"));
 
 			return that.waitForChanges(assert);
 		});

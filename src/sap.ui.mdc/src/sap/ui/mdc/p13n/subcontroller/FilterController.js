@@ -3,8 +3,8 @@
  */
 
 sap.ui.define([
-	'sap/ui/mdc/condition/FilterOperatorUtil', './BaseController', 'sap/ui/mdc/p13n/P13nBuilder', 'sap/ui/mdc/p13n/FlexUtil', 'sap/base/Log'
-], function (FilterOperatorUtil, BaseController, P13nBuilder, FlexUtil, Log) {
+	'sap/ui/mdc/condition/FilterOperatorUtil', './BaseController', 'sap/ui/mdc/p13n/P13nBuilder', 'sap/ui/mdc/p13n/FlexUtil', 'sap/base/Log', 'sap/base/util/merge'
+], function (FilterOperatorUtil, BaseController, P13nBuilder, FlexUtil, Log, merge) {
 	"use strict";
 
     var FilterController = BaseController.extend("sap.ui.mdc.p13n.subcontroller.FilterController", {
@@ -14,9 +14,8 @@ sap.ui.define([
 		}
     });
 
-    FilterController.prototype.getCurrentState = function() {
-        var oControlState = this.getAdaptationControl().getCurrentState();
-        return oControlState.hasOwnProperty("filter") ? oControlState.filter : {};
+    FilterController.prototype.getStateKey = function() {
+        return "filter";
     };
 
     FilterController.prototype.getUISettings = function() {
@@ -94,11 +93,15 @@ sap.ui.define([
         }
     };
 
+    FilterController.prototype._getPresenceAttribute = function(bexternalAppliance){
+        return "isFiltered";
+    };
+
     FilterController.prototype.getAdaptationUI = function (oPropertyHelper, oWrapper) {
         var oAdaptationModel = this._getP13nModel(oPropertyHelper);
 
         return this.getAdaptationControl().retrieveInbuiltFilter().then(function(oAdaptationFilterBar){
-            oAdaptationFilterBar.setP13nModel(oAdaptationModel);
+            oAdaptationFilterBar.setP13nData(oAdaptationModel.oData);
             oAdaptationFilterBar.setLiveMode(false);
             this._oAdaptationFB = oAdaptationFilterBar;
             return oAdaptationFilterBar.createFilterFields().then(function(){
@@ -109,18 +112,24 @@ sap.ui.define([
 
     FilterController.prototype.update = function(){
         BaseController.prototype.update.apply(this, arguments);
-        this.getAdaptationControl().getInbuiltFilter().createFilterFields();
+        var oAdaptationControl = this.getAdaptationControl();
+        var oInbuiltFilter = oAdaptationControl && oAdaptationControl.getInbuiltFilter();
+
+        if (oInbuiltFilter) {
+            oInbuiltFilter.createFilterFields();
+        }
     };
 
     FilterController.prototype.getDelta = function(mPropertyBag) {
+        mPropertyBag.applyAbsolute = true; //Note: currently the filter appliance is always handled as Snapshot, also via StateUtil!
         return FlexUtil.getConditionDeltaChanges(mPropertyBag);
     };
 
     FilterController.prototype.model2State = function() {
         var oItems = {},
             oFilter = this.getCurrentState();
-        this._oAdaptationModel.getProperty("/items").forEach(function(oItem) {
-            if (oItem.isFiltered && Object.keys(oFilter).includes(oItem.name)) {
+            this._oAdaptationModel.getProperty("/items").forEach(function(oItem) {
+            if (oItem.active && Object.keys(oFilter).includes(oItem.name)) {
                 oItems[oItem.name] = oFilter[oItem.name];
             }
         });
@@ -137,7 +146,7 @@ sap.ui.define([
             var sName = oProperty.name;
 
             var aExistingFilters = mExistingFilters[sName];
-            mItem.isFiltered = aExistingFilters && aExistingFilters.length > 0 ? true : false;
+            mItem.active = aExistingFilters && aExistingFilters.length > 0 ? true : false;
 
             return !(oProperty.filterable === false);
         });
@@ -148,6 +157,19 @@ sap.ui.define([
         }, oP13nData.items);
 
         return oP13nData;
+    };
+
+    FilterController.prototype.changesToState = function(aChanges, mOld, mNew) {
+
+        var mStateDiff = {};
+
+        aChanges.forEach(function(oChange){
+            var oDiffContent = merge({}, oChange.changeSpecificData.content);
+            var sName = oDiffContent.name;
+            mStateDiff[sName] = mNew[sName];
+        });
+
+        return mStateDiff;
     };
 
 	return FilterController;

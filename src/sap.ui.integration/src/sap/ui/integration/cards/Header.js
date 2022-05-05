@@ -54,7 +54,9 @@ sap.ui.define([
 
 			var mSettings = {
 				title: mConfiguration.title,
+				titleMaxLines: mConfiguration.titleMaxLines,
 				subtitle: mConfiguration.subTitle,
+				subtitleMaxLines: mConfiguration.subTitleMaxLines,
 				dataTimestamp: mConfiguration.dataTimestamp
 			};
 
@@ -80,7 +82,7 @@ sap.ui.define([
 
 			FHeader.call(this, mSettings);
 
-			if (oActionsToolbar) {
+			if (oActionsToolbar && oActionsToolbar.isA("sap.ui.integration.controls.ActionsToolbar")) {
 				oActionsToolbar.attachVisibilityChange(this._handleToolbarVisibilityChange.bind(this));
 			}
 		},

@@ -86,6 +86,23 @@ sap.ui.define([
 		Then.theVariantManagementIsDirty(false);
 	});
 
+	opaTest("When I Resize the columns and save it as new variant", function (Given, When, Then) {
+		When.iSimulateColumnResize("Name", "500px");
+		When.iSaveVariantAs("Standard", "ColumnResizeVariant");
+		When.iSelectDefaultVariant("ColumnResizeVariant");
+		Then.iShouldSeeSelectedVariant("ColumnResizeVariant");
+
+		Then.iTeardownMyAppFrame();
+		Given.iStartMyAppInAFrame({
+			source: 'test-resources/sap/ui/mdc/qunit/p13n/OpaTests/appUnderTestTable/TableOpaApp.html',
+			autoWait: true
+		});
+		Then.iShouldSeeSelectedVariant("ColumnResizeVariant");
+		Then.iShouldSeeTheUpdatedColumnWidth();
+		When.iSelectVariant("Standard");
+		Then.iShouldSeeSelectedVariant("Standard");
+	});
+
 	opaTest("When I press on 'Add/Remove Columns' button, the table-specific-dialog opens", function (Given, When, Then) {
 		When.iPressOnButtonWithIcon(Arrangement.P13nDialog.Settings.Icon);
 
@@ -131,7 +148,7 @@ sap.ui.define([
 		Then.thePersonalizationDialogOpens();
 
 		//open the select control in the sort tab
-		When.iClickOnP13nSelect("$_none");
+		When.iClickOnP13nSelect("");
 
 		//check that the expected keys are visible in the sort dialog
 		Then.iShouldSeeP13nMenuItems(aSortItems);
@@ -164,7 +181,7 @@ sap.ui.define([
 		Then.thePersonalizationDialogOpens();
 
 		//open select (empty) select control in sort panel and select 'Country'
-		When.iClickOnP13nSelect("$_none");
+		When.iClickOnP13nSelect("");
 		When.iSelectP13nMenuItem("Country");
 
 	});
@@ -334,6 +351,13 @@ sap.ui.define([
 		Then.iShouldSeeP13nItem("Founding Year", 4);
 		Then.iShouldSeeP13nItem("Changed By", 5);
 		Then.iShouldSeeP13nItem("Created On", 6);
+	});
+
+	opaTest("check search", function (Given, When, Then) {
+		When.iEnterValueInP13nSearchField("name");
+
+		Then.iShouldSeeP13nItems([{p13nItem: "Name", selected: true}]);
+		Then.iShouldSeeP13nItem("Name", 0);
 	});
 
 	opaTest("check column header sort functionality: all previous sorters are deleted", function (Given, When, Then) {

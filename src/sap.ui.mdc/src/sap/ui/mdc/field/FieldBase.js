@@ -22,7 +22,6 @@ sap.ui.define([
 	'sap/base/util/merge',
 	'sap/base/Log',
 	'sap/ui/dom/containsOrEquals',
-	'sap/ui/model/Filter',
 	'sap/ui/model/BindingMode',
 	'sap/ui/model/FormatException',
 	'sap/ui/model/ParseException',
@@ -53,7 +52,6 @@ sap.ui.define([
 	merge,
 	Log,
 	containsOrEquals,
-	Filter,
 	BindingMode,
 	FormatException,
 	ParseException,
@@ -565,8 +563,6 @@ sap.ui.define([
 
 		Control.prototype.init.apply(this, arguments);
 
-		this._oManagedObjectModel = new ManagedObjectModel(this);
-
 		this._oObserver = new ManagedObjectObserver(this._observeChanges.bind(this));
 
 		this._oObserver.observe(this, {
@@ -575,8 +571,6 @@ sap.ui.define([
 			aggregations: ["fieldInfo", "content", "contentEdit", "contentDisplay"],
 			associations: ["fieldHelp", "ariaLabelledBy"]
 		});
-
-		this._oDatePickerRequested = {};
 
 		this.attachEvent("modelContextChange", this._handleModelContextChange, this);
 
@@ -623,8 +617,10 @@ sap.ui.define([
 			_detachContentHandlers.call(this, oContentDisplay);
 		}
 
-		this._oManagedObjectModel.destroy();
-		delete this._oManagedObjectModel;
+		if (this._oManagedObjectModel) {
+			this._oManagedObjectModel.destroy();
+			delete this._oManagedObjectModel;
+		}
 
 		this._oObserver.disconnect();
 		this._oObserver = undefined;
@@ -655,6 +651,9 @@ sap.ui.define([
 		if (!this.bDelegateInitialized && !this.bDelegateLoading) {
 			this.initControlDelegate();
 		}
+		this._triggerCheckCreateInternalContent();
+
+		this._bSettingsApplied = true;
 
 		return this;
 	};
@@ -1150,6 +1149,10 @@ sap.ui.define([
 
 		if (oChanges.name === "editMode") {
 			_refreshLabel.call(this); // as required-idicator might set or removed on Label
+			if (this._bSettingsApplied && (oChanges.old === EditMode.Display || oChanges.old === EditMode.EditableDisplay || oChanges.current === EditMode.Display || oChanges.current === EditMode.EditableDisplay)) {
+				// edit mode changed after settings applied (happens if edit mode is bound and binding updates after control initialization)
+				this._triggerCheckCreateInternalContent();
+			}
 		}
 	};
 
@@ -1586,6 +1589,34 @@ sap.ui.define([
 		}
 	}
 
+	/*
+	 * Check if all needed information are provided. If possible create internal controls
+	 */
+	FieldBase.prototype._checkCreateInternalContent = function() {
+
+		if (this.getVisible() && this._oContentFactory.getDataType()) {
+			_createInternalContentWrapper.call(this);
+		}
+
+	};
+
+	/*
+	 * To be sure that the check is not called multiple times it needs
+	 * to be checked if there is a pending check.
+	 * Multiple calls might happen if properties are cheged oftten or
+	 * the chck is triggered in BindingContext update (what is often called in propagation).
+	 */
+	FieldBase.prototype._triggerCheckCreateInternalContent = function() {
+
+		if (!this._oCheckCreateInternalContentPromise) {
+			this._oCheckCreateInternalContentPromise = this.awaitControlDelegate().then(function() {
+				delete this._oCheckCreateInternalContentPromise;
+				this._checkCreateInternalContent();
+			}.bind(this));
+		}
+
+	};
+
 	function _createInternalContent() {
 		var sEditMode = this.getEditMode();
 		var oContent = this.getContent();
@@ -1665,6 +1696,7 @@ sap.ui.define([
 				}
 
 				_refreshLabel.call(this);
+				delete this._oCreateContentPromise; // after finished new creation request can be sync again
 			}.bind(this));
 		}
 	}
@@ -1702,6 +1734,9 @@ sap.ui.define([
 	};
 
 	function _setModelOnContent(oContent) {
+		if (!this._oManagedObjectModel && !this._bIsBeingDestroyed) {
+			this._oManagedObjectModel = new ManagedObjectModel(this);
+		}
 		oContent.setModel(this._oManagedObjectModel, "$field");
 	}
 
@@ -2507,6 +2542,9 @@ sap.ui.define([
 					if (aNewConditions[0].outParameters) {
 						aConditions[i].outParameters = aNewConditions[0].outParameters;
 					}
+					if (aNewConditions[0].payload) {
+						aConditions[i].payload = aNewConditions[0].payload;
+					}
 				}
 			} else {
 				var oOperator = FilterOperatorUtil.getEQOperator(this._getOperators());
@@ -2534,7 +2572,7 @@ sap.ui.define([
 				}
 
 				// take what ever comes from field help as valid - even if it is an empty key
-				var iIndex = bAdd ? -1 : FilterOperatorUtil.indexOfCondition(oCondition, aConditions);
+				var iIndex = bAdd ? -1 : FilterOperatorUtil.indexOfCondition(oCondition, aConditions);	// Why?
 				if (iIndex === -1) { // check if already exist
 					aConditions.push(oCondition);
 				} else if (oCondition.values[1] !== aConditions[iIndex].values[1] && aConditions[iIndex].values[1]) {
@@ -2595,6 +2633,7 @@ sap.ui.define([
 		}
 
 		var aConditionsOld = this.getConditions();
+
 		if (!deepEqual(aConditions, aConditionsOld)) {
 			this._oNavigateCondition = undefined;
 			this._oContentFactory.updateConditionType();
@@ -2604,13 +2643,11 @@ sap.ui.define([
 			if (!FilterOperatorUtil.compareConditionsArray(aConditions, aConditionsOld)) { // update only if real change
 				// handle out-parameters
 				oFieldHelp.onControlChange();
-
 				_triggerChange.call(this, aConditions, true);
 			}
 		} else if (bChangeAfterError) { // last valif value choosen again
 			_triggerChange.call(this, aConditions, true);
 		}
-
 	}
 
 	function _handleFieldHelpNavigated(oEvent) {
@@ -2751,7 +2788,8 @@ sap.ui.define([
 		//		// also in display mode to get right text
 		//		_handleConditionsChange.call(this, this.getConditions());
 		if (!isEditing && !this._bPendingConditionUpdate && this.getConditions().length > 0 &&
-			(this.getMaxConditions() !== 1 || (this.getDisplay() !== FieldDisplay.Value && !this._bParseError))) {
+			(this.getMaxConditions() !== 1 || (this.getDisplay() !== FieldDisplay.Value && !this._bParseError))
+			&& this._oManagedObjectModel) {
 			// update tokens in MultiValue
 			// update text/value only if no parse error, otherwise wrong value would be removed
 			// don't update if contidions are outdated (updated async in Field)
@@ -2778,11 +2816,23 @@ sap.ui.define([
 		var oFieldHelp = _getFieldHelp.call(this);
 		if (oFieldHelp && !this._bConnected) {
 			var oConditionModelInfo = _getConditionModelInfo.call(this);
+			var oType;
+			var bIsMeasure = this._oContentFactory.isMeasure();
+
+			if (bIsMeasure) {
+				// for value help, use the basic type of the unit part, not the unit type. (As ony this part is tranfered, not the composite-array.)
+				var aCompositeTypes = this._oContentFactory.getCompositeTypes();
+				if (aCompositeTypes && aCompositeTypes.length > 1) { // if no type is defined the default (String) will be used
+					oType = aCompositeTypes[1];
+				}
+			} else {
+				oType = this._oContentFactory.getDataType(); // use data type of Field
+			}
 			var oConfig = { // TODO: only what is needed (also for DefineConditions and Tokenizer)
 					maxConditions: this.getMaxConditions(), // TODO: in unit case only 1?
-					dataType: this._oContentFactory.getDataType(),
+					dataType: oType,
 					operators: this._getOperators(),
-					display: this._oContentFactory.isMeasure() ? FieldDisplay.Value : this.getDisplay(),
+					display: bIsMeasure ? FieldDisplay.Value : this.getDisplay(),
 					delegate: this.getControlDelegate(),
 					delegateName: this.getDelegate() && this.getDelegate().name,
 					payload: this.getPayload(),
@@ -2895,7 +2945,8 @@ sap.ui.define([
 		return {
 			valueType: this._oContentFactory.retrieveDataType(),
 			originalDateType: this._oContentFactory.getDateOriginalType() || this._oContentFactory.getUnitOriginalType(),
-			additionalType: this._oContentFactory.getUnitType(), // only set if unit
+			additionalType: this._oContentFactory.getUnitType(), // only set if unit or timezone
+			compositeTypes: this._oContentFactory.getCompositeTypes(), // only set if CompositeType used
 			display: this._oContentFactory.isMeasure() ? FieldDisplay.Value : this.getDisplay(),
 			fieldHelpID: this._oContentFactory.isMeasure() ? undefined : this.getFieldHelp() || this._sDefaultFieldHelp,
 			operators: this._getOperators(),
@@ -2909,7 +2960,9 @@ sap.ui.define([
 			payload: this.getPayload(),
 			preventGetDescription: this._bPreventGetDescription,
 			conditionModel: oConditionModelInfo.model,
-			conditionModelName : oConditionModelInfo.name,
+			conditionModelName: oConditionModelInfo.name,
+			convertWhitespaces: this.getEditMode() === EditMode.Display || this.getMaxConditions() !== 1, // also replace whitespaces in tokens
+			control: this,
 			defaultOperatorName : this.getDefaultOperator ? this.getDefaultOperator() : null
 		};
 
@@ -2971,6 +3024,7 @@ sap.ui.define([
 			valueType: this._oContentFactory.getUnitType(),
 			originalDateType: this._oContentFactory.getDateOriginalType() || this._oContentFactory.getUnitOriginalType(),
 			additionalType: this._oContentFactory.retrieveDataType(), // use type of measure for currentValue
+			compositeTypes: this._oContentFactory.getCompositeTypes(),
 			display: this.getDisplay(),
 			fieldHelpID: this.getFieldHelp() || this._sDefaultFieldHelp,
 			operators: ["EQ"],
@@ -2985,6 +3039,8 @@ sap.ui.define([
 			preventGetDescription: this._bPreventGetDescription,
 			conditionModel: oConditionModelInfo.model,
 			conditionModelName : oConditionModelInfo.name,
+			convertWhitespaces: this.getEditMode() === EditMode.Display || this.getEditMode() === EditMode.EditableDisplay,
+			control: this,
 			getConditions: this.getConditions.bind(this) // TODO: better solution to update unit in all conditions
 		};
 
@@ -3154,6 +3210,17 @@ sap.ui.define([
 		return {name: sName, model: oConditionModel};
 
 	}
+
+	FieldBase.prototype._isPropertyInitial = function(sPropertyName) {
+
+		// as bound propertys are never initial even if there is no existing binding right now check the binding too
+		if (this.isBound(sPropertyName) && !this.getBinding(sPropertyName)) {
+			return !Object.prototype.hasOwnProperty.call(this.mProperties, sPropertyName);
+		} else {
+			return this.isPropertyInitial(sPropertyName);
+		}
+
+	};
 
 	return FieldBase;
 

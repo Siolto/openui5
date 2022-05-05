@@ -107,7 +107,7 @@ describe('sap.m.MultiInput', function() {
 	it("Should visualize MultiInput after navigating with arrow key", function () {
 		var oMultiInput = element(by.id("multiInputWithOneLongToken"));
 		browser.executeScript("document.getElementById('multiInputWithOneLongToken').scrollIntoView()").then(function() {
-			oMultiInput.click();
+			element(by.id("multiInputWithOneLongToken-inner")).click();
 			expect(takeScreenshot(oMultiInput)).toLookAs("MI_with_one_long_token_focused_in");
 
 			browser.actions().sendKeys(protractor.Key.ARROW_LEFT).perform();
@@ -196,6 +196,23 @@ describe('sap.m.MultiInput', function() {
 				browser.actions().sendKeys("S").perform();
 
 				expect(takeScreenshot()).toLookAs("suggestions_popover_margins");
+			});
+		});
+
+		// MultiInput with placeholder and nMore
+		it("Should visualize MultiInput placeholder when nMore was previously present", function () {
+			var oMultiInput = element(by.id("mi-placeholder"));
+			browser.executeScript("arguments[0].scrollIntoView()", oMultiInput).then(function () {
+				expect(takeScreenshot()).toLookAs("multiinput_nmore_initial");
+
+				browser.executeScript("sap.ui.getCore().byId('mi-placeholder').setTokens([])");
+				expect(takeScreenshot()).toLookAs("multiinput_placeholder");
+
+				oMultiInput.click();
+				expect(takeScreenshot()).toLookAs("multiinput_placeholder_focus");
+
+				element(by.id("mi-long-sugg-small-width")).click();
+				expect(takeScreenshot()).toLookAs("multiinput_placeholder_blur");
 			});
 		});
 });

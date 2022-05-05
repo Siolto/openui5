@@ -368,7 +368,7 @@ sap.ui.define([
 		oFFLight.destroy();
 
 		// If running on the phone then test behavior if type is explicitly set to Simple
-		/*  if (sap.ui.Device.system.phone) {
+		/*  if (Device.system.phone) {
 
 			var oFFPhone = new FacetFilter({
 				type : FacetFilterType.Simple
@@ -1960,7 +1960,7 @@ sap.ui.define([
 			destroyFF(this.oFF);
 		},
 		/**
-		 *
+		 * @param {QUnit.Assert} assert
 		 * @param {int} iListCount the number of expected ff lists
 		 */
 		testFacetFilterList: function (assert, iListCount) {

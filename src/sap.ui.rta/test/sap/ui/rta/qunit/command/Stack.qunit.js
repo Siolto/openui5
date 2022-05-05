@@ -1,32 +1,28 @@
 /* global QUnit */
 
 sap.ui.define([
-	"sap/ui/rta/command/CommandFactory",
 	"sap/ui/dt/DesignTimeMetadata",
+	"sap/ui/fl/write/api/ChangesWriteAPI",
+	"sap/ui/fl/write/api/PersistenceWriteAPI",
+	"sap/ui/fl/Change",
+	"sap/ui/rta/command/CommandFactory",
 	"sap/ui/rta/command/LREPSerializer",
 	"sap/ui/rta/command/Stack",
-	"sap/ui/fl/write/api/ChangesWriteAPI",
-	"sap/ui/fl/Utils",
-	"sap/ui/fl/Change",
+	"sap/ui/thirdparty/sinon-4",
 	"sap/m/Input",
 	"sap/m/Panel",
-	"sap/ui/core/UIComponent",
-	"sap/ui/fl/write/api/PersistenceWriteAPI",
-	"sap/ui/thirdparty/sinon-4",
 	"test-resources/sap/ui/rta/qunit/RtaQunitUtils"
 ], function(
-	CommandFactory,
 	DesignTimeMetadata,
+	ChangesWriteAPI,
+	PersistenceWriteAPI,
+	Change,
+	CommandFactory,
 	CommandSerializer,
 	CommandStack,
-	ChangesWriteAPI,
-	FlUtils,
-	Change,
+	sinon,
 	Input,
 	Panel,
-	UIComponent,
-	PersistenceWriteAPI,
-	sinon,
 	RtaQunitUtils
 ) {
 	"use strict";
@@ -44,7 +40,8 @@ sap.ui.define([
 			this.oInput2 = new Input({id: "input2"});
 			this.oPanel = new Panel({
 				id: "panel",
-				content: [this.oInput1, this.oInput2]});
+				content: [this.oInput1, this.oInput2]
+			});
 
 			this.oInputDesignTimeMetadata = new DesignTimeMetadata({
 				data: {
@@ -98,7 +95,75 @@ sap.ui.define([
 				this.oCommandStack.pushAndExecute(oRemoveCommand);
 			}.bind(this))
 			.catch(function (oError) {
-				assert.ok(false, 'catch must never be called - Error: ' + oError);
+				assert.ok(false, "catch must never be called - Error: " + oError);
+			});
+		});
+
+		QUnit.test("when 2 Changes get executed and one gets an error after execution", function(assert) {
+			var done = assert.async();
+
+			var iCounter = 0;
+			var aInputs = [this.oInput1, this.oInput2];
+			this.oCommandStack.attachCommandExecuted(function(oEvent) {
+				var bFirstCommand = oEvent.getParameter("command").getElement() === aInputs[0];
+				assert.ok(bFirstCommand, "then command number " + (iCounter + 1) + " gets executed");
+				iCounter++;
+
+				if (iCounter === 2) {
+					assert.ok(false, "then catch has not be called");
+					done();
+				}
+			});
+
+			// Create commands
+			return CommandFactory.getCommandFor(this.oInput1, "Remove", {
+				removedElement: this.oInput1
+			}, this.oInputDesignTimeMetadata)
+				.then(function(oRemoveCommand) {
+					return this.oCommandStack.pushAndExecute(oRemoveCommand);
+				}.bind(this))
+				.then(CommandFactory.getCommandFor.bind(this, this.oInput2, "Remove", {
+					removedElement: this.oInput2
+				}, this.oInputDesignTimeMetadata))
+				.then(function(oRemoveCommand) {
+					//force an error
+					sandbox.stub(this.oCommandStack, "getSubCommands").returns(undefined);
+					return this.oCommandStack.pushAndExecute(oRemoveCommand);
+				}.bind(this))
+				.catch(function (oError) {
+					assert.ok(true, "catch has be called during execution of second command - Error: " + oError);
+					assert.equal(this.oCommandStack._toBeExecuted, -1, "the Variable '_toBeExecuted' is not descreased a second time");
+					done();
+				}.bind(this));
+		});
+
+		QUnit.test("execute / undo / redo with CommandExecutionHandler", function(assert) {
+			var oCommandExecutionHandlerStub = sandbox.stub().resolves();
+			this.oCommandStack.addCommandExecutionHandler(oCommandExecutionHandlerStub);
+			var oFireExecutedStub = sandbox.stub(this.oCommandStack, "fireCommandExecuted");
+			var oFireModifiedStub = sandbox.stub(this.oCommandStack, "fireModified");
+
+			var oCommand;
+			return CommandFactory.getCommandFor(this.oInput1, "Remove", {
+				removedElement: this.oInput1
+			}, this.oInputDesignTimeMetadata)
+
+			.then(function(oRemoveCommand) {
+				oCommand = oRemoveCommand;
+				sandbox.stub(oCommand, "execute").resolves();
+				sandbox.stub(oCommand, "undo").resolves();
+				return this.oCommandStack.pushAndExecute(oCommand);
+			}.bind(this))
+			.then(function() {
+				assert.ok(oCommandExecutionHandlerStub.calledBefore(oFireExecutedStub), "the executed event waits for the command execution handler");
+				assert.ok(oCommandExecutionHandlerStub.calledBefore(oFireModifiedStub), "the modified event waits for the command execution handler");
+			})
+			.then(function() {
+				return this.oCommandStack.undo();
+			}.bind(this))
+			.then(function() {
+				assert.ok(oCommandExecutionHandlerStub.calledBefore(oFireExecutedStub), "the executed event waits for the command execution handler");
+				assert.ok(oCommandExecutionHandlerStub.calledBefore(oFireModifiedStub), "the modified event waits for the command execution handler");
 			});
 		});
 	});

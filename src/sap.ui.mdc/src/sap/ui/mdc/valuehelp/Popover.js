@@ -5,11 +5,13 @@
 sap.ui.define([
 	'sap/ui/mdc/valuehelp/base/Container',
 	'sap/ui/mdc/util/loadModules',
-	"sap/ui/dom/units/Rem"
+	"sap/ui/dom/units/Rem",
+	"sap/ui/thirdparty/jquery"
 ], function(
 	Container,
 	loadModules,
-	Rem
+	Rem,
+	jQuery
 ) {
 	"use strict";
 
@@ -20,7 +22,7 @@ sap.ui.define([
 	 *
 	 * @param {string} [sId] ID for the new control, generated automatically if no ID is given
 	 * @param {object} [mSettings] Initial settings for the new control
-	 * @class Container for the <code>sap.ui.mdc.ValueHelp</code> element showing a popover.
+	 * @class Container for the {@link sap.ui.mdc.ValueHelp ValueHelp} element showing a popover.
 	 * @extends sap.ui.mdc.valuehelp.base.Container
 	 * @version ${version}
 	 * @constructor
@@ -173,10 +175,11 @@ sap.ui.define([
 
 		var oContent = this._getContent();
 		var oContentPromise = oContent && oContent.getContent();
+		var oBeforeShowPromise = oContent && oContent.onBeforeShow();
 		var oContainerConfig = this._getContainerConfig(oContent);
 		var oFooterContentPromise = oContainerConfig && oContainerConfig.getFooter && oContainerConfig.getFooter();
 
-		return Promise.all([oContentPromise, oFooterContentPromise]).then(function (aContents) {
+		return Promise.all([oContentPromise, oFooterContentPromise, oBeforeShowPromise]).then(function (aContents) {
 			this._oCurrentContent = aContents[0];
 			var oFooterContent = aContents[1];
 

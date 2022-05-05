@@ -26,7 +26,6 @@ sap.ui.define([
                  * OPA5 test action
                  * This only works with the new chart personalization
                  * @param {sap.ui.core.Control | string} oChart Instance / ID of the <code>MDCChart</code> that is personalized
-                 * @param {string} sChartType String containing the type of chart that is displayed
                  * @param {ChartPersonalizationConfiguration[]} aConfigurations Array containing the chart personalization configuration objects
                  * @returns {Promise} OPA waitFor
                  * 1. Opens the personalization dialog of a given chart.
@@ -34,8 +33,8 @@ sap.ui.define([
                  * 3. Executes the given ChartPersonalizationConfigurations.
                  * 4. Closes the personalization dialog.
                  */
-                iPersonalizeChart: function(oChart, sChartType, aConfigurations){
-                    return p13nActions.iPersonalizeChart.call(this, oChart, sChartType, aConfigurations);
+                iPersonalizeChart: function(oChart, aConfigurations){
+                    return p13nActions.iPersonalizeChart.call(this, oChart, null, aConfigurations, true, chartActions.iOpenThePersonalizationDialog);
                 },
                 /**
                  * @typedef {object} SortPersonalizationConfiguration
@@ -52,7 +51,7 @@ sap.ui.define([
                  * 3. Closes the personalization dialog.
                  */
                 iPersonalizeSort: function(oChart, aConfigurations) {
-                    return p13nActions.iPersonalizeSort.call(this, oChart, aConfigurations);
+                    return p13nActions.iPersonalizeSort.call(this, oChart, aConfigurations, chartActions.iOpenThePersonalizationDialog);
                 },
                 /**
                  * Opa5 test action
@@ -64,7 +63,7 @@ sap.ui.define([
                  * 4. Closes the personalization dialog.
                  */
                 iResetThePersonalization: function(oChart) {
-                    return p13nActions.iResetThePersonalization.call(this, oChart);
+                    return p13nActions.iResetThePersonalization.call(this, oChart, chartActions.iOpenThePersonalizationDialog);
                 },
 
                 /**
@@ -268,6 +267,7 @@ sap.ui.define([
                 },
                 /**
                  * Assertion to check visible dimensions on the MDC Chart
+                 * @param {array} aDimensions
                  * @param {string} sId Id of the MDC Chart
                  * @returns {Promise} OPA waitFor
                  */
@@ -276,6 +276,7 @@ sap.ui.define([
                 },
                 /**
                  * Assertion to check visible measures on the MDC Chart
+                 * @param {array} aMeasures
                  * @param {string} sId Id of the MDC Chart
                  * @returns {Promise} OPA waitFor
                 */

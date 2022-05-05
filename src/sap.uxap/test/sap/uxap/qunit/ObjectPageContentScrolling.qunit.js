@@ -6,14 +6,16 @@ sap.ui.define([
 	"sap/uxap/ObjectPageSection",
 	"sap/uxap/ObjectPageLayout",
 	"sap/uxap/ObjectPageDynamicHeaderTitle",
+	"sap/m/Button",
 	"sap/m/Text",
 	"sap/m/Title",
 	"sap/m/Panel",
+	"sap/m/VBox",
 	"sap/uxap/testblocks/GenericDiv",
 	"sap/ui/Device",
 	"sap/ui/core/mvc/XMLView",
 	"sap/uxap/library"],
-function(jQuery, Core, ObjectPageSubSection, ObjectPageSection, ObjectPageLayout, ObjectPageDynamicHeaderTitle, Text, Title, Panel, GenericDiv, Device, XMLView, lib) {
+function(jQuery, Core, ObjectPageSubSection, ObjectPageSection, ObjectPageLayout, ObjectPageDynamicHeaderTitle, Button, Text, Title, Panel, VBox, GenericDiv, Device, XMLView, lib) {
 
 	"use strict";
 
@@ -75,6 +77,14 @@ function(jQuery, Core, ObjectPageSubSection, ObjectPageSection, ObjectPageLayout
 			oObjectPage.addHeaderContent(oBigHeaderContent);
 			return oObjectPage;
 		},
+		generateObjectPageWithDynamicHeaderTitle: function() {
+			var oHeaderContent = new Panel({ height: "99.3px"}),
+				oObjectPage = this.generateObjectPageWithContent(oFactory, 5);
+
+			oObjectPage.setHeaderTitle(oFactory.getDynamicPageTitle());
+			oObjectPage.addHeaderContent(oHeaderContent);
+			return oObjectPage;
+		},
 		renderObject: function (oSapUiObject) {
 			oSapUiObject.placeAt("qunit-fixture");
 			Core.applyChanges();
@@ -105,11 +115,8 @@ function(jQuery, Core, ObjectPageSubSection, ObjectPageSection, ObjectPageLayout
 			fnDone = assert.async();
 
 		oObjectPage.attachEventOnce("sectionChange", function(oEvent) {
-			assert.equal(oEvent.getParameter("section").getId(), oObjectPage._oFirstVisibleSection.getId(), "sectionChange event is inoitially fired for first visible section");
-			oObjectPage.attachEventOnce("sectionChange", function(oEvent) {
-				assert.equal(oEvent.getParameter("section").getId(), oSection.getId(), "sectionChange event is fired upon scrolling to a specified section");
-				fnDone();
-			});
+			assert.equal(oEvent.getParameter("section").getId(), oSection.getId(), "sectionChange event is fired upon scrolling to a specified section");
+			fnDone();
 		});
 
 		// act
@@ -229,19 +236,19 @@ function(jQuery, Core, ObjectPageSubSection, ObjectPageSection, ObjectPageLayout
 		assert.ok(oObjectPage._isClosestScrolledSection(oFirstSection.getId()), "itentified current section");
 	});
 
-	QUnit.test("triggerPendingLayoutUpdates corrects invalid selection",function(assert) {
+	QUnit.test("selectedSection value correct after resize content in scroll overflow",function(assert) {
 		var oObjectPage = this.oObjectPage,
 			oFirstSection = oObjectPage.getSections()[0],
 			oFirstSubSection = oFirstSection.getSubSections()[0],
 			sSelectedSectionId = oObjectPage.getSections()[1].getId(),
-			item1 = new sap.m.Button({text: "content", visible: false}),
-			item2 = new sap.m.Button({text: "content", visible: false}),
-			item3 = new sap.m.Button({text: "content", visible: false}),
+			item1 = new Button({text: "content", visible: false}),
+			item2 = new Button({text: "content", visible: false}),
+			item3 = new Button({text: "content", visible: false}),
 			iScrollTopBeforeChange,
 			iExpectedScrollTopAfterChange,
 			done = assert.async();
 
-			oFirstSubSection.addBlock(sap.m.VBox({
+			oFirstSubSection.addBlock(new VBox({
 				items: [item1, item2, item3]
 			}));
 
@@ -251,23 +258,29 @@ function(jQuery, Core, ObjectPageSubSection, ObjectPageSection, ObjectPageLayout
 		oObjectPage.attachEventOnce("onAfterRenderingDOMReady", function(){
 			iScrollTopBeforeChange = oObjectPage._$opWrapper.scrollTop();
 
-			//act
+			//Act: change the height of the content inside the scroll overflow
+			//(i.e. the content above above the current scroll position)
 			item1.setVisible(true);
 			item2.setVisible(true);
 			item3.setVisible(true);
 			Core.applyChanges();
 
-			iExpectedScrollTopAfterChange = iScrollTopBeforeChange + (3 * item1.getDomRef().offsetHeight);
-			// synchronously call the result of the expected scroll event
-			// the browser fires that scroll event because the position of the selected section changed
-			oObjectPage._updateSelectionOnScroll(iExpectedScrollTopAfterChange);
-			// the page internally sets a wrong selected section
-			// because we do not yet update the cached positions of the sections
-			assert.notEqual(oObjectPage.getSelectedSection() , sSelectedSectionId, "selected section has changed");
+			// Simulate the expected scroll event from the browser, due to overflow anchoring
+			// (expected from all supported browsers except Safari which does not support overflow anchoring => does not fire scroll event)
+			if (!Device.browser.safari) {
+				iExpectedScrollTopAfterChange = iScrollTopBeforeChange + (3 * item1.getDomRef().offsetHeight);
+				// synchronously call the result of the expected scroll event
+				// the browser fires that scroll event because the position of the selected section changed
+				oObjectPage._updateSelectionOnScroll(iExpectedScrollTopAfterChange);
+				// the page internally sets a wrong selected section
+				// because we do not yet update the cached positions of the sections
+				assert.notEqual(oObjectPage.getSelectedSection() , sSelectedSectionId, "selected section has changed");
 
-			// act: request the page to update the positions of the sections and check its current selected section
-			oObjectPage.triggerPendingLayoutUpdates();
-			assert.strictEqual(oObjectPage.getSelectedSection() , sSelectedSectionId, "selected section is now corrected");
+				// act: request the page to update the positions of the sections and check its current selected section
+				oObjectPage.triggerPendingLayoutUpdates();
+			}
+
+			assert.strictEqual(oObjectPage.getSelectedSection() , sSelectedSectionId, "selected section is correct");
 			done();
 		});
 
@@ -374,6 +387,42 @@ function(jQuery, Core, ObjectPageSubSection, ObjectPageSection, ObjectPageLayout
 		helpers.renderObject(oObjectPage);
 	});
 
+	QUnit.module("Expand header");
+
+	QUnit.test("Header expand works, when scrolled header has height with fraction value", function (assert) {
+		// Arrange
+		var oObjectPage = helpers.generateObjectPageWithDynamicHeaderTitle(),
+			aSections = oObjectPage.getSections(),
+			oLastSection = aSections[aSections.length - 1],
+			oExpandButton,
+			done = assert.async();
+
+		assert.expect(2);
+
+		oObjectPage.placeAt('qunit-fixture');
+		Core.applyChanges();
+
+		oObjectPage.attachEventOnce("onAfterRenderingDOMReady", function() {
+			oObjectPage.scrollToSection(oLastSection.getId(), 0);
+
+			setTimeout(function () {
+				// Assert
+				assert.strictEqual(oObjectPage._bHeaderExpanded, false, "Header is snapped after scroll");
+
+				// Act
+				oExpandButton = oObjectPage.getHeaderTitle()._getExpandButton();
+				oExpandButton.firePress();
+
+				// Check
+				setTimeout(function () {
+					assert.strictEqual(oObjectPage._bHeaderExpanded, true, "Header is expanded after pressing expand button");
+					done();
+				}, 1000);
+			}, 500);
+
+		});
+	});
+
 	QUnit.module("ObjectPage Content scrolling", {
 		beforeEach: function (assert) {
 			var done = assert.async();
@@ -474,6 +523,7 @@ function(jQuery, Core, ObjectPageSubSection, ObjectPageSection, ObjectPageLayout
 			oRestoreSpy = this.spy(oObjectPage, "_restoreScrollPosition"),
 			oScrollSpy = this.spy(oObjectPage, "_scrollTo"),
 			iScrollPositionBeforeRerender,
+			iExpectedScrollPositionAfterRerender,
 			done = assert.async();
 
 		oObjectPage.setSelectedSection(oSecondSection.getId());
@@ -482,6 +532,7 @@ function(jQuery, Core, ObjectPageSubSection, ObjectPageSection, ObjectPageLayout
 
 		setTimeout(function() {
 			iScrollPositionBeforeRerender = oObjectPage._$opWrapper[0].scrollTop;
+			iExpectedScrollPositionAfterRerender = Math.ceil(iScrollPositionBeforeRerender); //the page ceils the obtained DOM positions
 
 			oObjectPage.addEventDelegate({ onBeforeRendering: function() {
 					assert.ok(oStoreSpy.called, "_storeScrollLocation is called on beforeRenderingf");
@@ -489,7 +540,7 @@ function(jQuery, Core, ObjectPageSubSection, ObjectPageSection, ObjectPageLayout
 
 			oObjectPage.attachEventOnce("onAfterRenderingDOMReady", function() {
 				assert.ok(oRestoreSpy.called, "_restoreScrollPosition is called on afterRendering");
-				assert.ok(oScrollSpy.calledWithMatch(iScrollPositionBeforeRerender), "scroll position is preserved");
+				assert.ok(oScrollSpy.calledWithMatch(iExpectedScrollPositionAfterRerender), "scroll position is preserved");
 				done();
 			});
 			oObjectPage.rerender();
@@ -531,7 +582,7 @@ function(jQuery, Core, ObjectPageSubSection, ObjectPageSection, ObjectPageLayout
 		setTimeout(function() {
 			oObjectPage.scrollToSection(sTargetSectionId, 0);
 			setTimeout(function() {
-				iScrollPosition = oObjectPage._$opWrapper[0].scrollTop;
+				iScrollPosition = Math.ceil(oObjectPage._$opWrapper[0].scrollTop);
 				iExpectedPosition =  oObjectPage._oSectionInfo[sTargetSectionId].positionTop;
 				assert.strictEqual(iScrollPosition, iExpectedPosition, "scrollPosition is correct");
 				done();
@@ -634,6 +685,52 @@ function(jQuery, Core, ObjectPageSubSection, ObjectPageSection, ObjectPageLayout
 
 	});
 
+	QUnit.test("Should keep the AnchorBar scrolled to the selected Section when title is snapped", function (assert) {
+		// Arrange
+		var oObjectPage = this.oObjectPageContentScrollingView.byId("ObjectPageLayout"),
+			oObjectPageSection = new ObjectPageSection({
+				subSections: [
+				new ObjectPageSubSection({
+					blocks: [new GenericDiv({height: "1500px"})]
+				}),
+				new ObjectPageSubSection({
+					blocks: [new GenericDiv({height: "200px"})]
+				})
+			]
+			}),
+			sSectionId = oObjectPageSection.getId(),
+			oAnchorBar = oObjectPage._oABHelper._getAnchorBar(),
+			oSpy = this.spy(oAnchorBar, "scrollToSection"),
+			done = assert.async();
+
+		assert.expect(2);
+
+		oObjectPage.setUseIconTabBar(true);
+		oObjectPage.addSection(oObjectPageSection);
+		Core.applyChanges();
+
+		oObjectPage.attachEventOnce("onAfterRenderingDOMReady", function () {
+			//Act
+			oObjectPage.setSelectedSection(sSectionId);
+
+			setTimeout(function() {
+				oSpy.reset();
+
+				//Act
+				oObjectPage._scrollTo(oObjectPage._getSnapPosition() + 100);
+
+				setTimeout(function() {
+					// Assert
+					assert.ok(isObjectPageHeaderStickied(oObjectPage), "ObjectHeader is in stickied mode");
+					assert.strictEqual(oSpy.callCount, 1, "scrollToSection is called");
+					done();
+				}, 1000); //scroll delay
+
+			}, 1000); //scroll delay
+
+		});
+	});
+
 	QUnit.test("_isClosestScrolledSection should return the first section if all sections are hidden", function (assert) {
 		var clock = sinon.useFakeTimers(),
 			oObjectPage = this.oObjectPageContentScrollingView.byId("ObjectPageLayout"),
@@ -693,6 +790,29 @@ function(jQuery, Core, ObjectPageSubSection, ObjectPageSection, ObjectPageLayout
 		});
 	});
 
+	QUnit.test("_getClosestScrolledSectionBaseId returns null if current section is destroyed", function (assert) {
+		var oObjectPage = this.oObjectPageContentScrollingView.byId("ObjectPageLayout"),
+			oTargetSection = this.oObjectPageContentScrollingView.byId("secondSection"),
+			oTargetSubSection = oTargetSection.getSubSections()[1],
+			iTargetSubSectionScrollPosition,
+			iPageHeight,
+			sClosestSectionId,
+			done = assert.async();
+
+		oObjectPage.attachEventOnce("onAfterRenderingDOMReady", function() {
+			oObjectPage.scrollToSection(oTargetSubSection.getId(), 0);
+			iPageHeight = oObjectPage.getDomRef().offsetHeight;
+			iTargetSubSectionScrollPosition = oObjectPage._computeScrollPosition(oTargetSubSection);
+
+			//Act
+			oTargetSection.destroy();
+
+			sClosestSectionId = oObjectPage._getClosestScrolledSectionBaseId(iTargetSubSectionScrollPosition, iPageHeight, true);
+			assert.equal(sClosestSectionId, null, "target subSection is recognized");
+			done();
+		});
+	});
+
 	QUnit.test("ScrollEnablement private API", function (assert) {
 		var oObjectPage = this.oObjectPageContentScrollingView.byId("ObjectPageLayout");
 
@@ -745,7 +865,8 @@ function(jQuery, Core, ObjectPageSubSection, ObjectPageSection, ObjectPageLayout
 			oObjectPage._onScroll({ target: { scrollTop: oObjectPage._$opWrapper.scrollTop()}});
 
 			// Check
-			assert.ok($Section2TTitle.get(0).offsetTop >= oObjectPage._$opWrapper.scrollTop(), "element is visible");
+			assert.ok(oSection2.getDomRef().offsetTop + $Section2TTitle.get(0).offsetTop >= oObjectPage._$opWrapper.scrollTop(),
+				"element is visible");
 			done();
 		});
 
@@ -840,19 +961,17 @@ function(jQuery, Core, ObjectPageSubSection, ObjectPageSection, ObjectPageLayout
 
 
 		oObjectPageLayout.attachEventOnce("onAfterRenderingDOMReady", function() {
-			setTimeout(function() {
 				iScrollTopBeforeResize = oObjectPageLayout._$opWrapper.scrollTop();
 				// make the height of the last section smaller
 				oResizableControl.getDomRef().style.height = "10px";
+				iScrollTopAfterResize = oObjectPageLayout._$opWrapper.scrollTop();
+				// call the listener for the scroll event synchronously to speed up the test
+				oObjectPageLayout._onScroll({target: {scrollTop: iScrollTopAfterResize}});
 
-				setTimeout(function() {
-					iScrollTopAfterResize = oObjectPageLayout._$opWrapper.scrollTop();
-					assert.strictEqual(oObjectPageLayout.getSelectedSection(), oLastSection.getId(), "Selection is preserved");
-					assert.strictEqual(iScrollTopBeforeResize, iScrollTopAfterResize, "scrollTop is preserved");
-					oObjectPageLayout.destroy();
-					done();
-				}, 500); // allow the page to scroll to the position of the selected section
-			}, 500);
+				assert.strictEqual(oObjectPageLayout.getSelectedSection(), oLastSection.getId(), "Selection is preserved");
+				assert.strictEqual(oObjectPageLayout._$opWrapper.scrollTop(), iScrollTopBeforeResize, "scrollTop is restored");
+				oObjectPageLayout.destroy();
+				done();
 		});
 
 		// arrange
@@ -907,6 +1026,7 @@ function(jQuery, Core, ObjectPageSubSection, ObjectPageSection, ObjectPageLayout
 			oLastSubSection = oLastSection.getSubSections()[0],
 			oResizableControl = new GenericDiv({height: "100px"}),
 			iScrollTopBeforeResize,
+			iExpectedScrollTopAfterResize,
 			oSpy = this.spy(oObjectPageLayout, "_scrollTo"),
 			done = assert.async();
 
@@ -922,13 +1042,14 @@ function(jQuery, Core, ObjectPageSubSection, ObjectPageSection, ObjectPageLayout
 
 
 				iScrollTopBeforeResize = oObjectPageLayout._$opWrapper.scrollTop();
+				iExpectedScrollTopAfterResize = Math.ceil(iScrollTopBeforeResize); //the page ceils the obtained DOM positions
 				// make the height of the last section smaller
 				oResizableControl.getDomRef().style.height = "10px";
 
 				oSpy.resetHistory();
 				oObjectPageLayout._onScroll({ target: { scrollTop: 0 }}); // call synchronously to avoid another timeout
 				assert.strictEqual(oObjectPageLayout.getSelectedSection(), oLastSection.getId(), "Selection is preserved");
-				assert.ok(oSpy.calledWith(iScrollTopBeforeResize), "scrollTop is preserved");
+				assert.ok(oSpy.calledWith(iExpectedScrollTopAfterResize), "scrollTop is preserved");
 				oObjectPageLayout.destroy();
 				done();
 			}, 500);

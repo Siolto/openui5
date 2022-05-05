@@ -522,7 +522,6 @@ sap.ui.define([
 				}
 				oListener = oListener || this;
 
-				// FWE jQuery.proxy can't be used as it breaks our contract when used with same function but different listeners
 				var fnProxy = fnHandler.bind(oListener);
 
 				this.aBindParameters.push({
@@ -630,7 +629,7 @@ sap.ui.define([
 			// if no container control is found use the corresponding UIArea
 			var bIsUIArea = false;
 			if (!(oContainer instanceof Element)) {
-				oContainer = oCore.createUIArea(oRef);
+				oContainer = oCore._createUIArea(oRef);
 				bIsUIArea = true;
 			}
 

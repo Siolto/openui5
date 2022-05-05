@@ -1,7 +1,7 @@
 /* global QUnit, sinon */
 sap.ui.define([
-	"test-resources/sap/ui/mdc/qunit/util/createAppEnvironment", "sap/ui/mdc/TableDelegate", "sap/ui/mdc/table/Column", "sap/ui/mdc/p13n/StateUtil", "sap/ui/mdc/FilterBarDelegate", "sap/ui/mdc/FilterField", "sap/ui/mdc/ChartDelegate", "sap/ui/mdc/odata/v4/TypeUtil", "sap/ui/mdc/p13n/modules/StateHandlerRegistry", "sap/ui/core/Core"
-], function (createAppEnvironment, TableDelegate, Column, StateUtil, FilterBarDelegate, FilterField, ChartDelegate, TypeUtil, StateHandlerRegistry, oCore) {
+	"test-resources/sap/ui/mdc/qunit/util/createAppEnvironment", "sap/ui/mdc/TableDelegate", "sap/ui/mdc/table/Column", "sap/ui/mdc/p13n/StateUtil", "sap/ui/mdc/FilterBarDelegate", "sap/ui/mdc/FilterField", "sap/ui/mdc/ChartDelegate", "sap/ui/mdc/odata/v4/TypeUtil", "sap/ui/mdc/p13n/modules/StateHandlerRegistry", "sap/ui/core/Core", "sap/base/util/merge"
+], function (createAppEnvironment, TableDelegate, Column, StateUtil, FilterBarDelegate, FilterField, ChartDelegate, TypeUtil, StateHandlerRegistry, oCore, merge) {
 	"use strict";
 
 	oCore.loadLibrary("sap.ui.fl");
@@ -94,7 +94,7 @@ sap.ui.define([
 		StateUtil.applyExternalState(this.oFilterBar, oExternalState).then(function(aDirtyChanges){
 
 			//an existing value has been changed --> removeCondition + addCondition + 2x addMetadata
-			assert.equal(aDirtyChanges.length, 4, "The correct amount of changes has been created");
+			assert.equal(aDirtyChanges.length, 2, "The correct amount of changes has been created");
 
 			StateUtil.retrieveExternalState(this.oFilterBar).then(function(oState){
 
@@ -140,17 +140,13 @@ sap.ui.define([
 		};
 
 		StateUtil.applyExternalState(this.oFilterBar, oExternalState).then(function(aDirtyChanges){
-			assert.equal(aDirtyChanges.length, 8, "The correct amount of changes has been created");
+			assert.equal(aDirtyChanges.length, 4, "The correct amount of changes has been created");
 
 			//check if the changes hold the correct content
-			assert.equal(aDirtyChanges[0].getDefinition().changeType, "addPropertyInfo");
-			assert.equal(aDirtyChanges[1].getContent().condition, oExternalState.filter.String[0], "The correct 'addCondition' change has been created");
-			assert.equal(aDirtyChanges[2].getDefinition().changeType, "addPropertyInfo");
-			assert.equal(aDirtyChanges[3].getContent().condition, oExternalState.filter.Boolean[0], "The correct 'addCondition' change has been created");
-			assert.equal(aDirtyChanges[4].getDefinition().changeType, "addPropertyInfo");
-			assert.equal(aDirtyChanges[5].getContent().condition, oExternalState.filter.Decimal[0], "The correct 'addCondition' change has been created");
-			assert.equal(aDirtyChanges[6].getDefinition().changeType, "addPropertyInfo");
-			assert.equal(aDirtyChanges[7].getContent().condition, oExternalState.filter.Date[0], "The correct 'addCondition' change has been created");
+			assert.equal(aDirtyChanges[0].getContent().condition, oExternalState.filter.String[0], "The correct 'addCondition' change has been created");
+			assert.equal(aDirtyChanges[1].getContent().condition, oExternalState.filter.Boolean[0], "The correct 'addCondition' change has been created");
+			assert.equal(aDirtyChanges[2].getContent().condition, oExternalState.filter.Decimal[0], "The correct 'addCondition' change has been created");
+			assert.equal(aDirtyChanges[3].getContent().condition, oExternalState.filter.Date[0], "The correct 'addCondition' change has been created");
 
 			StateUtil.retrieveExternalState(this.oFilterBar).then(function(oRetrievedState){
 
@@ -224,13 +220,11 @@ sap.ui.define([
 		StateUtil.applyExternalState(this.oFilterBar, oExternalState).then(function(aDirtyChanges){
 
 			//an existing value has been changed --> removeCondition + addCondition
-			assert.equal(aDirtyChanges.length, 3, "The correct amount of changes has been created");
-			assert.equal(aDirtyChanges[0].getChangeType(), "addPropertyInfo", "The condition change for remove has been created");
+			assert.equal(aDirtyChanges.length, 2, "The correct amount of changes has been created");
+			assert.equal(aDirtyChanges[0].getChangeType(), "removeCondition", "The condition change for remove has been created");
 			assert.equal(aDirtyChanges[0].getContent().name, "Boolean", "The correct property is affected");
-			assert.equal(aDirtyChanges[1].getChangeType(), "removeCondition", "The condition change for remove has been created");
+			assert.equal(aDirtyChanges[1].getChangeType(), "addCondition", "The condition change for add has been created");
 			assert.equal(aDirtyChanges[1].getContent().name, "Boolean", "The correct property is affected");
-			assert.equal(aDirtyChanges[2].getChangeType(), "addCondition", "The condition change for add has been created");
-			assert.equal(aDirtyChanges[2].getContent().name, "Boolean", "The correct property is affected");
 
 			//we expect the retrieved staste to match the latest changes
 			StateUtil.retrieveExternalState(this.oFilterBar).then(function(oRetrievedState){
@@ -261,23 +255,15 @@ sap.ui.define([
 		StateUtil.applyExternalState(this.oFilterBar, oExternalState).then(function(aDirtyChanges){
 
 			//an existing value has been changed --> removeCondition + addCondition + addPropertyInfo
-			assert.equal(aDirtyChanges.length, 8, "The correct amount of changes has been created");
-			assert.equal(aDirtyChanges[0].getChangeType(), "addPropertyInfo", "The condition change for add has been created");
+			assert.equal(aDirtyChanges.length, 4, "The correct amount of changes has been created");
+			assert.equal(aDirtyChanges[0].getChangeType(), "addCondition", "The condition change for add has been created");
 			assert.equal(aDirtyChanges[0].getContent().name, "String", "The correct property is affected");
 			assert.equal(aDirtyChanges[1].getChangeType(), "addCondition", "The condition change for add has been created");
-			assert.equal(aDirtyChanges[1].getContent().name, "String", "The correct property is affected");
-			assert.equal(aDirtyChanges[2].getChangeType(), "addPropertyInfo", "The condition change for add has been created");
-			assert.equal(aDirtyChanges[2].getContent().name, "Boolean", "The correct property is affected");
+			assert.equal(aDirtyChanges[1].getContent().name, "Boolean", "The correct property is affected");
+			assert.equal(aDirtyChanges[2].getChangeType(), "addCondition", "The condition change for add has been created");
+			assert.equal(aDirtyChanges[2].getContent().name, "Decimal", "The correct property is affected");
 			assert.equal(aDirtyChanges[3].getChangeType(), "addCondition", "The condition change for add has been created");
-			assert.equal(aDirtyChanges[3].getContent().name, "Boolean", "The correct property is affected");
-			assert.equal(aDirtyChanges[4].getChangeType(), "addPropertyInfo", "The condition change for add has been created");
-			assert.equal(aDirtyChanges[4].getContent().name, "Decimal", "The correct property is affected");
-			assert.equal(aDirtyChanges[5].getChangeType(), "addCondition", "The condition change for add has been created");
-			assert.equal(aDirtyChanges[5].getContent().name, "Decimal", "The correct property is affected");
-			assert.equal(aDirtyChanges[6].getChangeType(), "addPropertyInfo", "The condition change for add has been created");
-			assert.equal(aDirtyChanges[6].getContent().name, "Date", "The correct property is affected");
-			assert.equal(aDirtyChanges[7].getChangeType(), "addCondition", "The condition change for add has been created");
-			assert.equal(aDirtyChanges[7].getContent().name, "Date", "The correct property is affected");
+			assert.equal(aDirtyChanges[3].getContent().name, "Date", "The correct property is affected");
 
 			//the second time there should not be any changes
 			StateUtil.applyExternalState(this.oFilterBar, oExternalState).then(function(aDirtyChanges){
@@ -307,23 +293,15 @@ sap.ui.define([
 			StateUtil.applyExternalState(this.oFilterBar, oExternalState).then(function(aDirtyChanges){
 
 				//an existing value has been changed --> removeCondition + addCondition
-				assert.equal(aDirtyChanges.length, 8, "The correct amount of changes has been created");
-				assert.equal(aDirtyChanges[0].getChangeType(), "addPropertyInfo", "The condition change for prop info has been created");
+				assert.equal(aDirtyChanges.length, 4, "The correct amount of changes has been created");
+				assert.equal(aDirtyChanges[0].getChangeType(), "addCondition", "The condition change for add has been created");
 				assert.equal(aDirtyChanges[0].getContent().name, "String", "The correct property is affected");
 				assert.equal(aDirtyChanges[1].getChangeType(), "addCondition", "The condition change for add has been created");
-				assert.equal(aDirtyChanges[1].getContent().name, "String", "The correct property is affected");
-				assert.equal(aDirtyChanges[2].getChangeType(), "addPropertyInfo", "The condition change for prop info has been created");
-				assert.equal(aDirtyChanges[2].getContent().name, "Boolean", "The correct property is affected");
+				assert.equal(aDirtyChanges[1].getContent().name, "Boolean", "The correct property is affected");
+				assert.equal(aDirtyChanges[2].getChangeType(), "addCondition", "The condition change for add has been created");
+				assert.equal(aDirtyChanges[2].getContent().name, "Decimal", "The correct property is affected");
 				assert.equal(aDirtyChanges[3].getChangeType(), "addCondition", "The condition change for add has been created");
-				assert.equal(aDirtyChanges[3].getContent().name, "Boolean", "The correct property is affected");
-				assert.equal(aDirtyChanges[4].getChangeType(), "addPropertyInfo", "The condition change for prop info has been created");
-				assert.equal(aDirtyChanges[4].getContent().name, "Decimal", "The correct property is affected");
-				assert.equal(aDirtyChanges[5].getChangeType(), "addCondition", "The condition change for add has been created");
-				assert.equal(aDirtyChanges[5].getContent().name, "Decimal", "The correct property is affected");
-				assert.equal(aDirtyChanges[6].getChangeType(), "addPropertyInfo", "The condition change for prop info has been created");
-				assert.equal(aDirtyChanges[6].getContent().name, "Date", "The correct property is affected");
-				assert.equal(aDirtyChanges[7].getChangeType(), "addCondition", "The condition change for add has been created");
-				assert.equal(aDirtyChanges[7].getContent().name, "Date", "The correct property is affected");
+				assert.equal(aDirtyChanges[3].getContent().name, "Date", "The correct property is affected");
 
 				//the second time there should not be any changes
 				var oResetState = {
@@ -663,9 +641,9 @@ sap.ui.define([
 		StateUtil.applyExternalState(this.oTable, oState).then(function(aChanges){
 			assert.equal(aChanges.length, 3, "Correct amount of changes created: " + aChanges.length);
 
-			assert.equal(aChanges[0].getChangeType(), "addSort", "Correct change type created");
+			assert.equal(aChanges[0].getChangeType(), "addColumn", "Correct change type created");
 			assert.equal(aChanges[1].getChangeType(), "addColumn", "Correct change type created");
-			assert.equal(aChanges[2].getChangeType(), "addColumn", "Correct change type created");
+			assert.equal(aChanges[2].getChangeType(), "addSort", "Correct change type created");
 
 			assert.equal(this.oTable.getColumns().length, oState.items.length, "Number of created columns correct");
 			assert.deepEqual(this.oTable.getSortConditions().sorters, oState.sorters, "Correct sort object created");
@@ -718,70 +696,6 @@ sap.ui.define([
 					assert.deepEqual(this.oTable.getSortConditions().sorters, [], "No sorter left");
 					done();
 				}.bind(this));
-			}.bind(this));
-		}.bind(this));
-	});
-
-	QUnit.test("Create different group changes via 'applyExternalState'", function(assert){
-
-		var done = assert.async();
-
-		var oState = {
-			groupLevels: [
-				{
-					name: "String"
-				}
-			]
-		};
-
-		//add new grouping
-		StateUtil.applyExternalState(this.oTable, oState).then(function(aChanges){
-			assert.equal(aChanges.length, 1, "Correct amount of changes created: " + aChanges.length);
-
-			assert.equal(aChanges[0].getChangeType(), "addGroup", "Correct change type created");
-			assert.deepEqual(this.oTable.getGroupConditions().groupLevels, oState.groupLevels, "Correct groupLevels object created");
-
-			oState.groupLevels[0].grouped = false;
-
-			//remove grouping
-			StateUtil.applyExternalState(this.oTable, oState).then(function(aChanges){
-				assert.equal(aChanges.length, 1, "Correct amount of changes created: " + aChanges.length);
-
-				assert.equal(aChanges[0].getChangeType(), "removeGroup", "Correct change type created");
-				assert.deepEqual(this.oTable.getGroupConditions().groupLevels, [], "Correct groupLevels object created");
-
-				done();
-			}.bind(this));
-		}.bind(this));
-	});
-
-	QUnit.test("Create different aggregate changes via 'applyExternalState'", function(assert){
-
-		var done = assert.async();
-
-		var oState = {
-			aggregations: {
-				String : {}
-			}
-		};
-
-		//add new grouping
-		StateUtil.applyExternalState(this.oTable, oState).then(function(aChanges){
-			assert.equal(aChanges.length, 1, "Correct amount of changes created: " + aChanges.length);
-
-			assert.equal(aChanges[0].getChangeType(), "addAggregate", "Correct change type created");
-			assert.deepEqual(this.oTable.getAggregateConditions(), oState.aggregations, "Correct aggregation object created");
-
-			oState.aggregations["String"].aggregated = false;
-
-			//remove grouping
-			StateUtil.applyExternalState(this.oTable, oState).then(function(aChanges){
-				assert.equal(aChanges.length, 1, "Correct amount of changes created: " + aChanges.length);
-
-				assert.equal(aChanges[0].getChangeType(), "removeAggregate", "Correct change type created");
-				assert.deepEqual(this.oTable.getAggregateConditions(), {}, "Correct aggregations object created");
-
-				done();
 			}.bind(this));
 		}.bind(this));
 	});
@@ -905,120 +819,117 @@ sap.ui.define([
 		}.bind(this));
 
 	});
-	/* TO-Do: Check whether this is still needed with new MDC Chart
-	var _retrieveChartMetaData = function () {
-		return Promise.resolve({
-			chartType: "column",
-			properties: [
+
+	QUnit.module("API tests for Table with V4 Analytics", {
+		before: function(){
+			TableDelegate.fetchProperties = fetchProperties;
+			TableDelegate.addItem = function(sPropertyName) {
+				return Promise.resolve(new Column({dataProperty: sPropertyName}));
+			};
+			var sTableView = '<mvc:View xmlns:mvc="sap.ui.core.mvc" xmlns:mdc="sap.ui.mdc"><mdc:Table id="mdcTable" p13nMode="Column,Sort,Filter,Group,Aggregate" ' +
+				'delegate="{name: \'sap/ui/mdc/odata/v4/TableDelegate\', payload: {}}"></mdc:Table></mvc:View>';
+
+			return createAppEnvironment(sTableView, "V4AnalyticsTable").then(function(mCreatedApp){
+				this.oView = mCreatedApp.view;
+				this.oUiComponentContainer = mCreatedApp.container;
+			}.bind(this));
+		},
+		beforeEach: function(){
+			this.oTable = this.oView.byId('mdcTable');
+			this.oTable.removeAllColumns();
+
+			return this.oTable.retrieveInbuiltFilter().then(function(){
+				sinon.stub(this.oTable.getInbuiltFilter(), "_toInternal").callsFake(function(oProperty, oXCondition) {
+					return oXCondition;
+				});
+			}.bind(this));
+		},
+		afterEach: function(){
+			this.oTable.getInbuiltFilter()._toInternal.restore();
+			this.oTable.setSortConditions(undefined);
+		},
+		after: function(){
+			this.oUiComponentContainer = null;
+			this.oTable.destroy();
+			this.oView = null;
+		}
+	});
+
+	QUnit.test("Create different group changes via 'applyExternalState'", function(assert){
+
+		var done = assert.async();
+
+		var oState = {
+			groupLevels: [
 				{
-					name: "CategoryName",
-					type: "string",
-					required: true,
-					label: "Category",
-					kind: "Dimension"
-				},
-				{
-					name: "SalesNumber",
-					propertyPath: "SalesNumber",
-					type: "Edm.Int32",
-					required: true,
-					label: "Sales Number",
-					kind: "Measure"
-				}, {
-					name: "agSalesAmount",
-					propertyPath: "SalesAmount",
-					type: "string",
-					required: true,
-					label: "Sales Amount",
-					kind: "Measure",
-					defaultAggregation: "sum",
-					supportedAggregations: ["sum", "min", "max", "average"]
-				}, {
-					name: "Name",
-					propertyPath: "Name",
-					type: "string",
-					required: true,
-					label: "Name",
-					kind: "Dimension"
-				}, {
-					name: "Industry",
-					type: "string",
-					required: true,
-					label: "Industry",
-					kind: "Dimension"
-				}, {
-					name: "Country",
-					type: "string",
-					required: true,
-					label: "Country",
-					kind: "Dimension"
-				}, {
-					name: "SomePropertyName",
-					type: "string",
-					required: true,
-					label: "SomeProperty",
-					kind: "Dimension"
+					name: "String"
 				}
 			]
-		});
-	};
+		};
 
-	var _modifyChartDelegate = function () {
-		ChartDelegate.retrieveAllMetaData = _retrieveChartMetaData;
-			ChartDelegate.fetchProperties = function () {
-				return _retrieveChartMetaData().then(function (oMetaData) {
-					return oMetaData.properties;
-				});
-			};
-			ChartDelegate.retrieveAggregationItem = function(sAggregationName, oMetadata) {
-				var oSettings;
-				var oAggregation = {
-					className: "",
-					settings: {
-						key: oMetadata.name,
-						label: oMetadata.label || oMetadata.name,
-						type: oMetadata.type
-					}
-				};
-				switch (oMetadata.kind) {
+		//add new grouping
+		StateUtil.applyExternalState(this.oTable, oState).then(function(aChanges){
+			assert.equal(aChanges.length, 1, "Correct amount of changes created: " + aChanges.length);
 
-					case "Dimension":
-						oAggregation.className = "sap.ui.mdc.chart.DimensionItem";
-						oSettings = {
-							textProperty: oMetadata.textProperty,
-							timeUnit: oMetadata.timeUnit,
-							displayText: true,
-							criticality: oMetadata.criticality
-						};
-						break;
+			assert.equal(aChanges[0].getChangeType(), "addGroup", "Correct change type created");
+			assert.deepEqual(this.oTable.getGroupConditions().groupLevels, oState.groupLevels, "Correct groupLevels object created");
 
-					case "Measure":
-						oAggregation.className = "sap.ui.mdc.chart.MeasureItem";
-						oSettings = {
-							propertyPath: oMetadata.propertyPath,
-							aggregationMethod: oMetadata.aggregationMethod
-						};
-						break;
-					// no default
-				}
-				oAggregation.settings = Object.assign(oAggregation.settings, oSettings);
-				return oAggregation;
-			};
-	};
+			oState.groupLevels[0].grouped = false;
 
+			//remove grouping
+			StateUtil.applyExternalState(this.oTable, oState).then(function(aChanges){
+				assert.equal(aChanges.length, 1, "Correct amount of changes created: " + aChanges.length);
+
+				assert.equal(aChanges[0].getChangeType(), "removeGroup", "Correct change type created");
+				assert.deepEqual(this.oTable.getGroupConditions().groupLevels, [], "Correct groupLevels object created");
+
+				done();
+			}.bind(this));
+		}.bind(this));
+	});
+
+	QUnit.test("Create different aggregate changes via 'applyExternalState'", function(assert){
+
+		var done = assert.async();
+
+		var oState = {
+			aggregations: {
+				String : {}
+			}
+		};
+
+		//add new grouping
+		StateUtil.applyExternalState(this.oTable, oState).then(function(aChanges){
+			assert.equal(aChanges.length, 1, "Correct amount of changes created: " + aChanges.length);
+
+			assert.equal(aChanges[0].getChangeType(), "addAggregate", "Correct change type created");
+			assert.deepEqual(this.oTable.getAggregateConditions(), oState.aggregations, "Correct aggregation object created");
+
+			oState.aggregations["String"].aggregated = false;
+
+			//remove grouping
+			StateUtil.applyExternalState(this.oTable, oState).then(function(aChanges){
+				assert.equal(aChanges.length, 1, "Correct amount of changes created: " + aChanges.length);
+
+				assert.equal(aChanges[0].getChangeType(), "removeAggregate", "Correct change type created");
+				assert.deepEqual(this.oTable.getAggregateConditions(), {}, "Correct aggregations object created");
+
+				done();
+			}.bind(this));
+		}.bind(this));
+	});
 
 	QUnit.module("API tests for Chart", {
 		before: function(){
-			_modifyChartDelegate();
 			var sChartView = '<mvc:View' +
 				'\t\t  xmlns:mvc="sap.ui.core.mvc"\n' +
 				'\t\t  xmlns:chart="sap.ui.mdc.chart"\n' +
 				'\t\t  xmlns:mdc="sap.ui.mdc"\n' +
 				'\t\t  >\n' +
-				'\t\t\t\t<mdc:Chart id="mdcChart" p13nMode="{=[\'Sort\',\'Item\']}">\n' +
-				'\t\t\t\t\t\t<mdc:items><chart:DimensionItem id="item0" key="Name" label="Name" role="category"></chart:DimensionItem>\n' +
-				'\t\t\t\t\t\t<chart:MeasureItem id="item1" key="agSalesAmount" label="Depth" role="axis1"></chart:MeasureItem>\n' +
-				'\t\t\t\t\t\t<chart:MeasureItem id="item2" key="SalesNumber" label="Width" role="axis2"></chart:MeasureItem></mdc:items>\n' +
+				'\t\t\t\t<mdc:Chart id="mdcChart" p13nMode="{=[\'Sort\',\'Item\',\'Type\']}" delegate="{\'name\': \'test-resources/sap/ui/mdc/delegates/ChartDelegateStateUtil\',\'payload\': {}}" >\n' +
+				'\t\t\t\t\t\t<mdc:items><chart:Item id="item0" name="Name" label="Name" role="category"></chart:Item>\n' +
+				'\t\t\t\t\t\t<chart:Item id="item1" name="agSalesAmount" label="Depth" role="axis1"></chart:Item>\n' +
+				'\t\t\t\t\t\t<chart:Item id="item2" name="SalesNumber" label="Width" role="axis2"></chart:Item></mdc:items>\n' +
 				'\t\t\t\t</mdc:Chart>\n' +
 				'</mvc:View>';
 
@@ -1062,10 +973,10 @@ sap.ui.define([
 			var oRemoveState = {
 				items: [
 					{
-					  "name": "Industry",
-					  "visible": false
+						"name": "Industry",
+						"visible": false
 					}
-				  ],
+					],
 				sorters: []
 			};
 
@@ -1078,6 +989,7 @@ sap.ui.define([
 			}.bind(this));
 
 		}.bind(this));
+
 	});
 
 	QUnit.test("Change an items role via 'applyExternalState'", function(assert){
@@ -1144,7 +1056,45 @@ sap.ui.define([
 			}.bind(this));
 		}.bind(this));
 	});
-	*/
+
+
+	QUnit.test("Change chart type via 'applyExternalState'", function(assert){
+
+		var done = assert.async();
+
+		var oState = {
+			"supplementaryConfig": {
+				"properties": {
+					"chartType": "pie"
+				}
+			}
+		};
+
+		assert.equal(this.oChart.getChartType(), "column", "Chart has correct type");
+
+
+		StateUtil.applyExternalState(this.oChart, oState).then(function(aChanges){
+
+			assert.ok(aChanges.length === 1, "Correct amount of changes created for changed chart type: " + aChanges.length);
+			assert.equal(this.oChart.getChartType(), "pie", "Chart has correct type");
+
+			oState = {
+				"supplementaryConfig": {
+					"properties": {
+						"chartType": "column"
+					}
+				}
+			};
+
+			StateUtil.applyExternalState(this.oChart, oState).then(function(aChanges){
+				assert.ok(aChanges.length === 1, "Correct amount of changes created for changed chart type: " + aChanges.length);
+				assert.equal(this.oChart.getChartType(), "column", "Chart has correct type");
+				done();
+			}.bind(this));
+
+		}.bind(this));
+
+	});
 
 	QUnit.module("State event handling", {
 		beforeEach: function() {
@@ -1167,5 +1117,173 @@ sap.ui.define([
 		StateUtil.detachStateChange(fnHandler1);
 		StateUtil.detachStateChange(fnHandler2);
 		assert.notOk(this.stateHandlerRegistry.mEventRegistry.hasOwnProperty("stateChange"), "Event listeners detached");
+	});
+
+	QUnit.module("State diff calculation", {
+		getSampleState: function() {
+			return {
+				sorters: [
+					{
+						name: "String",
+						descending: true
+					}
+				],
+				items: [
+					{
+						name: "Decimal"
+					},
+					{
+						name: "Double"
+					}
+				],
+				supplementaryConfig: {
+					aggregations : {
+						columns: {
+							String: {
+								width: "150px"
+							}
+						}
+					}
+				},
+				filter: {
+					String: [{
+						operator: "Contains",
+						values: [
+							"Test"
+						]
+					}],
+					Boolean: [{
+						operator: "EQ",
+						values: [
+							true
+						]
+					}]
+				},
+				groupLevels: [
+					{
+						name: "String"
+					}
+				]
+			};
+		},
+		before: function(){
+			TableDelegate.fetchProperties = fetchProperties;
+			TableDelegate.getSupportedP13nModes = function() {
+				return ["Column","Sort","Filter","Group"];
+			};
+			TableDelegate.addItem = function(sPropertyName) {
+				return Promise.resolve(new Column({dataProperty: sPropertyName}));
+			};
+			var sTableView = '<mvc:View xmlns:mvc="sap.ui.core.mvc" xmlns:mdc="sap.ui.mdc"><mdc:Table id="mdcTable2" p13nMode="Column,Sort,Filter,Group"></mdc:Table></mvc:View>';
+
+			return createAppEnvironment(sTableView, "StateDiff").then(function(mCreatedApp){
+				this.oView = mCreatedApp.view;
+				this.oUiComponentContainer = mCreatedApp.container;
+			}.bind(this));
+		},
+		beforeEach: function(){
+			this.oTable = this.oView.byId('mdcTable2');
+			this.oTable.removeAllColumns();
+
+			return this.oTable.retrieveInbuiltFilter().then(function(){
+				sinon.stub(this.oTable.getInbuiltFilter(), "_toInternal").callsFake(function(oProperty, oXCondition) {
+					return oXCondition;
+				});
+			}.bind(this));
+		},
+		afterEach: function(){
+			this.oTable.getInbuiltFilter()._toInternal.restore();
+		},
+		after: function(){
+			this.oUiComponentContainer = null;
+			this.oTable.destroy();
+			this.oView = null;
+		}
+	});
+
+	QUnit.test("Ceck empty diff between identical states", function(assert) {
+
+		var done = assert.async();
+
+		StateUtil.retrieveExternalState(this.oTable).then(function(oInitialState){
+			// 1) Store the initial state before appliance begins
+			return oInitialState;
+		})
+		.then(function(oInitialState){
+			// 2) Diff two idential states
+			return StateUtil.diffState(this.oTable, oInitialState, oInitialState);
+		}.bind(this))
+		.then(function(oStateDiff){
+			// 3) Check state diff --> no changes should be diffed
+			assert.equal(oStateDiff.items.length, 0, "No item changes found");
+			assert.equal(oStateDiff.groupLevels.length, 0, "No group changes found");
+			assert.deepEqual(oStateDiff.supplementaryConfig, {}, "No supplementaryConfig changes found");
+			assert.deepEqual(oStateDiff.filter, {}, "No filter changes found");
+
+			done();
+		});
+
+	});
+
+	QUnit.test("Ceck empty diff after appliance", function(assert) {
+
+		var done = assert.async();
+
+		var oSampleState = this.getSampleState();
+
+		var oInitialState;
+
+		StateUtil.retrieveExternalState(this.oTable).then(function(oState){
+			// 1) Store the initial state before appliance begins
+			oInitialState = oState;
+			return oState;
+		})
+		.then(function(){
+			return StateUtil.applyExternalState(this.oTable, oSampleState).then(function(aChanges){
+				// 1) Check initial change appliance
+				assert.equal(aChanges.length, 7, "Correct amount of changes created");
+				return aChanges;
+			});
+		}.bind(this))
+		.then(function(){
+			return StateUtil.retrieveExternalState(this.oTable);
+		}.bind(this))
+		.then(function(oNewState){
+			return StateUtil.diffState(this.oTable, oInitialState, oNewState);
+		}.bind(this))
+		.then(function(oStateDiff){
+			assert.deepEqual(oStateDiff, oSampleState, "The state diff is identical to the applied state");
+			done();
+		});
+
+	});
+
+	QUnit.test("Ceck only diff returned between two different states", function(assert) {
+
+		var done = assert.async();
+
+		var oInitialState = this.getSampleState();
+
+		//1) initial state has one less item
+		oInitialState.items.pop();
+
+		//2) initial state has one less filter
+		delete oInitialState.filter.String;
+
+		//--> oNewState has one item change and one filter change in addition, the two changes done above should be the diff
+		var oNewState = this.getSampleState();
+
+		var oInitialState;
+
+		StateUtil.diffState(this.oTable, oInitialState, oNewState)
+		.then(function(oStateDiff){
+
+			assert.equal(oStateDiff.items.length, 1, "One item diffed in state");
+			assert.equal(Object.keys(oStateDiff.filter).length, 1, "One filter diffed in state");
+			assert.equal(oStateDiff.sorters.length, 0, "No sorter diffed in state");
+			assert.equal(oStateDiff.groupLevels.length, 0, "No grouping diffed in state");
+			done();
+		});
+
 	});
 });

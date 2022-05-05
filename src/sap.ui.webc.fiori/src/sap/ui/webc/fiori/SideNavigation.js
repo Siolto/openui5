@@ -99,6 +99,7 @@ sap.ui.define([
 				 * Fired when the selection has changed via user interaction
 				 */
 				selectionChange: {
+					allowPreventDefault: true,
 					parameters: {
 						/**
 						 * the clicked item.
@@ -108,7 +109,8 @@ sap.ui.define([
 						}
 					}
 				}
-			}
+			},
+			designtime: "sap/ui/webc/fiori/designtime/SideNavigation.designtime"
 		}
 	});
 

@@ -5,13 +5,10 @@
 // Provides control sap.m.Input.
 sap.ui.define([
 	'./InputBase',
-	'./Popover',
 	'sap/ui/core/Item',
 	'./ColumnListItem',
 	'./GroupHeaderListItem',
-	'./StandardListItem',
 	'sap/ui/core/SeparatorItem',
-	'./List',
 	'./Table',
 	'./library',
 	'sap/ui/core/IconPool',
@@ -40,13 +37,10 @@ sap.ui.define([
 ],
 function(
 	InputBase,
-	Popover,
 	Item,
 	ColumnListItem,
 	GroupHeaderListItem,
-	StandardListItem,
 	SeparatorItem,
-	List,
 	Table,
 	library,
 	IconPool,
@@ -814,7 +808,7 @@ function(
 			return;
 		}
 
-		if (!(this.isMobileDevice() && this instanceof sap.m.MultiInput)) {
+		if (!(this.isMobileDevice() && this.isA("sap.m.MultiInput"))) {
 			this._closeSuggestionPopup();
 		}
 
@@ -1030,7 +1024,7 @@ function(
 			return;
 		}
 
-		if (!(this.isMobileDevice() && this instanceof sap.m.MultiInput && this._isMultiLineMode)) {
+		if (!(this.isMobileDevice() && this.isA("sap.m.MultiInput") && this._isMultiLineMode)) {
 			this.setSelectionUpdatedFromList(false);
 			this._closeSuggestionPopup();
 		}
@@ -2864,7 +2858,7 @@ function(
 	Input.prototype._createSuggestionsPopoverPopup = function () {
 		var oSuggPopover = this._getSuggestionsPopover();
 		var oPopover;
-		oSuggPopover.createSuggestionPopup(this, { showSelectedButton: this._hasShowSelectedButton() });
+		oSuggPopover.createSuggestionPopup(this, { showSelectedButton: this._hasShowSelectedButton() }, Input);
 		this._decoratePopupInput(oSuggPopover.getInput());
 
 		oPopover = oSuggPopover.getPopover();
@@ -2911,8 +2905,8 @@ function(
 						"showClearIcon",
 						"effectiveShowClearIcon"
 					].forEach(function(sPropName) {
-							oSuggestionsInput.setProperty(sPropName, this.getProperty(sPropName));
-						}, this);
+						oSuggestionsInput.setProperty(sPropName, this.getProperty(sPropName));
+					}, this);
 				}, this);
 		} else {
 			oPopover

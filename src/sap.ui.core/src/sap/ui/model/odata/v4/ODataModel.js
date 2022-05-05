@@ -33,6 +33,7 @@ sap.ui.define([
 	"sap/base/assert",
 	"sap/base/Log",
 	"sap/ui/base/SyncPromise",
+	"sap/ui/core/cache/CacheManager",
 	"sap/ui/core/library",
 	"sap/ui/core/message/Message",
 	"sap/ui/model/BindingMode",
@@ -42,7 +43,8 @@ sap.ui.define([
 	"sap/ui/thirdparty/URI"
 ], function (ODataContextBinding, ODataListBinding, ODataMetaModel, ODataPropertyBinding,
 		SubmitMode, _GroupLock, _Helper, _MetadataRequestor, _Parser, _Requestor, assert, Log,
-		SyncPromise, coreLibrary, Message, BindingMode, BaseContext, Model, OperationMode, URI) {
+		SyncPromise, CacheManager, coreLibrary, Message, BindingMode, BaseContext, Model,
+		OperationMode, URI) {
 	"use strict";
 
 	var rApplicationGroupID = /^\w+$/,
@@ -50,6 +52,8 @@ sap.ui.define([
 		// system query options allowed within a $expand query option
 		aExpandQueryOptions = ["$count", "$expand", "$filter", "$levels", "$orderby", "$search",
 			"$select"],
+		// binding-specific parameters allowed in getKeepAliveContext
+		aGetKeepAliveParameters = ["$$groupId", "$$patchWithoutSideEffects", "$$updateGroupId"],
 		rGroupID = /^(\$auto(\.\w+)?|\$direct|\w+)$/,
 		MessageType = coreLibrary.MessageType,
 		aMessageTypes = [
@@ -329,6 +333,8 @@ sap.ui.define([
 				that.fireEvent("sessionTimeout");
 			},
 			getGroupProperty : this.getGroupProperty.bind(this),
+			getOptimisticBatchEnabler : this.getOptimisticBatchEnabler.bind(this),
+			getReporter : this.getReporter.bind(this),
 			onCreateGroup : function (sGroupId) {
 				if (that.isAutoGroup(sGroupId)) {
 					that.addPrerenderingTask(that._submitBatch.bind(that, sGroupId, true));
@@ -340,12 +346,16 @@ sap.ui.define([
 		this.oRequestor = _Requestor.create(this.sServiceUrl, this.oInterface, this.mHeaders,
 			mUriParameters, sODataVersion);
 		this.changeHttpHeaders(mParameters.httpHeaders);
-		if (mParameters.earlyRequests) {
+		this.bEarlyRequests = mParameters.earlyRequests;
+		if (this.bEarlyRequests) {
 			this.oMetaModel.fetchEntityContainer(true);
 			this.initializeSecurityToken();
+			this.oRequestor.sendOptimisticBatch();
 		}
 
 		this.aAllBindings = [];
+		// The bindings holding keep-alive contexts without a $$getKeepAlive binding
+		this.mKeepAliveBindingsByPath = {};
 		this.mSupportedBindingModes = {
 			OneTime : true,
 			OneWay : true
@@ -357,6 +367,7 @@ sap.ui.define([
 			this.mSupportedBindingModes.TwoWay = true;
 		}
 		this.aPrerenderingTasks = null; // @see #addPrerenderingTask
+		this.fnOptimisticBatchEnabler = null;
 	}
 
 	/**
@@ -658,7 +669,10 @@ sap.ui.define([
 	 *   <code>true</code> is allowed.
 	 * @param {boolean} [mParameters.$$getKeepAliveContext]
 	 *   Whether this binding is considered for a match when {@link #getKeepAliveContext} is called;
-	 *   only the value <code>true</code> is allowed. Supported since 1.99.0
+	 *   only the value <code>true</code> is allowed. Must not be combined with <code>$apply</code>,
+	 *   <code>$$aggregation</code>, <code>$$canonicalPath</code>, or <code>$$sharedRequest</code>.
+	 *   If the binding is relative, <code>$$ownRequest</code> must be set as well.
+	 *   Supported since 1.99.0
 	 * @param {string} [mParameters.$$groupId]
 	 *   The group ID to be used for <b>read</b> requests triggered by this binding; if not
 	 *   specified, either the parent binding's group ID (if the binding is relative) or the
@@ -1202,12 +1216,13 @@ sap.ui.define([
 	ODataModel.prototype.createUI5Message = function (oRawMessage, sResourcePath, sCachePath) {
 		var bIsBound = typeof oRawMessage.target === "string",
 			sMessageLongtextUrl = oRawMessage.longtextUrl,
-			aTargets;
+			aTargets,
+			that = this;
 
 		function resolveTarget(sTarget) {
-			return sTarget[0] === "/"
+			return that.normalizeMessageTarget(sTarget[0] === "/"
 				? sTarget
-				: _Helper.buildPath("/" + sResourcePath, sCachePath, sTarget);
+				: _Helper.buildPath("/" + sResourcePath, sCachePath, sTarget));
 		}
 
 		if (bIsBound) {
@@ -1496,53 +1511,111 @@ sap.ui.define([
 
 	/**
 	 * Returns a context with the given path belonging to a matching list binding that has been
-	 * marked with <code>$$getKeepAliveContext</code> (see {@link #bindList}). If such a context
-	 * exists, it is returned and kept alive (see
-	 * {@link sap.ui.model.odata.v4.Context#setKeepAlive}).
+	 * marked with <code>$$getKeepAliveContext</code> (see {@link #bindList}). If such a matching
+	 * binding can be found, a context is returned and kept alive (see
+	 * {@link sap.ui.model.odata.v4.ODataListBinding#getKeepAliveContext}). Since 1.100.0 a
+	 * temporary binding is used if no such binding could be found. If such a binding is created or
+	 * resolved later, the context and its data are transferred to it, and the temporary binding is
+	 * destroyed again.
+	 *
+	 * A <code>$$getKeepAliveContext</code> binding matches if its resolved binding path is the
+	 * collection path of the context. If the context is created using a temporary binding and the
+	 * parameters of the <code>$$getKeepAliveContext</code> binding differ from the given
+	 * <code>mParameters</code> (except <code>$$groupId</code> which is especially used for the
+	 * context), that binding later runs into an error when trying to read data.
+	 *
+	 * <b>Note</b>: The context received by this function may change its
+	 * {@link sap.ui.model.odata.v4.Context#getBinding binding} during its lifetime.
 	 *
 	 * @param {string} sPath
 	 *   A list context path to an entity
 	 * @param {boolean} [bRequestMessages]
 	 *   Whether to request messages for the context's entity
-	 * @returns {sap.ui.model.odata.v4.Context|undefined}
-	 *   The context, or <code>undefined</code> if such a binding does not exist or does not have
-	 *   such a context
+	 * @param {object} [mParameters]
+	 *   Parameters for the context or the temporary binding; supported since 1.100.0. All custom
+	 *   query options and the following binding-specific parameters for a list binding may be given
+	 *   (see {@link #bindList} for details).
+	 * @param {string} [mParameters.$$groupId]
+	 *   The group ID used for read requests for the context's entity or its properties. If not
+	 *   given, the model's {@link #getGroupId group ID} is used
+	 * @param {boolean} [mParameters.$$patchWithoutSideEffects]
+	 *   Whether implicit loading of side effects via PATCH requests is switched off
+	 * @param {string} [mParameters.$$updateGroupId]
+	 *   The group ID to be used for <b>update</b> requests triggered by the context's binding
+	 * @returns {sap.ui.model.odata.v4.Context}
+	 *   The kept-alive context
 	 * @throws {Error} If
 	 *   <ul>
 	 *     <li> the model does not use the <code>autoExpandSelect</code> parameter,
+	 *     <li> an invalid parameter was supplied,
 	 *     <li> the path is not a list context path to an entity,
-	 *     <li> multiple list bindings with <code>$$getKeepAliveContext</code> match, or
+	 *     <li> multiple list bindings with <code>$$getKeepAliveContext</code> match,
+	 *     <li> a suspended binding already having contexts matches, or
 	 *     <li> {@link sap.ui.model.odata.v4.Context#setKeepAlive} fails
 	 *   </ul>
 	 *
 	 * @public
-	 * @see sap.ui.model.odata.v4.ODataListBinding#getKeepAliveContext
 	 * @since 1.99.0
 	 */
-	ODataModel.prototype.getKeepAliveContext = function (sPath, bRequestMessages) {
-		var aListBindings,
-			sListPath,
-			iPredicateIndex = sPath.indexOf("(", sPath.lastIndexOf("/")),
-			that = this;
+	ODataModel.prototype.getKeepAliveContext = function (sPath, bRequestMessages, mParameters) {
+		var oListBinding,
+			aListBindings,
+			sListPath;
 
 		if (!this.bAutoExpandSelect) {
 			throw new Error("Missing parameter autoExpandSelect");
 		}
-		if (sPath[0] !== "/" || iPredicateIndex < 0 || !sPath.endsWith(")")) {
+		if (sPath[0] !== "/") {
 			throw new Error("Not a list context path to an entity: " + sPath);
 		}
-		sListPath = sPath.slice(0, iPredicateIndex);
-		aListBindings = this.aAllBindings.filter(function (oBinding) {
-			return oBinding.mParameters && oBinding.mParameters.$$getKeepAliveContext
-				&& that.resolve(oBinding.getPath(), oBinding.getContext()) === sListPath;
+		mParameters = mParameters || {};
+		// Only excess parameters are rejected here; the correctness is checked by ODLB
+		Object.keys(mParameters).forEach(function (sParameter) {
+			if (sParameter.startsWith("sap-") && !sParameter.startsWith("sap-valid-")
+					|| sParameter[0] === "$" && !aGetKeepAliveParameters.includes(sParameter)) {
+				throw new Error("Invalid parameter: " + sParameter);
+			}
 		});
+		sListPath = sPath.slice(0, this.getPredicateIndex(sPath));
+		oListBinding = this.mKeepAliveBindingsByPath[sListPath];
+		if (!oListBinding) {
+			aListBindings = this.aAllBindings.filter(function (oBinding) {
+				if (oBinding.mParameters && oBinding.mParameters.$$getKeepAliveContext) {
+					oBinding.removeCachesAndMessages(sListPath.slice(1), true);
+				}
+				return oBinding.isKeepAliveBindingFor && oBinding.isKeepAliveBindingFor(sListPath);
+			});
+			if (aListBindings.length > 1) {
+				throw new Error("Multiple bindings with $$getKeepAliveContext for: " + sPath);
+			}
+			oListBinding = aListBindings[0];
+			if (!oListBinding) {
+				oListBinding = this.bindList(sListPath, undefined, undefined, undefined,
+					mParameters);
+				this.mKeepAliveBindingsByPath[sListPath] = oListBinding;
+			}
+		}
 
-		if (aListBindings.length > 1) {
-			throw new Error("Multiple bindings with $$getKeepAliveContext for: " + sPath);
+		return oListBinding.getKeepAliveContext(sPath, bRequestMessages, mParameters.$$groupId);
+	};
+
+	/**
+	 * Returns the index of the key predicate in the last segment of the given path.
+	 *
+	 * @param {string} sPath - The path
+	 * @returns {number} The index of the key predicate
+	 * @throws {Error} If the last segment contains no key predicate
+	 *
+	 * @private
+	 */
+	ODataModel.prototype.getPredicateIndex = function (sPath) {
+		var iPredicateIndex = sPath.indexOf("(", sPath.lastIndexOf("/"));
+
+		if (iPredicateIndex < 0 || !sPath.endsWith(")")) {
+			throw new Error("Not a list context path to an entity: " + sPath);
 		}
-		if (aListBindings.length) {
-			return aListBindings[0].getKeepAliveContext(sPath, bRequestMessages);
-		}
+
+		return iPredicateIndex;
 	};
 
 	/**
@@ -1754,6 +1827,24 @@ sap.ui.define([
 	};
 
 	/**
+	 * Returns and releases the temporary keep-alive binding for the given path.
+	 *
+	 * @param {string} sPath - The path
+	 * @returns {sap.ui.model.odata.v4.ODataListBinding|undefined}
+	 *   The binding or <code>undefined</code> if there is none
+	 *
+	 * @private
+	 */
+	ODataModel.prototype.releaseKeepAliveBinding = function (sPath) {
+		var oBinding = this.mKeepAliveBindingsByPath[sPath];
+
+		if (oBinding) {
+			delete this.mKeepAliveBindingsByPath[sPath];
+			return oBinding;
+		}
+	};
+
+	/**
 	 * Reports a technical error by firing a <code>messageChange</code> event with a new message and
 	 * logging the error to the console. Takes care that the error is only reported once via the
 	 * <code>messageChange</code> event. Existing messages remain untouched.
@@ -1881,6 +1972,84 @@ sap.ui.define([
 				})
 			});
 		}
+	};
+
+	/**
+	 * Normalizes the key predicates of a message's target using the sort order from the metadata,
+	 * including proper URI encoding, e.g. "(Sector='A%2FB%26C',ID='42')" or "('42')".
+	 *
+	 * @param {string} sTarget
+	 *   The message target
+	 * @returns {string}
+	 *   The normalized message target
+	 *
+	 * @private
+	 */
+	ODataModel.prototype.normalizeMessageTarget = function (sTarget) {
+		var sCandidate,
+			bFailed,
+			sMetaPath = "",
+			that = this;
+
+		if (sTarget.includes("$uid=")) {
+			// target containing a transient path is ignored
+			return sTarget;
+		}
+		sCandidate = sTarget.split("/").map(function (sSegment) {
+			var sCollectionName,
+				iBracketIndex = sSegment.indexOf("("),
+				aParts,
+				mProperties,
+				oType;
+
+			/*
+			 * Normalizes the value for the given alias.
+			 * @param {string} sAlias
+			 *   The property name/alias
+			 * @returns {string|undefined}
+			 *   The normalized value
+			 */
+			function getNormalizedValue(sAlias) {
+				if (sAlias in mProperties) {
+					return encodeURIComponent(decodeURIComponent(mProperties[sAlias]));
+				}
+				bFailed = true;
+			}
+
+			if (iBracketIndex < 0) {
+				sMetaPath = _Helper.buildPath(sMetaPath, sSegment);
+				return sSegment;
+			}
+
+			sCollectionName = sSegment.slice(0, iBracketIndex);
+			sMetaPath = _Helper.buildPath(sMetaPath, sCollectionName);
+			mProperties = _Parser.parseKeyPredicate(sSegment.slice(iBracketIndex));
+
+			if ("" in mProperties) {
+				return sCollectionName + "(" + getNormalizedValue("") + ")";
+			}
+
+			// could be async, but normally in this state we should already have
+			// loaded the needed metadata
+			oType = that.oRequestor.fetchTypeForPath("/" + sMetaPath).getResult();
+
+			if (!(oType && oType.$Key)) {
+				bFailed = true;
+				return sSegment;
+			}
+
+			aParts = oType.$Key.map(function (sAlias) {
+				var sValue = getNormalizedValue(sAlias);
+
+				return oType.$Key.length > 1
+					? sAlias + "=" + sValue
+					: sValue;
+			});
+
+			return sCollectionName + "(" + aParts.join(",") + ")";
+		}).join("/");
+
+		return bFailed ? sTarget : sCandidate;
 	};
 
 	/**
@@ -2031,6 +2200,80 @@ sap.ui.define([
 	};
 
 	/**
+	 * Getter for the optimistic batch enabler callback function; see
+	 * {@link sap.ui.model.odata.v4.ODataModel#setOptimisticBatchEnabler}.
+	 *
+	 *
+	 * @returns {function(string)}
+	 *   The optimistic batch enabler callback function
+	 *
+	 * @experimental As of version 1.100.0
+	 * @private
+	 * @ui5-restricted sap.fe
+	 */
+	ODataModel.prototype.getOptimisticBatchEnabler = function () {
+		return this.fnOptimisticBatchEnabler;
+	};
+
+	/**
+	 * Setter for the optimistic batch enabler callback function. Setting this callback activates
+	 * the optimistic batch feature. Via the callback the optimistic batch behavior can be enabled
+	 * or disabled by returning either a boolean or a promise resolving with a boolean.
+	 * As its first argument the callback gets the <code>window.location.href</code> at the point in
+	 * time when the OData model is instantiated.
+	 *
+	 * If the callback returns or resolves with <code>true</code>, the OData model remembers the
+	 * first sent $batch request. With the next model instantiation for the same key, this
+	 * remembered $batch request will be sent at the earliest point in time in order to have the
+	 * response already available when the first $batch request is triggered from the UI or the
+	 * binding. If the returned promise is rejected, this error will be reported and the optimistic
+	 * batch will be disabled.
+	 *
+	 * There are several preconditions on the usage of this API:
+	 * <ul>
+	 *   <li> Optimistic batch handling requires the "earlyRequests" model parameter; see
+	 *     {@link sap.ui.model.odata.v4.ODataModel#constructor},
+	 *   <li> the setter has to be called before the first $batch request is sent,
+	 *   <li> the setter may only be called once for an OData model,
+	 *   <li> the callback has to return a boolean, or a <code>Promise</code> resolving with a
+	 *     boolean
+	 *   <li> the callback is not called if the first $batch request is modifying, means that it
+	 *     contains not only GET requests.
+	 * </ul>
+	 *
+	 * @param {function(string):Promise<boolean>|boolean} fnOptimisticBatchEnabler
+	 *   The optimistic batch enabler callback controlling whether optimistic batch should be used
+	 * @throws {Error} If
+	 * <ul>
+	 *   <li> the earlyRequests model parameter is not set,
+	 *   <li> the setter is called after a non-optimistic batch is sent,
+	 *   <li> the given <code>fnOptimisticBatchEnabler</code> parameter is not a function
+	 *   <li> the setter is called more than once
+	 * </ul>
+	 *
+	 * @experimental As of version 1.100.0
+	 * @private
+	 * @see cleanUpOptimisticBatch
+	 * @ui5-restricted sap.fe
+	 */
+	ODataModel.prototype.setOptimisticBatchEnabler = function (fnOptimisticBatchEnabler) {
+		if (!this.bEarlyRequests) {
+			throw new Error("The earlyRequests model parameter is not set");
+		}
+		if (this.oRequestor.isBatchSent()) {
+			throw new Error("The setter is called after a non-optimistic batch is sent");
+		}
+		if (typeof fnOptimisticBatchEnabler !== "function") {
+			throw new Error("The given fnOptimisticBatchEnabler parameter is not a function");
+		}
+		if (this.fnOptimisticBatchEnabler) {
+			throw new Error("The setter is called more than once");
+		}
+
+		this.fnOptimisticBatchEnabler = fnOptimisticBatchEnabler;
+	};
+
+	/**
 	 * Submits the requests associated with the given group ID in one batch request. Requests from
 	 * subsequent calls to this method for the same group ID may be combined in one batch request
 	 * using separate change sets. For group IDs with {@link sap.ui.model.odata.v4.SubmitMode.Auto},
@@ -2099,6 +2342,30 @@ sap.ui.define([
 			return !oBinding.isResolved();
 		}).some(function (oBinding) {
 			return oBinding[sCallbackName](vParameter);
+		});
+	};
+
+	//*********************************************************************************************
+	// "static" functions
+	//*********************************************************************************************
+
+	/**
+	 * Cleans up the optimistic batch cache to a given point in time.
+	 *
+	 * @param {Date} [dOlderThan] The point in time from which on older cache entries are deleted.
+	 *   If not supplied, all optimistic batch entries are deleted.
+	 * @returns {Promise} A promise resolving without a defined result, or rejecting with an error
+	 *   if deletion fails.
+	 *
+	 * @experimental As of version 1.102.0
+	 * @private
+	 * @see #setOptimisticBatchEnabler
+	 * @ui5-restricted sap.fe
+	 */
+	ODataModel.cleanUpOptimisticBatch = function (dOlderThan) {
+		return CacheManager.delWithFilters({
+			olderThan : dOlderThan,
+			prefix : "sap.ui.model.odata.v4.optimisticBatch:"
 		});
 	};
 

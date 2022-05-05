@@ -32,6 +32,7 @@ sap.ui.define([
 	/*global Set */
 
 	var TableType = library.TableType;
+	var P13nMode = library.TableP13nMode;
 	var TableMap = new window.WeakMap(); // To store table-related information for easy access in the delegate.
 
 	/**
@@ -104,17 +105,6 @@ sap.ui.define([
 	Delegate.fetchPropertyExtensionsForBinding = function(oTable, aProperties) {
 		return this.fetchPropertyExtensions(oTable, aProperties);
 	};
-
-	/**
-	 * Formats the title text of a group header row of the table.
-	 *
-	 * @param {sap.ui.mdc.Table} oTable Instance of the table
-	 * @param {sap.ui.model.Context} oContext Binding context
-	 * @param {string} sProperty The name of the grouped property
-	 * @returns {string | undefined} The group header title. If <code>undefined</code> is returned, the default group header title is set.
-	 * @private
-	 */
-	Delegate.formatGroupHeader = function(oTable, oContext, sProperty) {};
 
 	Delegate.preInit = function(oTable) {
 		if (!TableMap.has(oTable)) {
@@ -203,7 +193,7 @@ sap.ui.define([
 	 * <code>model</code>... must be provided in the {@link #updateBindingInfo updateBindingInfo} method always,
 	 * and those keys must not be changed conditionally.
 	 *
-	 * @param {sap.ui.mdc.Table} oMDCTable Instance of the table
+	 * @param {sap.ui.mdc.Table} oTable Instance of the table
 	 * @param {sap.ui.base.ManagedObject.AggregationBindingInfo} oBindingInfo The binding info object to be used to bind the table to the model.
 	 * @param {sap.ui.model.ListBinding} [oBinding] The binding instance of the table
 	 * @protected
@@ -260,7 +250,7 @@ sap.ui.define([
 			return [];
 		}
 
-		if (oTable.isGroupingEnabled() && supportsGrouping(oTable)) {
+		if (oTable.isGroupingEnabled()) {
 			var aGroupProperties = oProperty.getGroupableProperties();
 
 			if (aGroupProperties.length > 0) {
@@ -268,7 +258,7 @@ sap.ui.define([
 			}
 		}
 
-		if (oTable.isAggregationEnabled() && supportsAggregation(oTable)) {
+		if (oTable.isAggregationEnabled()) {
 			var aAggregateProperties = oProperty.getAggregatableProperties();
 
 			if (aAggregateProperties.length > 0) {
@@ -293,6 +283,21 @@ sap.ui.define([
 		}
 
 		return aItems;
+	};
+
+	Delegate.getSupportedP13nModes = function(oTable) {
+		var aSupportedModes = TableDelegate.getSupportedP13nModes(oTable);
+
+		if (oTable._getStringType() === TableType.Table) {
+			if (!aSupportedModes.includes(P13nMode.Group)) {
+				aSupportedModes.push(P13nMode.Group);
+			}
+			if (!aSupportedModes.includes(P13nMode.Aggregate)) {
+				aSupportedModes.push(P13nMode.Aggregate);
+			}
+		}
+
+		return aSupportedModes;
 	};
 
 	function createGroupPopoverItem(aGroupProperties, oMDCColumn) {
@@ -578,26 +583,6 @@ sap.ui.define([
 		} else {
 			return oValidationState;
 		}
-	}
-
-	/**
-	 * Checks whether the inner table supports grouping.
-	 *
-	 * @param {sap.ui.mdc.Table} oTable Instance of the table
-	 * @returns {boolean} Whether the inner table supports grouping
-	 */
-	function supportsGrouping(oTable) {
-		return oTable._isOfType(TableType.Table);
-	}
-
-	/**
-	 * Checks whether the inner table supports aggregation.
-	 *
-	 * @param {sap.ui.mdc.Table} oTable Instance of the table
-	 * @returns {boolean} Whether the inner table supports aggregation
-	 */
-	function supportsAggregation(oTable) {
-		return oTable._isOfType(TableType.Table);
 	}
 
 	/**

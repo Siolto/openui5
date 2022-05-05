@@ -6,10 +6,9 @@
 sap.ui.define([
 		"sap/ui/core/Element",
 		"sap/ui/core/Control",
-		"sap/base/strings/hyphenate",
-		"sap/base/strings/camelize"
+		"sap/base/strings/hyphenate"
 	],
-	function(Element, Control, hyphenate, camelize) {
+	function(Element, Control, hyphenate) {
 		"use strict";
 
 		/**
@@ -38,6 +37,8 @@ sap.ui.define([
 			this.renderStyleProperties(oRm, oWebComponent);
 			// Properties, managed by associations
 			this.renderAssociationProperties(oRm, oWebComponent);
+			// Tooltip aggregation
+			this.renderTooltipAggregation(oRm, oWebComponent);
 			// Hook for customization
 			this.customRenderInOpeningTag(oRm, oWebComponent);
 			// Attributes/Styles that the component sets internally
@@ -68,7 +69,12 @@ sap.ui.define([
 		 */
 		WebComponentRenderer.renderAttributeProperties = function(oRm, oWebComponent) {
 			var oAttrProperties = oWebComponent.getMetadata().getPropertiesByMapping("attribute");
+			var aPropsToAlwaysSet = ["enabled"]; // some properties can be initial and still have a non-default value due to side effects (e.g. EnabledPropagator)
 			for (var sPropName in oAttrProperties) {
+				if (oWebComponent.isPropertyInitial(sPropName) && !aPropsToAlwaysSet.includes(sPropName)) {
+					continue; // do not set attributes for properties that were not explicitly set or bound
+				}
+
 				var oPropData = oAttrProperties[sPropName];
 				var vPropValue = oPropData.get(oWebComponent);
 				if (oPropData.type === "object" || typeof vPropValue === "object") {
@@ -106,15 +112,14 @@ sap.ui.define([
 			}
 
 			var aAttributes = oDomRef.getAttributeNames();
-			var mProperties = oWebComponent.getMetadata().getAllProperties();
-			var aSkipList = ["id", "data-sap-ui", "style", "class"];
+			var aSkipList = ["id", "data-sap-ui", "style", "class", "__is-busy"];
 			aAttributes.forEach(function(sAttr) {
 				if (aSkipList.indexOf(sAttr) !== -1) {
 					return; // Skip attributes, set by the framework
 				}
-				var sProp = camelize(sAttr);
-				if (mProperties[sProp] !== undefined) {
-					return; // Skip managed attributes/properties
+
+				if (oWebComponent.getMetadata().isManagedAttribute(sAttr)) {
+					return;
 				}
 
 				var sValue = oDomRef.getAttribute(sAttr); // Repeat the value from DOM
@@ -191,7 +196,7 @@ sap.ui.define([
 			for (var sAssocName in oAssociations) {
 				var oAssocData = oAssociations[sAssocName];
 				var vAssocValue = oAssocData.get(oWebComponent);
-				var sPropName = hyphenate(oAssocData._sMapTo); // The name of the property to be set with the association's ID value
+				var sAttrName = hyphenate(oAssocData._sMapTo); // The name of the attribute to be set with the association's ID value
 				if (oAssocData._fnMappingFormatter) {
 					vAssocValue = oWebComponent[oAssocData._fnMappingFormatter].call(oWebComponent, vAssocValue);
 				}
@@ -201,8 +206,21 @@ sap.ui.define([
 				}
 
 				if (vAssocValue) { // Only set the property, if the association is set
-					oRm.attr(sPropName, vAssocValue);
+					oRm.attr(sAttrName, vAssocValue);
 				}
+			}
+		};
+
+		/**
+		 * Transforms the tooltip aggregation to a tooltip attribute - components that support this attribute will use it
+		 * @private
+		 * @param oRm
+		 * @param oWebComponent
+		 */
+		WebComponentRenderer.renderTooltipAggregation = function(oRm, oWebComponent) {
+			var sTooltipText = oWebComponent.getTooltip_Text();
+			if (sTooltipText) {
+				oRm.attr("tooltip", sTooltipText);
 			}
 		};
 

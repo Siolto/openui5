@@ -14,9 +14,9 @@ sap.ui.define([
 	'sap/ui/core/Control',
 	'sap/ui/Device',
 	'sap/ui/core/format/DateFormat',
-	'sap/ui/core/format/DateFormatTimezoneDisplay',
 	'sap/ui/core/LocaleData',
 	'sap/ui/core/Core',
+	'sap/ui/core/format/TimezoneUtil',
 	'./TimePickerClocks',
 	'./DateTimePickerRenderer',
 	'./SegmentedButton',
@@ -37,9 +37,9 @@ sap.ui.define([
 	Control,
 	Device,
 	DateFormat,
-	DateFormatTimezoneDisplay,
 	LocaleData,
 	Core,
+	TimezoneUtil,
 	TimePickerClocks,
 	DateTimePickerRenderer,
 	SegmentedButton,
@@ -55,7 +55,7 @@ sap.ui.define([
 	// shortcut for sap.m.PlacementType and sap.m.ButtonType
 	var PlacementType = library.PlacementType,
 		ButtonType = library.ButtonType,
-		// From sap.ui.Device.media.RANGESETS.SAP_STANDARD - "Phone": For screens smaller than 600 pixels.
+		// From Device.media.RANGESETS.SAP_STANDARD - "Phone": For screens smaller than 600 pixels.
 		STANDART_PHONE_RANGESET = "Phone",
 		CalendarType = coreLibrary.CalendarType;
 
@@ -311,19 +311,14 @@ sap.ui.define([
 			if (Device.system.phone || jQuery('html').hasClass("sapUiMedia-Std-Phone") || this.getForcePhoneView()) {
 				oSwitcher.setVisible(true);
 				oSwitcher.setSelectedKey("Cal");
+				this.getCalendar().addDelegate({
+					onAfterRendering: function() {
+						this._switchVisibility(oSwitcher.getSelectedKey());
+					}.bind(this)
+				});
 			} else {
 				oSwitcher.setVisible(false);
 			}
-
-		},
-
-		onAfterRendering: function() {
-			if (Device.system.phone || jQuery('html').hasClass("sapUiMedia-Std-Phone") || this.getForcePhoneView()) {
-				var oSwitcher = this.getAggregation("_switcher");
-				var sKey = oSwitcher.getSelectedKey();
-				this._switchVisibility(sKey);
-			}
-
 		},
 
 		_handleSelect: function(oEvent) {
@@ -347,7 +342,7 @@ sap.ui.define([
 			}
 
 			if (sKey === "Cal") {
-				oCalendar.$().css("display", "");
+				oCalendar.$().css("display", "flex");
 				oClocks.$().css("display", "none");
 				oCalendar.getFocusDomRef() && oCalendar.getFocusDomRef().focus();
 			} else {
@@ -371,21 +366,6 @@ sap.ui.define([
 
 			return this._oDateTimePicker.getSpecialDates();
 
-		},
-
-		onkeydown: function(oEvent) {
-			var bIsTabForward = oEvent.keyCode === KeyCodes.TAB && !oEvent.shiftKey;
-			var bIsTabBackward = oEvent.keyCode === KeyCodes.TAB && oEvent.shiftKey;
-			if (bIsTabForward) {
-				if (oEvent.target.classList.contains('sapUiCalHeadToday')
-					|| (oEvent.target.classList.contains('sapUiCalHeadBLast') && !this._oDateTimePicker._oCalendar.getShowCurrentDateButton())) {
-					this.getAggregation('clocks').getDomRef().children[0].children[0].focus();
-				}
-			}
-			if (bIsTabBackward && oEvent.target.classList.contains('sapUiCalItem')) {
-				var iLastElementIndex = this.oParent.getAggregation("footer").getAggregation("content").length - 1;
-				this.oParent.getAggregation("footer").getAggregation("content")[iLastElementIndex].focus();
-			}
 		}
 	});
 
@@ -395,10 +375,39 @@ sap.ui.define([
 		this._bOnlyCalendar = false;
 	};
 
+	DateTimePicker.prototype.setValue = function(sValue) {
+		var sFallbackValue;
+
+		DatePicker.prototype.setValue.apply(this, arguments);
+
+		delete this._prefferedValue;
+
+		if (!this.getDateValue()) {
+			sFallbackValue = this._fallbackParse(sValue);
+
+			if (typeof sFallbackValue === "string") {
+				this._bValid = true;
+				this._prefferedValue = sFallbackValue;
+
+				// there is a re-render comming, but this updates the dom immediately to avoid flickering
+				if (this.getDomRef() && this._$input.val() !== sFallbackValue) {
+					this._$input.val(sFallbackValue);
+					this._curpos = this._$input.cursorPos();
+				}
+			}
+		}
+
+		return this;
+	};
+
 	DateTimePicker.prototype.setTimezone = function(sTimezone) {
 		var oCurrentDateValue,
 			sFormattedValue,
 			oNewDateValue;
+
+		if (this.getTimezone() === sTimezone) {
+			return this;
+		}
 
 		oCurrentDateValue = this.getDateValue() || this._parseValue(this.getValue(), false);
 		sFormattedValue = this._formatValue(oCurrentDateValue, false);
@@ -436,15 +445,15 @@ sap.ui.define([
 	DateTimePicker.prototype.onAfterRendering = function() {
 		if (this._getShowTimezone()) {
 			waitForThemeApplied().then(function() {
-				var oDummyContentDomRef = document.querySelector("#" + this.getId() + " .sapMDummyContent"),
+				var oDummyContentDomRef = this.$().find(".sapMDummyContent"),
 					iDummyWidth;
 
-				if (!oDummyContentDomRef) {
+				if (!oDummyContentDomRef || !oDummyContentDomRef.length) {
 					return;
 				}
 
-				iDummyWidth = oDummyContentDomRef.getBoundingClientRect().width;
-				jQuery("#" + this.getId() + "-inner").css("max-width", (iDummyWidth + 2) + "px");
+				iDummyWidth = oDummyContentDomRef[0].getBoundingClientRect().width;
+				this.$("inner").css("max-width", (iDummyWidth + 2) + "px");
 			}.bind(this));
 		}
 	};
@@ -547,6 +556,7 @@ sap.ui.define([
 		var oResourceBundle;
 
 		if (this._oTimezonePopup) {
+			this._oTimezonePopup.setTitle(this._getTimezone(true));
 			return this._oTimezonePopup;
 		}
 
@@ -595,11 +605,11 @@ sap.ui.define([
 	};
 
 	/**
-	 * Gets the format options of the value or dateValue binding with timezone.
-	 * @returns {object} The binding format options or an empty object instance.
+	 * Gets the format options of the value or dateValue binding.
+	 * @returns {object} The binding format options or undefined.
 	 * @private
 	 */
-	DateTimePicker.prototype._getBindingWithTimezoneFormatOptions = function() {
+	DateTimePicker.prototype._getBindingFormatOptions = function() {
 		var oBinding = this.getBinding("value") || this.getBinding("dateValue"),
 			oBindingType;
 
@@ -607,7 +617,7 @@ sap.ui.define([
 			oBindingType = oBinding.getType();
 		}
 
-		if (oBindingType && oBindingType.isA(["sap.ui.model.odata.type.DateTimeWithTimezone"])) {
+		if (this._isSupportedBindingType(oBindingType)) {
 			return jQuery.extend({}, oBindingType.getFormatOptions());
 		}
 	};
@@ -621,14 +631,14 @@ sap.ui.define([
 	 * @private
 	 */
 	DateTimePicker.prototype._getTimezoneFormatOptions = function(bDisplayFormat) {
-		var oFormatOptions = this._getBindingWithTimezoneFormatOptions() || {},
+		var oFormatOptions = this._getBindingFormatOptions() || {},
 			sFormat = bDisplayFormat ? this.getDisplayFormat() : this.getValueFormat(),
 			oBinding = this.getBinding("value") || this.getBinding("dateValue"),
 			oBindingType = oBinding && oBinding.getType && oBinding.getType();
 
-		if (bDisplayFormat || !this._getTimezone()
-			|| (oBindingType && this._isSupportedBindingType(oBindingType))) {
-			oFormatOptions.showTimezone = DateFormatTimezoneDisplay.Hide;
+		if (bDisplayFormat || !this._getTimezone() ||
+			(oBindingType && !oBindingType.isA(["sap.ui.model.odata.type.DateTimeWithTimezone"]))) {
+			oFormatOptions.showTimezone = false;
 		}
 
 		if (oFormatOptions.relative === undefined) {
@@ -645,7 +655,7 @@ sap.ui.define([
 			oFormatOptions.strictParsing = true;
 		}
 
-		if (sFormat && (!oBinding || !oBindingType || !this._isSupportedBindingType(oBindingType))) {
+		if (sFormat && !this._isSupportedBindingType(oBindingType)) {
 			oFormatOptions[this._checkStyle(sFormat) ? "style" : "pattern"] = sFormat;
 		}
 
@@ -672,7 +682,7 @@ sap.ui.define([
 			oBindingType = oBinding && oBinding.getType();
 
 		if (this.getShowTimezone() === undefined && oBindingType && oBindingType.isA(["sap.ui.model.odata.type.DateTimeWithTimezone"])) {
-			return oBindingType.getFormatOptions().showTimezone !== DateFormatTimezoneDisplay.Hide;
+			return oBindingType.getFormatOptions().showTimezone !== false;
 		}
 
 		return this.getShowTimezone();
@@ -737,14 +747,10 @@ sap.ui.define([
 			oBindingType = oBinding && oBinding.getType(),
 			aDateWithTimezone;
 
-		if (oBindingType) {
-			if (oBindingType.isA(["sap.ui.model.odata.type.DateTimeWithTimezone"])) {
-				var aCurrentBindingValues = oBinding.getCurrentValues().slice(0);
-				aCurrentBindingValues[1] = sTimezone || this._getTimezone(true);
-				return oBindingType.parseValue(sValue, "string", aCurrentBindingValues)[0];
-			} else if (!bDisplayFormat && this._isSupportedBindingType(oBindingType)) {
-				return DatePicker.prototype._parseValue.apply(this, arguments);
-			}
+		if (oBindingType && oBindingType.isA(["sap.ui.model.odata.type.DateTimeWithTimezone"])) {
+			var aCurrentBindingValues = oBinding.getCurrentValues().slice(0);
+			aCurrentBindingValues[1] = sTimezone || this._getTimezone(true);
+			return oBindingType.parseValue(sValue, "string", aCurrentBindingValues)[0];
 		}
 
 		aDateWithTimezone = this._getFormatter(bDisplayFormat)
@@ -763,6 +769,36 @@ sap.ui.define([
 		}
 
 		return this._getFormatter(!bValueFormat).format(oDate, sTimezone || this._getTimezone(true));
+	};
+
+	/**
+	 * Tries to parse the value to see if it is a timezone only string.
+	 * @param {string} sValue A value string
+	 * @return {string|null} An empty string indicating success or null
+	 * @private
+	 */
+	DateTimePicker.prototype._fallbackParse = function(sValue) {
+		return this._getFallbackParser().parse(sValue) ? "" : null;
+	};
+
+	DateTimePicker.prototype._getFallbackParser = function() {
+		if (!this._fallbackParser) {
+			this._fallbackParser = DateFormat.getDateTimeWithTimezoneInstance({
+				showDate: false,
+				showTime: false,
+				showTimezone: true
+			});
+		}
+
+		return this._fallbackParser;
+	};
+
+	DateTimePicker.prototype._getPickerParser = function() {
+		if (!this._clocksParser) {
+			this._clocksParser = DateFormat.getDateTimeWithTimezoneInstance({ showTimezone: false });
+		}
+
+		return this._clocksParser;
 	};
 
 	DateTimePicker.prototype._getLocaleBasedPattern = function(sPlaceholder) {
@@ -854,7 +890,7 @@ sap.ui.define([
 		this.addStyleClass(InputBase.ICON_PRESSED_CSS_CLASS);
 
 		var oPopover = this._oPopup.getAggregation("_popup");
-		oPopover.oPopup.setAutoCloseAreas([oDomRef]);
+		oPopover.oPopup.setExtraContent([oDomRef]);
 
 		this._oPopup.openBy(oDomRef || this);
 	};
@@ -921,6 +957,10 @@ sap.ui.define([
 			this._oOKButton.setEnabled(false);
 		}
 
+		// convert the date to local date for the calendar and the clocks
+		sFormattedDate = this._getPickerParser().format(oDate, this._getTimezone(true));
+		oDate = this._getPickerParser().parse(sFormattedDate, TimezoneUtil.getLocalTimezone())[0];
+
 		this._oCalendar.focusDate(oDate);
 
 		if (bDateFound) {
@@ -929,17 +969,17 @@ sap.ui.define([
 			}
 		}
 
-		sFormattedDate = this._formatValue(oDate, false);
-		oDate = this._parseValue(sFormattedDate, true, Core.getConfiguration().getTimezone());
 		this._oClocks._setTimeValues(oDate);
 	};
 
 	DateTimePicker.prototype._getSelectedDate = function(){
-
 		var oDate = DatePicker.prototype._getSelectedDate.apply(this, arguments),
 			sFormattedDate;
 
 		if (oDate) {
+			sFormattedDate = this._getPickerParser().format(oDate, TimezoneUtil.getLocalTimezone());
+			oDate = this._getPickerParser().parse(sFormattedDate, this._getTimezone(true))[0];
+
 			var oDateTime = this._oClocks.getTimeValues();
 			var sPattern = this._oClocks._getDisplayFormatPattern();
 			if (sPattern.search("h") >= 0 || sPattern.search("H") >= 0) {
@@ -958,9 +998,6 @@ sap.ui.define([
 				oDate = new Date(this._oMaxDate.getTime());
 			}
 		}
-
-		sFormattedDate = this._formatValue(oDate, false, Core.getConfiguration().getTimezone());
-		oDate = this._parseValue(sFormattedDate, true, this._getTimezone(true));
 
 		return oDate;
 	};
@@ -1008,23 +1045,23 @@ sap.ui.define([
 		} else {
 			oSwitcher.setVisible(false);
 			oClocks.$().css("display", "");
-			oCalendar.$().css("display", "");
+			oCalendar.$().css("display", "flex");
 		}
 	};
 
 	function _handleAfterOpen(oEvent){
-		this.$("inner").attr("aria-expanded", true);
 		this._oCalendar.focus();
 
 		Device.media.attachHandler(this._handleWindowResize, this);
+		this.fireAfterValueHelpOpen();
 	}
 
 	function _handleAfterClose(){
 		this.removeStyleClass(InputBase.ICON_PRESSED_CSS_CLASS);
-		this.$("inner").attr("aria-expanded", false);
 
 		this._oCalendar._closePickers();
 		Device.media.detachHandler(this._handleWindowResize, this);
+		this.fireAfterValueHelpClose();
 	}
 
 	function _getTimePattern(){
@@ -1063,15 +1100,9 @@ sap.ui.define([
 	}
 
 	function _handleCalendarSelect(oEvent) {
-		var oDelegate = {
-			onAfterRendering: function () {
-				this._oPopupContent.getCalendar().getAggregation("month")[0].removeEventDelegate(oDelegate, this);
-				this._oPopupContent.switchToTime();
-				this._oPopupContent.getClocks()._focusActiveButton();
-			}
-		};
+		this._oPopupContent.switchToTime();
+		this._oPopupContent.getClocks()._focusActiveButton();
 		this._oOKButton.setEnabled(true);
-		this._oPopupContent.getCalendar().getAggregation("month")[0].addEventDelegate(oDelegate, this);
 	}
 
 	return DateTimePicker;

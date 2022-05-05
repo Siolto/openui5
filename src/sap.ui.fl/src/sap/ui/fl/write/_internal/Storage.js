@@ -409,6 +409,11 @@ sap.ui.define([
 		discardDraft: function (mPropertyBag) {
 			return _getWriteConnectors()
 				.then(_executeActionByName.bind(undefined, "versions.discardDraft", mPropertyBag));
+		},
+
+		publish: function (mPropertyBag) {
+			return _getWriteConnectors()
+			.then(_executeActionByName.bind(undefined, "versions.publish", mPropertyBag));
 		}
 	};
 
@@ -423,6 +428,7 @@ sap.ui.define([
 		 * rejects if an error occurs
 		 */
 		getSourceLanguages: function (mPropertyBag) {
+			// TODO: cache the request & invalidate it in case of a writing operation
 			return _getWriteConnectors()
 				.then(_executeActionByName.bind(undefined, "translation.getSourceLanguages", mPropertyBag));
 		},

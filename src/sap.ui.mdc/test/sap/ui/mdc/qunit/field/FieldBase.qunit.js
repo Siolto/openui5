@@ -864,15 +864,16 @@ sap.ui.define([
 		var oContext = new Context(); // just dummy context
 		oField.setBindingContext(oContext);
 		oField.setFieldHelp("X"); // just need ID
-		oField.setDataType("sap.ui.model.type.Currency");
+		oField.setDataType("sap.ui.model.type.String");
+		oField.setEditMode(EditMode.Display);
 		oField.placeAt("content");
 		oCore.applyChanges();
 		var oFormatOptions = oField._getFormatOptions();
 		assert.ok(oFormatOptions, "FormatOptions returned");
-		assert.ok(oFormatOptions.valueType.isA("sap.ui.model.type.Currency"), "valueType");
-		assert.ok(oFormatOptions.originalDateType.isA("sap.ui.model.type.Currency"), "originalDateType");
+		assert.ok(oFormatOptions.valueType.isA("sap.ui.model.type.String"), "valueType");
+		assert.notOk(oFormatOptions.originalDateType, "no originalDateType");
 		assert.equal(oFormatOptions.display, FieldDisplay.Value, "display");
-		assert.notOk(oFormatOptions.fieldHelpID, "fieldHelpID");
+		assert.equal(oFormatOptions.fieldHelpID, "X", "fieldHelpID");
 		assert.deepEqual(oFormatOptions.operators, oField._getOperators(), "operators");
 		assert.equal(oFormatOptions.hideOperator, false, "hideOperator");
 		assert.equal(oFormatOptions.maxConditions, -1, "maxConditions");
@@ -885,6 +886,32 @@ sap.ui.define([
 		assert.notOk(oFormatOptions.preventGetDescription, "preventGetDescription not set");
 		assert.equal(oFormatOptions.conditionModel, oCM, "conditionModel");
 		assert.equal(oFormatOptions.conditionModelName, "cm", "conditionModelName");
+		assert.ok(oFormatOptions.convertWhitespaces, "convertWhitespaces set");
+
+		oField.setDataType("sap.ui.model.type.Currency");
+		oField.setEditMode(EditMode.Editable);
+		oField.setMaxConditions(1);
+		oCore.applyChanges();
+		oFormatOptions = oField._getFormatOptions();
+		assert.ok(oFormatOptions, "FormatOptions returned");
+		assert.ok(oFormatOptions.valueType.isA("sap.ui.model.type.Currency"), "valueType");
+		assert.ok(oFormatOptions.originalDateType.isA("sap.ui.model.type.Currency"), "originalDateType");
+		assert.equal(oFormatOptions.display, FieldDisplay.Value, "display");
+		assert.notOk(oFormatOptions.fieldHelpID, "fieldHelpID");
+		assert.deepEqual(oFormatOptions.operators, oField._getOperators(), "operators");
+		assert.equal(oFormatOptions.hideOperator, false, "hideOperator");
+		assert.equal(oFormatOptions.maxConditions, 1, "maxConditions");
+		assert.equal(oFormatOptions.bindingContext, oContext, "bindingContext");
+		assert.ok(oFormatOptions.asyncParsing, "asyncParsing set");
+		assert.notOk(oFormatOptions.navigateCondition, "no navigateCondition set");
+		assert.ok(oFormatOptions.delegate, "delegate set");
+		assert.equal(oFormatOptions.delegateName, "sap/ui/mdc/field/FieldBaseDelegate", "delegateName");
+		assert.deepEqual(oFormatOptions.payload, {}, "payload");
+		assert.notOk(oFormatOptions.preventGetDescription, "preventGetDescription not set");
+		assert.equal(oFormatOptions.conditionModel, oCM, "conditionModel");
+		assert.equal(oFormatOptions.conditionModelName, "cm", "conditionModelName");
+		assert.notOk(oFormatOptions.convertWhitespaces, "convertWhitespaces not set");
+		assert.equal(oFormatOptions.control, oField, "control");
 
 		oFormatOptions = oField._getUnitFormatOptions();
 		assert.ok(oFormatOptions, "FormatOptions returned");
@@ -904,6 +931,8 @@ sap.ui.define([
 		assert.notOk(oFormatOptions.preventGetDescription, "preventGetDescription not set");
 		assert.equal(oFormatOptions.conditionModel, oCM, "conditionModel");
 		assert.equal(oFormatOptions.conditionModelName, "cm", "conditionModelName");
+		assert.notOk(oFormatOptions.convertWhitespaces, "convertWhitespaces not set");
+		assert.equal(oFormatOptions.control, oField, "control");
 
 	});
 
@@ -4306,11 +4335,16 @@ sap.ui.define([
 
 	QUnit.test("Select currency", function(assert) {
 
+		var oIntType = new IntegerType();
+		var oStringType = new StringType();
+		oField._oContentFactory.setCompositeTypes([oIntType, oStringType]); // fake composite types
+
 		var oIcon = new Icon("I1", { src: "sap-icon://sap-ui5", decorative: false, press: function(oEvent) {} }).placeAt("content");
 		oCore.applyChanges();
 
 		var fnDone = assert.async();
 		var oFieldHelp = oCore.byId(oField.getFieldHelp());
+		sinon.spy(oFieldHelp, "connect");
 
 		var aContent = oField.getAggregation("_content");
 		var oContent1 = aContent && aContent.length > 0 && aContent[0];
@@ -4319,6 +4353,9 @@ sap.ui.define([
 		assert.ok(oContent2.getShowValueHelp(), "Currency Input has value help");
 
 		oContent2.focus(); // as FieldHelp is connected with focus
+		assert.ok(oFieldHelp.connect.calledOnce, "FieldHelp connected");
+		assert.equal(oFieldHelp.connect.args[0][0], oField, "FieldHelp connected to Field");
+		assert.equal(oFieldHelp.connect.args[0][1].dataType, oStringType, "Type of currency part used for FieldHelp");
 		// simulate select event to see if field is updated
 		var oCondition = Condition.createCondition("EQ", ["EUR", "EUR"], {inTest: "X"}, {outTest: "Y"});
 		oFieldHelp.fireSelect({ conditions: [oCondition] });
@@ -4354,6 +4391,9 @@ sap.ui.define([
 					assert.ok(aConditions[0].hasOwnProperty("outParameters"), "Condition has out-partameters");
 					assert.equal(aConditions[0].outParameters.outTest, "Y", "Out-parameter value");
 
+					oField._oContentFactory.setCompositeTypes();
+					oIntType.destroy();
+					oStringType.destroy();
 					oIcon.destroy();
 					fnDone();
 				}, 0);
@@ -4762,6 +4802,7 @@ sap.ui.define([
 			sinon.stub(oFieldInfo, "isTriggerable").returns(Promise.resolve(false));
 			sinon.stub(oFieldInfo, "getTriggerHref").returns(Promise.resolve("test.test"));
 			sinon.stub(oFieldInfo, "getDirectLinkHrefAndTarget").returns(null);
+			sinon.stub(oFieldInfo, "checkDirectNavigation").returns(Promise.resolve(false));
 			sinon.stub(oFieldInfo, "getContent").returns(Promise.resolve(oCore.byId("L1")));
 			sinon.spy(oFieldInfo, "open");
 
@@ -4823,6 +4864,7 @@ sap.ui.define([
 			sinon.stub(oFieldInfo, "isTriggerable").returns(Promise.resolve(true));
 			sinon.stub(oFieldInfo, "getTriggerHref").returns(Promise.resolve(undefined));
 			sinon.stub(oFieldInfo, "getDirectLinkHrefAndTarget").returns(Promise.resolve(null));
+			sinon.stub(oFieldInfo, "checkDirectNavigation").returns(Promise.resolve(false));
 			sinon.stub(oFieldInfo, "getContent").returns(Promise.resolve(oCore.byId("L1")));
 			sinon.spy(oFieldInfo, "open");
 

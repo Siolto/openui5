@@ -242,7 +242,8 @@ sap.ui.define([
 	};
 
 	/**
-	 * @param {object} mActionConfig Action config object
+	 * @param {object} vAction Action config object
+	 * @param {boolean} bIsActionDefinition
 	 * @returns {sap.m.Button} Button, which will be displayed in the menu
 	 */
 	ActionsToolbar.prototype._createActionButton = function (vAction, bIsActionDefinition) {
@@ -309,7 +310,7 @@ sap.ui.define([
 		if (oChanges.mutation === "insert") {
 			var oButton = this._createActionButton(oActionDefinition, true);
 
-			this.getAggregation("_actionSheet").addButton(oButton);
+			this.getAggregation("_actionSheet").insertButton(oButton, this.indexOfActionDefinition(oActionDefinition));
 			oActionDefinition.setAssociation("_menuButton", oButton);
 
 			var oActionObserver = new ManagedObjectObserver(this._observeSingleAction.bind(this));

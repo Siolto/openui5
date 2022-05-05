@@ -163,8 +163,20 @@ sap.ui.define([
 						throw new Error("Unsupported operation mode: " + vValue);
 					}
 					break;
-				case "$$canonicalPath":
 				case "$$getKeepAliveContext":
+					if (that.isRelative() && !mParameters.$$ownRequest) {
+						throw new Error(
+							"$$getKeepAliveContext requires $$ownRequest in a relative binding");
+					}
+					["$$aggregation", "$$canonicalPath", "$$sharedRequest"]
+						.forEach(function (sForbidden) {
+							if (sForbidden in mParameters) {
+								throw new Error("Cannot combine $$getKeepAliveContext and "
+									+ sForbidden);
+							}
+						});
+					// falls through
+				case "$$canonicalPath":
 				case "$$noPatch":
 				case "$$ownRequest":
 				case "$$patchWithoutSideEffects":
@@ -252,8 +264,8 @@ sap.ui.define([
 	 *   The resource path
 	 * @param {sap.ui.model.Context} [oContext]
 	 *   The context instance to be used, undefined for absolute bindings
-	 * @param {boolean} [bOldCacheReadOnly]
-	 *   Whether the old cache is read-only and must be kept intact - not reset and reused!
+	 * @param {string} [sGroupId]
+	 *   The group ID used for a side-effects refresh, if applicable
 	 * @param {sap.ui.model.odata.v4.lib._Cache} [oOldCache]
 	 *   The old cache, in case it may be reused
 	 * @returns {sap.ui.model.odata.v4.lib._Cache}
@@ -263,7 +275,7 @@ sap.ui.define([
 	 * @private
 	 */
 	ODataBinding.prototype.createAndSetCache = function (mQueryOptions, sResourcePath, oContext,
-			bOldCacheReadOnly, oOldCache) {
+			sGroupId, oOldCache) {
 		var oCache, sDeepResourcePath, iGeneration;
 
 		this.mCacheQueryOptions = Object.assign({}, this.oModel.mUriParameters, mQueryOptions);
@@ -287,7 +299,7 @@ sap.ui.define([
 			} else {
 				sDeepResourcePath = this.oModel.resolve(this.sPath, oContext).slice(1);
 				oCache = this.doCreateCache(sResourcePath, this.mCacheQueryOptions, oContext,
-					sDeepResourcePath, bOldCacheReadOnly, oOldCache);
+					sDeepResourcePath, sGroupId, oOldCache);
 				if (!(this.mParameters && this.mParameters.$$sharedRequest)) {
 					this.mCacheByResourcePath = this.mCacheByResourcePath || {};
 					this.mCacheByResourcePath[sResourcePath] = oCache;
@@ -297,15 +309,13 @@ sap.ui.define([
 			}
 		} else { // absolute binding
 			oCache = this.doCreateCache(sResourcePath, this.mCacheQueryOptions, undefined,
-				undefined, bOldCacheReadOnly, oOldCache);
+				undefined, sGroupId, oOldCache);
 		}
-		if (oOldCache !== oCache) {
-			if (oOldCache) {
-				oOldCache.setActive(false);
-			}
-			if (this.mLateQueryOptions) {
-				oCache.setLateQueryOptions(this.mLateQueryOptions);
-			}
+		if (oOldCache && oOldCache !== oCache) {
+			oOldCache.setActive(false);
+		}
+		if (this.mLateQueryOptions) {
+			oCache.setLateQueryOptions(this.mLateQueryOptions);
 		}
 		this.oCache = oCache;
 
@@ -346,8 +356,8 @@ sap.ui.define([
 	 *   The context instance to be used, must be <code>undefined</code> for absolute bindings
 	 * @param {string} [sDeepResourcePath=sResourcePath]
 	 *   The deep resource path to be used to build the target path for bound messages
-	 * @param {boolean} [bOldCacheReadOnly]
-	 *   Whether the old cache is read-only and must be kept intact - not reset and reused!
+	 * @param {string} [sGroupId]
+	 *   The group ID used for a side-effects refresh, if applicable
 	 * @param {sap.ui.model.odata.v4.lib._Cache} [oOldCache]
 	 *   The old cache, in case it may be reused
 	 * @returns {sap.ui.model.odata.v4.lib._Cache}
@@ -400,9 +410,8 @@ sap.ui.define([
 	 * @param {boolean} [bKeepQueryOptions]
 	 *   Whether to keep existing (late) query options and not to run auto-$expand/$select again
 	 *   (cannot be combined with <code>bIgnoreParentCache</code>!)
-	 * @param {boolean} [bKeepCacheOnError]
-	 *   If <code>true</code>, the binding data remains unchanged if the refresh fails. This implies
-	 *   that the old cache must be kept intact - not reset and reused!
+	 * @param {string} [sGroupId]
+	 *   The group ID used for a side-effects refresh, if applicable
 	 * @throws {Error}
 	 *   If auto-$expand/$select is still running and query options shall be kept (this case is just
 	 *   not yet implemented and should not be needed)
@@ -410,7 +419,7 @@ sap.ui.define([
 	 * @private
 	 */
 	ODataBinding.prototype.fetchCache = function (oContext, bIgnoreParentCache, bKeepQueryOptions,
-		bKeepCacheOnError) {
+			sGroupId) {
 		var oCache = this.oCache,
 			oCallToken = {
 				// propagate old cache from first call of fetchCache to the latest call
@@ -436,7 +445,7 @@ sap.ui.define([
 			// asynchronously re-create an equivalent cache, but skip auto-$expand/$select
 			this.oCachePromise = SyncPromise.resolve(Promise.resolve()).then(function () {
 				return that.createAndSetCache(that.mCacheQueryOptions, oCache.getResourcePath(),
-					oContext, bKeepCacheOnError, oCache);
+					oContext, sGroupId, oCache);
 			});
 			return;
 		}
@@ -463,7 +472,7 @@ sap.ui.define([
 						throw oError;
 					}
 					return that.createAndSetCache(mQueryOptions, sResourcePath, oContext,
-						bKeepCacheOnError, oCallToken.oOldCache);
+						sGroupId, oCallToken.oOldCache);
 				});
 			}
 			that.oCache = null;

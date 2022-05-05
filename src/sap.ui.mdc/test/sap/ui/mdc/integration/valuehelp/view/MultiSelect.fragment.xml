@@ -62,7 +62,7 @@
 							</mdcvc:collectiveSearchItems>
 
 							<mdcvc:filterBar>
-								<vhfb:FilterBar liveMode="false" delegate="{name: 'sap/ui/mdc/filterbar/vh/GenericFilterBarDelegate', payload: {}}">
+								<vhfb:FilterBar liveMode="false" delegate="{name: 'delegates/GenericVhFilterBarDelegate', payload: {}}">
 									<vhfb:basicSearchField>
 										<mdc:FilterField
 											delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}"
@@ -194,7 +194,7 @@
 							</mdcvc:collectiveSearchItems>
 
 							<mdcvc:filterBar>
-								<vhfb:FilterBar id="mdcFilterbar1" liveMode="false" delegate="{name: 'sap/ui/mdc/filterbar/vh/GenericFilterBarDelegate', payload: {}}">
+								<vhfb:FilterBar id="mdcFilterbar1" liveMode="false" delegate="{name: 'delegates/GenericVhFilterBarDelegate', payload: {}}">
 									<vhfb:basicSearchField>
 										<mdc:FilterField
 											delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}"
@@ -280,7 +280,7 @@
 								<core:Item text="Search Template 1" key="template1"/>
 							</mdcvc:collectiveSearchItems>
 							<mdcvc:filterBar>
-								<vhfb:FilterBar id="mdcFilterbar2" liveMode="false" delegate="{name: 'sap/ui/mdc/filterbar/vh/GenericFilterBarDelegate', payload: {}}">
+								<vhfb:FilterBar id="mdcFilterbar2" liveMode="false" delegate="{name: 'delegates/GenericVhFilterBarDelegate', payload: {}}">
 									<vhfb:basicSearchField>
 										<mdc:FilterField
 											delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}"
@@ -433,12 +433,12 @@
 			<mdc:ValueHelp
 				id="FB0-FH-Region"
 				delegate="{name: 'sap/ui/v4demo/delegate/FB0-FH-Region-ValueHelp.delegate', payload: {}}">
-					<mdc:inParameters>
+				<!-- <mdc:inParameters>
 						<mdcf:InParameter id="FB0-FH-Region-In-Country" value="{$filters>/conditions/countryOfOrigin_code}" helpPath="country_code" />
 					</mdc:inParameters>
 					<mdc:outParameters>
 						<mdcf:OutParameter id="FB0-FH-Region-Out-Country" value="{$filters>/conditions/countryOfOrigin_code}" helpPath="country_code" />
-					</mdc:outParameters>
+					</mdc:outParameters> -->
 				<mdc:typeahead>
 					<mdcv:Popover id="FB0-FH-Region-Popover" title="Region">
 						<mdcvc:MTable  id="FB0-FH-Region-Popover-MTable" keyPath="code" descriptionPath="text" filterFields="$search" title="Region" useAsValueHelp="false">
@@ -469,7 +469,7 @@
 					<mdcv:Dialog id="FB0-FH-Region-Dialog" title="Region">
 						<mdcvc:MTable id="FB0-FH-Region-Dialog-MTable" keyPath="code" descriptionPath="text" filterFields="$search" title="Region">
 							<mdcvc:filterBar>
-								<vhfb:FilterBar liveMode="false" delegate="{name: 'sap/ui/mdc/filterbar/vh/GenericFilterBarDelegate', payload: {}}">
+								<vhfb:FilterBar liveMode="false" delegate="{name: 'delegates/GenericVhFilterBarDelegate', payload: {}}">
 									<vhfb:basicSearchField>
 										<mdc:FilterField
 											delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}"
@@ -512,14 +512,15 @@
 			<mdc:ValueHelp
 				id="FB0-FH-City"
 				delegate="{name: 'sap/ui/v4demo/delegate/FB0-FH-City-ValueHelp.delegate', payload: {}}">
-					<mdc:inParameters>
+				<!-- <mdc:inParameters>
 						<mdcf:InParameter id="FB0-FH-City-In-Country" value="{$filters>/conditions/countryOfOrigin_code}" helpPath="country_code" />
 						<mdcf:InParameter id="FB0-FH-City-In-Region" value="{$filters>/conditions/regionOfOrigin_code}" helpPath="region_code" />
 					</mdc:inParameters>
 					<mdc:outParameters>
 						<mdcf:OutParameter id="FB0-FH-City-Out-Country" value="{$filters>/conditions/countryOfOrigin_code}" helpPath="country_code" />
 						<mdcf:OutParameter id="FB0-FH-City-Out-Region" value="{$filters>/conditions/regionOfOrigin_code}" helpPath="region_code" />
-					</mdc:outParameters>
+					</mdc:outParameters> -->
+
 				<mdc:typeahead>
 					<mdcv:Popover id="FB0-FH-City-Popover" title="City">
 						<mdcvc:MTable  id="FB0-FH-City-Popover-MTable" keyPath="city" descriptionPath="text" filterFields="$search" title="City" useAsValueHelp="false">
@@ -546,7 +547,7 @@
 					<mdcv:Dialog id="FB0-FH-City-Dialog" title="Region">
 						<mdcvc:MDCTable id="FB0-FH-City-Dialog-MDCTable" keyPath="city" descriptionPath="text" filterFields="$search" >
 							<mdcvc:filterBar>
-								<vhfb:FilterBar liveMode="false" delegate="{name: 'sap/ui/mdc/filterbar/vh/GenericFilterBarDelegate', payload: {}}">
+								<vhfb:FilterBar liveMode="false" delegate="{name: 'delegates/GenericVhFilterBarDelegate', payload: {}}">
 									<vhfb:basicSearchField>
 										<mdc:FilterField
 											delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}"
@@ -631,7 +632,7 @@
 					<mdcv:Dialog id="FH_Books1-Dialog" title="Books">
 						<mdcvc:MDCTable id="FH_Books1-MDCTable" keyPath="ID" descriptionPath="title" filterFields="$search" title="mdcTable">
 							<mdcvc:filterBar>
-								<vhfb:FilterBar id="FH_Books1-MDCTable-FB" liveMode="false" delegate="{name: 'sap/ui/mdc/filterbar/vh/GenericFilterBarDelegate', payload: {}}">
+								<vhfb:FilterBar id="FH_Books1-MDCTable-FB" liveMode="false" delegate="{name: 'delegates/GenericVhFilterBarDelegate', payload: {}}">
 									<vhfb:filterItems>
 										<mdc:FilterField delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}" label="ID" conditions="{$filters>/conditions/ID}" dataType="Edm.Int32" dataTypeFormatOptions="{groupingEnabled: false}"/>
 									</vhfb:filterItems>
@@ -671,7 +672,7 @@
 						</mdcvc:MDCTable>
 						<mdcvc:MTable id="FH_Books1-MTable" keyPath="ID" descriptionPath="title" filterFields="$search" title="mTable">
 							<mdcvc:filterBar id="FH_Books1-MTable-FB">
-								<vhfb:FilterBar liveMode="false" delegate="{name: 'sap/ui/mdc/filterbar/vh/GenericFilterBarDelegate', payload: {}}">
+								<vhfb:FilterBar liveMode="false" delegate="{name: 'delegates/GenericVhFilterBarDelegate', payload: {}}">
 									<vhfb:filterItems>
 										<mdc:FilterField delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}" label="ID" conditions="{$filters>/conditions/ID}" dataType="Edm.Int32" dataTypeFormatOptions="{groupingEnabled: false}"/>
 									</vhfb:filterItems>
@@ -750,7 +751,7 @@
 					<mdcv:Dialog id="FH_Books2-Dialog" title="Books">
 						<mdcvc:MDCTable id="FH_Books2-MDCTable" keyPath="ID" descriptionPath="title" filterFields="*title,descr*" title="mdcTable">
 							<mdcvc:filterBar>
-								<vhfb:FilterBar id="FH_Books2-MDCTable-FB" liveMode="false" delegate="{name: 'sap/ui/mdc/filterbar/vh/GenericFilterBarDelegate', payload: {}}">
+								<vhfb:FilterBar id="FH_Books2-MDCTable-FB" liveMode="false" delegate="{name: 'delegates/GenericVhFilterBarDelegate', payload: {}}">
 									<vhfb:filterItems>
 										<mdc:FilterField delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}" label="ID" conditions="{$filters>/conditions/ID}" dataType="Edm.Int32" dataTypeFormatOptions="{groupingEnabled: false}"/>
 									</vhfb:filterItems>
@@ -790,7 +791,7 @@
 						</mdcvc:MDCTable>
 						<mdcvc:MTable id="FH_Books2-MTable" keyPath="ID" descriptionPath="title" filterFields="*title,descr*" title="mTable">
 							<mdcvc:filterBar id="FH_Books2-MTable-FB">
-								<vhfb:FilterBar liveMode="false" delegate="{name: 'sap/ui/mdc/filterbar/vh/GenericFilterBarDelegate', payload: {}}">
+								<vhfb:FilterBar liveMode="false" delegate="{name: 'delegates/GenericVhFilterBarDelegate', payload: {}}">
 									<vhfb:filterItems>
 										<mdc:FilterField delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}" label="ID" conditions="{$filters>/conditions/ID}" dataType="Edm.Int32" dataTypeFormatOptions="{groupingEnabled: false}"/>
 									</vhfb:filterItems>
@@ -869,7 +870,7 @@
 					<mdcv:Dialog id="FH_Books3-Dialog" title="Books">
 						<mdcvc:MDCTable id="FH_Books3-MDCTable" keyPath="ID" descriptionPath="title" title="mdcTable">
 							<mdcvc:filterBar>
-								<vhfb:FilterBar id="FH_Books3-MDCTable-FB" liveMode="false" delegate="{name: 'sap/ui/mdc/filterbar/vh/GenericFilterBarDelegate', payload: {}}">
+								<vhfb:FilterBar id="FH_Books3-MDCTable-FB" liveMode="false" delegate="{name: 'delegates/GenericVhFilterBarDelegate', payload: {}}">
 									<vhfb:filterItems>
 										<mdc:FilterField delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}" label="ID" conditions="{$filters>/conditions/ID}" dataType="Edm.Int32" dataTypeFormatOptions="{groupingEnabled: false}"/>
 									</vhfb:filterItems>
@@ -909,7 +910,7 @@
 						</mdcvc:MDCTable>
 						<mdcvc:MTable id="FH_Books3-MTable" keyPath="ID" descriptionPath="title" title="mTable">
 							<mdcvc:filterBar id="FH_Books3-MTable-FB">
-								<vhfb:FilterBar liveMode="false" delegate="{name: 'sap/ui/mdc/filterbar/vh/GenericFilterBarDelegate', payload: {}}">
+								<vhfb:FilterBar liveMode="false" delegate="{name: 'delegates/GenericVhFilterBarDelegate', payload: {}}">
 									<vhfb:filterItems>
 										<mdc:FilterField delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}" label="ID" conditions="{$filters>/conditions/ID}" dataType="Edm.Int32" dataTypeFormatOptions="{groupingEnabled: false}"/>
 									</vhfb:filterItems>

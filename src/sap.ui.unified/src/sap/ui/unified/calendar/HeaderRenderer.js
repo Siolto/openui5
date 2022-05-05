@@ -2,8 +2,8 @@
  * ${copyright}
  */
 
-sap.ui.define(["sap/base/security/encodeXML"],
-	function(encodeXML) {
+sap.ui.define([],
+	function() {
 	"use strict";
 
 
@@ -133,7 +133,6 @@ sap.ui.define(["sap/base/security/encodeXML"],
 
 			oRm.class("sapUiCalHeadB");
 			oRm.class("sapUiCalHeadToday");
-			oRm.attr('tabindex', "-1");
 			oRm.openEnd(); // button element
 			oRm.icon("sap-icon://appointment", null, { title: null });
 			oRm.close("button");
@@ -156,7 +155,6 @@ sap.ui.define(["sap/base/security/encodeXML"],
 			if (iLast === i) {
 				oRm.class("sapUiCalHeadBLast");
 			}
-			oRm.attr('tabindex', "-1");
 			if (this.getAriaLabelButton(oHead, i)) {
 				mAccProps["label"] = this.getAriaLabelButton(oHead, i);
 			}

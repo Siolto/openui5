@@ -25,6 +25,7 @@ sap.ui.define(function() {
 					"qunit": "test-resources/sap/ui/webc/fiori/qunit/"
 				}
 			},
+			runAfterLoader: "qunit/ResizeObserverErrorHandler",
 			page: "test-resources/sap/ui/webc/fiori/qunit/testsandbox.qunit.html?test={name}",
 			autostart: true
 		},
@@ -107,13 +108,64 @@ sap.ui.define(function() {
 					only: ["sap/ui/webc/fiori/Wizard"]
 				}
 			},
-			"designtime/Page": {
-				title: "QUnit Page for sap.ui.webc.fiori.Page design time and rta enabling",
+			"designtime/NotificationListItem": {
+				title: "QUnit Page for sap.ui.webc.fiori.NotificationListItem design time and rta enabling",
 				ui5: {
 					libs: ["sap.ui.webc.fiori","sap.ui.rta"]
 				},
 				sinon: false,
 				group: "Designtime"
+			},
+			"designtime/Page": {
+				title: "QUnit Page for sap.ui.webc.fiori.Page design time and rta enabling",
+				ui5: {
+					libs: ["sap.ui.webc.fiori", "sap.ui.rta"]
+				},
+				sinon: false,
+				group: "Designtime"
+			},
+			"designtime/SideNavigation": {
+				title: "QUnit Page for sap.ui.webc.fiori.SideNavigation design time and rta enabling",
+				ui5: {
+					libs: ["sap.ui.webc.fiori", "sap.ui.rta"]
+				},
+				sinon: false,
+				group: "Designtime"
+			},
+			"designtime/SideNavigationItem": {
+				title: "QUnit Page for sap.ui.webc.fiori.SideNavigationItem design time and rta enabling",
+				ui5: {
+					libs: ["sap.ui.webc.fiori", "sap.ui.rta"]
+				},
+				sinon: false,
+				group: "Designtime"
+			},
+			"designtime/SideNavigationSubItem": {
+				title: "QUnit Page for sap.ui.webc.fiori.SideNavigationSubItem design time and rta enabling",
+				ui5: {
+					libs: ["sap.ui.webc.fiori", "sap.ui.rta"]
+				},
+				sinon: false,
+				group: "Designtime"
+			},
+			"designtime/UploadCollection": {
+				title: "QUnit Page for sap.ui.webc.fiori.UploadCollection design time and rta enabling",
+				ui5: {
+					libs: ["sap.ui.webc.fiori", "sap.ui.rta"]
+				},
+				sinon: false,
+				group: "Designtime"
+			},
+			"designtime/UploadCollectionItem": {
+				title: "QUnit Page for sap.ui.webc.fiori.UploadCollectionItem design time and rta enabling",
+				ui5: {
+					libs: ["sap.ui.webc.fiori", "sap.ui.rta"]
+				},
+				sinon: false,
+				group: "Designtime"
+			},
+			"Generic Testsuite": {
+				page: "test-resources/sap/ui/webc/fiori/qunit/testsuite.generic.qunit.html"
 			}
 		}
 	};

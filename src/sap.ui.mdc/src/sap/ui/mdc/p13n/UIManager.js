@@ -8,8 +8,9 @@ sap.ui.define([
 	"sap/m/p13n/Container",
 	"sap/m/p13n/AbstractContainerItem",
 	"sap/base/util/UriParameters",
-	"sap/base/Log"
-], function (BaseObject, P13nBuilder, P13nContainer, AbstractContainerItem, SAPUriParameters, Log) {
+	"sap/base/Log",
+	"sap/ui/thirdparty/jquery"
+], function (BaseObject, P13nBuilder, P13nContainer, AbstractContainerItem, SAPUriParameters, Log, jQuery) {
 	"use strict";
 
 	var ERROR_INSTANCING = "UIManager: This class is a singleton and should not be used without an AdaptationProvider. Please use 'sap.ui.mdc.p13n.Engine.getInstance().uimanager' instead";
@@ -18,7 +19,7 @@ sap.ui.define([
 	var oUIManager;
 
 	//Used for experimental features (such as livemode)
-	var oURLParams = new SAPUriParameters(window.location.search);
+	var oURLParams = SAPUriParameters.fromQuery(window.location.search);
 
 	/**
 	 * Constructor for a new UIManager.
@@ -71,7 +72,7 @@ sap.ui.define([
 		this.bLiveMode = false;
 
 		//!!!Warning: experimental and only for testing purposes!!!----------
-		if (oURLParams.getAll("sap-ui-xx-p13nLiveMode")[0] === "true"){
+		if (oURLParams.get("sap-ui-xx-p13nLiveMode") === "true"){
 			this.bLiveMode = true;
 			Log.warning("Please note that the p13n liveMode is experimental");
 		}
@@ -99,7 +100,7 @@ sap.ui.define([
 	 * @ui5-restricted sap.ui.mdc
 	 *
 	 * @param {sap.ui.mdc.Control} vControl The registered control instance
-	 * @param {string} sKey The key for the according Controller
+	 * @param {string|string[]} vKey The key for the according Controller
 	 * @param {Object[]} aCustomInfo A custom set of propertyinfos as base to create the UI
 	 *
 	 * @returns {Promise} A Promise resolving in the P13n UI.
@@ -155,8 +156,8 @@ sap.ui.define([
 	 *
 	 * @private
 	 *
-	 * @param {sap.ui.mdc.Control} vControl The registered control instance.
-	 * @param {string} aKeys The registerd key to get the corresponding Controller.
+	 * @param {sap.ui.mdc.Control} oControl The registered control instance.
+	 * @param {string} aKeys The registered key to get the corresponding Controller.
 	 *
 	 * @returns {Promise} A Promise resolving in the according container
 	 * (Depending on the Controllers livemode config).
@@ -205,7 +206,11 @@ sap.ui.define([
 		}.bind(this));
 
 		return Promise.all(aPAdaptationUI).then(function(aUIs){
-			var oPopupContent = bUseP13nContainer ? new P13nContainer() : aUIs[0].panel;
+			var oPopupContent = bUseP13nContainer ? new P13nContainer({
+				afterViewSwitch: function(oEvt) {
+					this.oAdaptationProvider.validateP13n(oControl, oEvt.getParameter("target"), oEvt.getSource().getCurrentViewContent());
+				}.bind(this)
+			}) : aUIs[0].panel;
 			if (bUseP13nContainer) {
 				aUIs.forEach(function(mUI){
 					if (mUI.panel) {
@@ -231,9 +236,10 @@ sap.ui.define([
 	 *
 	 * @private
 	 *
-	 * @param {sap.ui.mdc.Control} vControl The registered control instance.
-	 * @param {string} sKey The registerd key to get the corresponding Controller.
-	 * @param {sap.ui.core.Control} oPanel The control instance which is set in the content area of the container.
+	 * @param {sap.ui.mdc.Control} oControl The registered control instance.
+	 * @param {string[]} aKeys The registered keys to get the corresponding Controller.
+	 * @param {*} oPopupContent
+	 * @param {*} oUISettings
 	 *
 	 * @returns {Promise} Returns a Promise resolving in the container instance
 	 */
@@ -295,9 +301,10 @@ sap.ui.define([
 	 *
 	 * @private
 	 *
-	 * @param {sap.ui.mdc.Control} vControl The registered control instance.
-	 * @param {string} sKey The registerd key to get the corresponding Controller.
+	 * @param {sap.ui.mdc.Control} oControl The registered control instance.
+	 * @param {string[]} aKeys The registerd key to get the corresponding Controller.
 	 * @param {sap.ui.core.Control} oPanel The control instance which is set in the content area of the container.
+	 * @param {object} mUISettings
 	 *
 	 * @returns {sap.m.ResponsivePopover} The popover instance.
 	 */

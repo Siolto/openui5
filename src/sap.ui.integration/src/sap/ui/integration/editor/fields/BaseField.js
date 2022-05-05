@@ -3,35 +3,26 @@
  */
 sap.ui.define([
 	"sap/ui/core/Control",
-	"sap/m/Button",
-	"sap/m/FormattedText",
 	"sap/m/MultiInput",
 	"sap/m/Token",
 	"sap/ui/core/Core",
 	"sap/ui/integration/util/BindingHelper",
 	"sap/ui/core/ListItem",
 	"sap/base/util/ObjectPath",
-	"sap/ui/integration/util/Utils",
-	"sap/base/util/deepEqual",
-	"sap/m/MessageToast"
+	"sap/base/util/deepEqual"
 ], function (
 	Control,
-	Button,
-	FormattedText,
 	MultiInput,
 	Token,
 	Core,
 	BindingHelper,
 	ListItem,
 	ObjectPath,
-	Utils,
-	deepEqual,
-	MessageToast
+	deepEqual
 ) {
 	"use strict";
 
-	var oResourceBundle = Core.getLibraryResourceBundle("sap.ui.integration"),
-		sBuildInViz = "sap/ui/integration/editor/fields/viz";
+	var sBuildInViz = "sap/ui/integration/editor/fields/viz";
 
 	/**
 	 * @class
@@ -171,10 +162,11 @@ sap.ui.define([
 		}
 	};
 
+	BaseField.prototype.getResourceBundle = function() {
+		return this.getModel("i18n").getResourceBundle();
+	};
+
 	BaseField.prototype.setConfiguration = function (oConfig, bSuppress) {
-		if (oResourceBundle && oResourceBundle.sLocale !== Core.getConfiguration().getLanguage()) {
-			oResourceBundle = Core.getLibraryResourceBundle("sap.ui.integration");
-		}
 		if (oConfig !== this.getConfiguration()) {
 			//sanitize configuration
 			this._sanitizeValidationSettings(oConfig);
@@ -405,9 +397,9 @@ sap.ui.define([
 			}
 			if (!sError) {
 				if (oSettings._txt) {
-					sError = oResourceBundle.getText(oValidations[oSettings._txt], [oSettings[n]]);
+					sError = this.getResourceBundle().getText(oValidations[oSettings._txt], [oSettings[n]]);
 				} else {
-					sError = oResourceBundle.getText(oValidations[n + "Txt"], [oSettings[n]]);
+					sError = this.getResourceBundle().getText(oValidations[n + "Txt"], [oSettings[n]]);
 				}
 			}
 			this._showValueState(oSettings.type || "error", sError);
@@ -615,6 +607,7 @@ sap.ui.define([
 
 	BaseField.prototype.initEditor = function (oConfig) {
 		var oControl;
+		this._settingsModel = this.getModel("currentSettings");
 		this.initVisualization && this.initVisualization(oConfig);
 		if (this._visualization.editor) {
 			oControl = this._visualization.editor;

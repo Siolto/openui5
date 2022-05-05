@@ -186,20 +186,19 @@ sap.ui.define([
 				that = this;
 
 			function onConfirm(sCode) {
+				var bNonTransient = !oItemContext.isTransient();
+
 				if (sCode !== 'OK') {
 					return;
 				}
 
-				if (oItemContext.isTransient()) {
-					oItemContext.getModel().resetChanges([oItemContext.getPath()], undefined, true);
-				} else {
-					oItemContext.getModel().remove("", {
-						context : oItemContext,
-						success : function () {
-							MessageToast.show("Deleted sales order item " + sSalesOrderLineItem);
-							oTable.clearSelection();
-						}
-					});
+				oItemContext.delete().then(function () {
+					if (bNonTransient) {
+						MessageToast.show("Deleted sales order item " + sSalesOrderLineItem);
+						oTable.clearSelection();
+					}
+				});
+				if (bNonTransient) {
 					that.readSalesOrder();
 				}
 			}
@@ -219,21 +218,18 @@ sap.ui.define([
 				that = this;
 
 			function onConfirm(sCode) {
+				var bNonTransient = !oContext.isTransient();
+
 				if (sCode !== 'OK') {
 					return;
 				}
 
 				that.getView().byId("objectPage").unbindElement();
-				if (oContext.isTransient()) {
-					oContext.getModel().resetChanges([oContext.getPath()], undefined, true);
-				} else {
-					oContext.getModel().remove("", {
-						context : oContext,
-						success : function () {
-							MessageToast.show("Deleted sales order " + sSalesOrderID);
-						}
-					});
-				}
+				oContext.delete().then(function () {
+					if (bNonTransient) {
+						MessageToast.show("Deleted sales order " + sSalesOrderID);
+					}
+				});
 			}
 
 			sSalesOrderID = oContext.getProperty("SalesOrderID", true)
@@ -283,7 +279,6 @@ sap.ui.define([
 
 			// use FilterType.Control to combine it with the filters defined in the Main.view.xml
 			oView.byId("SalesOrderSet").getBinding("items").filter(aFilter);
-			oView.getModel().updateBindings(true); // enforce update of status icon + text
 		},
 
 		onFixAllQuantities : function (oEvent) {
@@ -292,6 +287,8 @@ sap.ui.define([
 				sSalesOrderID = oEvent.getSource().getBindingContext().getProperty("SalesOrderID"),
 				that = this;
 
+			// SalesOrder_FixQuantities sets the quantity of all items with the product HT-1000 to
+			// at least 2
 			oModel.callFunction("/SalesOrder_FixQuantities", {
 				adjustDeepPath : function () {
 					return "/SalesOrderSet('" + sSalesOrderID + "')/ToLineItems";
@@ -310,6 +307,36 @@ sap.ui.define([
 			});
 		},
 
+		onFixItems : function (oEvent) {
+			var oBindingContext = oEvent.getSource().getBindingContext(),
+				oModel = this.getView().getModel(),
+				sSalesOrderID = oBindingContext.getProperty("SalesOrderID");
+
+			// SalesOrder_FixItems iterates the items and
+			// - sets the quantity of the item to at least 2 if the item's product is HT-1000
+			// - removes the item if the item's product is HT-1502 (works only for items that
+			//   have been read from the server)
+			// - replaces the item's product HT-1110 by the product HT-1111
+			oModel.callFunction("/SalesOrder_FixItems", {
+				groupId : "FixQuantity",
+				method : "POST",
+				success : function () {
+					MessageToast.show("Successfully fixed all items for sales order "
+						+ sSalesOrderID);
+				},
+				urlParameters : {
+					SalesOrderID : encodeURL(sSalesOrderID)
+				}
+			});
+
+			oModel.requestSideEffects(oBindingContext, {
+				groupId : "FixQuantity",
+				urlParameters : {$expand : "ToLineItems,ToLineItems/ToProduct"}
+			});
+
+			oModel.submitChanges({groupId : "FixQuantity"});
+		},
+
 		onFixQuantity : function (oEvent) {
 			var oBindingContext = oEvent.getSource().getBindingContext(),
 				sItemPosition = oBindingContext.getProperty("ItemPosition"),
@@ -320,6 +347,8 @@ sap.ui.define([
 				MessageToast.show("Cannot fix quantity as item is not yet persisted");
 				return;
 			}
+			// SalesOrderItem_FixQuantity sets the quantity of the given item to at least 2 if the
+			// item's product is HT-1000
 			oModel.callFunction("/SalesOrderItem_FixQuantity", {
 				groupId : "FixQuantity",
 				method : "POST",
@@ -332,8 +361,10 @@ sap.ui.define([
 					SalesOrderID : encodeURL(sSalesOrderID)
 				}
 			});
-			// read requests for side-effects
-			this.readSalesOrder("FixQuantity");
+			oModel.requestSideEffects(this.getView().byId("objectPage").getBindingContext(), {
+				groupId : "FixQuantity",
+				urlParameters : {$expand : "ToLineItems,ToLineItems/ToProduct"}
+			});
 
 			oModel.submitChanges({groupId : "FixQuantity"});
 		},
@@ -408,21 +439,15 @@ sap.ui.define([
 
 		onRefreshItems : function () {
 			this.getView().byId("ToLineItems").getBinding("rows").refresh();
-			this.getView().getModel().updateBindings(true); // enforce update of status icon + text
 		},
 
 		onRefreshSalesOrders : function () {
 			this.getView().byId("SalesOrderSet").getBinding("items").refresh();
-			this.getView().getModel().updateBindings(true); // enforce update of status icon + text
 		},
 
 		onResetChanges : function () {
-			var oModel = this.getView().getModel();
-
-			oModel.resetChanges(/*aPath*/undefined, /*bAll*/true, /*bDeleteCreatedEntities*/true)
-				.then(function () {
-					oModel.updateBindings(true); // enforce update of status icon + text
-				});
+			this.getView().getModel()
+				.resetChanges(/*aPath*/undefined, /*bAll*/true, /*bDeleteCreatedEntities*/true);
 		},
 
 		onSaveCreatedItem : function () {
@@ -501,7 +526,10 @@ sap.ui.define([
 		},
 
 		onShowMessageDetails : function (oEvent) {
-			var oContext = oEvent.getSource().getObjectBinding("messages").getBoundContext(),
+			var oMessage = oEvent.getSource().data("message"),
+				oMessageModel = this.getView().getModel("messages"),
+				aMessages = oMessageModel.getObject("/"),
+				oContext = oMessageModel.createBindingContext("/" + aMessages.indexOf(oMessage)),
 				oMessageDetails = this.byId("messageDetails");
 
 			oMessageDetails.setBindingContext(oContext, "messages");
@@ -546,7 +574,6 @@ sap.ui.define([
 				oListBinding = this.getView().byId("SalesOrderSet").getBinding("items");
 
 			oListBinding.sort(new Sorter("SalesOrderID", sKey === "desc"));
-			this.getView().getModel().updateBindings(true); // enforce update of status icon + text
 		},
 
 		onTransitionMessagesOnly : function (oEvent) {
@@ -571,12 +598,11 @@ sap.ui.define([
 
 		onTriggerCreateActivateLineItem : function () {
 			this.createInactiveLineItem();
-			this.getView().getModel().updateBindings(true); // enforce update of status icon + text
 		},
 
 		onTriggerCreateActivateSalesOrder : function () {
 			this.createInactiveSalesOrder(true);
-			this.getView().getModel().updateBindings(true); // enforce update of status icon + text
+			this.getView().byId("SalesOrderSet").requestItems(1);
 		},
 
 		onUpdateSalesOrderItemsCount : function () {

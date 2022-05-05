@@ -2,6 +2,7 @@
 
 sap.ui.define([
 	"sap/ui/thirdparty/sinon-4",
+	"sap/ui/fl/write/api/Version",
 	"sap/ui/fl/Layer",
 	"sap/ui/fl/write/_internal/connectors/KeyUserConnector",
 	"sap/ui/fl/initial/_internal/connectors/KeyUserConnector",
@@ -9,6 +10,7 @@ sap.ui.define([
 	"sap/ui/fl/write/_internal/connectors/Utils"
 ], function(
 	sinon,
+	Version,
 	Layer,
 	KeyUserConnector,
 	InitialConnector,
@@ -18,6 +20,8 @@ sap.ui.define([
 	"use strict";
 
 	var sandbox = sinon.createSandbox();
+	var sFeatureFlagEnabled = "&sap-ui-fl-cf-contextsharing=true";
+	var sFeatureFlagDisabled = "&sap-ui-fl-cf-contextsharing=false";
 
 	QUnit.module("KeyUserConnector", {
 		afterEach: function() {
@@ -166,7 +170,11 @@ sap.ui.define([
 				"de-DE"
 			];
 			var sUrl = "/flexKeyuser/flex/keyuser/v1/translation/sourcelanguages/reference";
-			var oStubSendRequest = sandbox.stub(InitialUtils, "sendRequest").resolves({response: aReturnedLanguages});
+			var oStubSendRequest = sandbox.stub(InitialUtils, "sendRequest").resolves({
+				response: {
+					sourceLanguages: aReturnedLanguages
+				}
+			});
 			return KeyUserConnector.translation.getSourceLanguages(mPropertyBag).then(function (oResponse) {
 				assert.deepEqual(oResponse, [
 					"en-US",
@@ -362,6 +370,35 @@ sap.ui.define([
 		});
 	});
 
+	QUnit.module("KeyUserConnector isContextSharingEnabled", {
+		afterEach: function() {
+			InitialConnector.xsrfToken = undefined;
+			sandbox.restore();
+			window.history.replaceState(null, null, window.location.href.replace(sFeatureFlagEnabled, ""));
+			window.history.replaceState(null, null, window.location.href.replace(sFeatureFlagDisabled, ""));
+		}
+	}, function() {
+		QUnit.test("receive the flag 'isContextSharingEnabled 'false'", function (assert) {
+			return KeyUserConnector.isContextSharingEnabled().then(function (bIsEnabled) {
+				assert.equal(bIsEnabled, false, "context sharing is not enabled with non existing feature flag");
+			});
+		});
+
+		QUnit.test("receive the flag 'isContextSharingEnabled' false", function(assert) {
+			window.history.replaceState(null, null, window.location.href + sFeatureFlagDisabled);
+			return KeyUserConnector.isContextSharingEnabled().then(function(bIsEnabled) {
+				assert.equal(bIsEnabled, false, "context sharing is not enabled with feature flag set to false");
+			});
+		});
+
+		QUnit.test("receive the flag 'isContextSharingEnabled 'true'", function (assert) {
+			window.history.replaceState(null, null, window.location.href + sFeatureFlagEnabled);
+			return KeyUserConnector.isContextSharingEnabled().then(function (bIsEnabled) {
+				assert.equal(bIsEnabled, true, "context sharing is enabled with feature flag set to true");
+			});
+		});
+	});
+
 	QUnit.module("KeyUserConnector loadFeatures", {
 		afterEach: function() {
 			InitialConnector.xsrfToken = undefined;
@@ -472,14 +509,14 @@ sap.ui.define([
 				tokenUrl: KeyUserConnector.ROUTES.TOKEN
 			}, mPropertyBag);
 			var aReturnedVersions = [{
-				versionNumber: sap.ui.fl.Versions.Draft
+				versionNumber: Version.Number.Draft
 			}, {
 				versionNumber: 1
 			}];
 			var oStubSendRequest = sandbox.stub(InitialUtils, "sendRequest").resolves({response: aReturnedVersions});
 			return KeyUserConnector.versions.load(mPropertyBag).then(function (oResponse) {
 				assert.deepEqual(oResponse, [{
-					version: sap.ui.fl.Versions.Draft
+					version: Version.Number.Draft
 				}, {
 					version: "1"
 				}], "the versions list is returned correctly");
@@ -496,7 +533,7 @@ sap.ui.define([
 		}
 	}, function () {
 		QUnit.test("activate draft", function (assert) {
-			var sActivateVersion = sap.ui.fl.Versions.Draft;
+			var sActivateVersion = Version.Number.Draft;
 			var mPropertyBag = {
 				url: "/flexKeyuser",
 				reference: "com.sap.test.app",
@@ -560,7 +597,7 @@ sap.ui.define([
 		});
 
 		QUnit.test("reactivate original app", function (assert) {
-			var sActivateVersion = sap.ui.fl.Versions.Original;
+			var sActivateVersion = Version.Number.Original;
 			var mPropertyBag = {
 				url: "/flexKeyuser",
 				reference: "com.sap.test.app",

@@ -232,18 +232,7 @@ sap.ui.define([
 			"sap-ui-codeeditor-ace"
 		);
 
-		var sUiTheme = Core.getConfiguration().getTheme().toLowerCase();
-		var sEditorTheme = "tomorrow";
-		if (sUiTheme.indexOf("hcb") > -1) {
-			sEditorTheme = "chaos";
-		} else if (sUiTheme.indexOf("hcw") > -1) {
-			sEditorTheme = "github";
-		} else if (sUiTheme === "sap_fiori_3") {
-			sEditorTheme = "crimson_editor";
-		} else if (sUiTheme === "sap_fiori_3_dark") {
-			sEditorTheme = "clouds_midnight";
-		}
-		this.setColorTheme(sEditorTheme);
+		this._applyTheme();
 
 		this._oEditor.setOptions({
 			enableBasicAutocompletion: true,
@@ -299,9 +288,37 @@ sap.ui.define([
 	CodeEditor.prototype.exit = function() {
 		this._deregisterResizeListener();
 		this._oEditor.destroy(); // clear ace intervals
+		this._oEditor.getSession().setUseWorker(false); // explicitly disable worker usage, in case the ace mode is still loading, to avoid worker initialization after destroy
 		jQuery(this._oEditorDomRef).remove(); // remove DOM node together with all event listeners
 		this._oEditorDomRef = null;
 		this._oEditor = null;
+	};
+
+	/**
+	 * @private
+	 */
+	CodeEditor.prototype.onThemeChanged = function() {
+		this._applyTheme();
+	};
+
+	/**
+	 * @private
+	 */
+	CodeEditor.prototype._applyTheme = function() {
+		var sUiTheme = Core.getConfiguration().getTheme().toLowerCase();
+		var sEditorTheme = "tomorrow";
+		if (sUiTheme.indexOf("hcb") > -1) {
+			sEditorTheme = "chaos";
+		} else if (sUiTheme.indexOf("hcw") > -1) {
+			sEditorTheme = "github";
+		} else if (sUiTheme === "sap_fiori_3") {
+			sEditorTheme = "crimson_editor";
+		} else if (sUiTheme === "sap_fiori_3_dark") {
+			sEditorTheme = "clouds_midnight";
+		} else if (sUiTheme === "sap_horizon_dark") {
+			sEditorTheme = "nord_dark";
+		}
+		this.setColorTheme(sEditorTheme);
 	};
 
 	/**
@@ -482,11 +499,6 @@ sap.ui.define([
 	 */
 	CodeEditor.prototype.prettyPrint = function () {
 		ace.require("ace/ext/beautify").beautify(this._oEditor.session);
-	};
-
-	CodeEditor.prototype.destroy = function (bSuppressInvalidate) {
-		this._oEditor.destroy(bSuppressInvalidate);
-		Control.prototype.destroy.call(this, bSuppressInvalidate);
 	};
 
 	CodeEditor.prototype.onfocusout = function () {

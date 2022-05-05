@@ -901,6 +901,7 @@ sap.ui.define([
 		var aTokens = this._getVisibleTokens();
 
 		if (!aTokens.length) {
+			this._setHiddenTokensCount(0);
 			return;
 		}
 
@@ -989,6 +990,13 @@ sap.ui.define([
 		}
 	};
 
+	Tokenizer.prototype._shouldPreventModifier = function (oEvent) {
+		var bShouldPreventOnMac = Device.os.macintosh && oEvent.metaKey;
+		var bShouldPreventOnWindows = Device.os.windows && oEvent.altKey;
+
+		return bShouldPreventOnMac || bShouldPreventOnWindows;
+	};
+
 	/**
 	* Pseudo event for pseudo 'previous' event with modifiers (Ctrl, Alt or Shift).
 	*
@@ -997,7 +1005,9 @@ sap.ui.define([
 	* @private
 	*/
 	Tokenizer.prototype.onsappreviousmodifiers = function (oEvent) {
-		this.onsapprevious(oEvent);
+		if (!this._shouldPreventModifier(oEvent)) {
+			this.onsapprevious(oEvent);
+		}
 	};
 
 	/**
@@ -1008,7 +1018,9 @@ sap.ui.define([
 	* @private
 	*/
 	Tokenizer.prototype.onsapnextmodifiers = function (oEvent) {
-		this.onsapnext(oEvent);
+		if (!this._shouldPreventModifier(oEvent)) {
+			this.onsapnext(oEvent);
+		}
 	};
 
 	/**

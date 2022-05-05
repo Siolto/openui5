@@ -4,12 +4,15 @@ sap.ui.define([
 	"sap/ui/model/json/JSONModel",
 	"sap/m/Dialog",
 	"sap/m/Button",
-	"sap/m/ButtonType",
+	"sap/m/library",
 	'sap/m/Text',
-	"sap/m/MessageToast"
-], function (Controller, UIComponent, JSONModel, Dialog, Button, ButtonType, Text, MessageToast) {
+	"sap/m/MessageToast",
+	"sap/ui/mdc/odata/v4/FieldBaseDelegate" // to have it loaded before rendering starts
+], function (Controller, UIComponent, JSONModel, Dialog, Button, mobileLibrary, Text, MessageToast, FieldBaseDelegate) {
 
 	"use strict";
+
+	var ButtonType = mobileLibrary.ButtonType;
 
 	function uuidv4() {
 		return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -34,6 +37,10 @@ sap.ui.define([
 		onEditButtonPress: function (oEvent) {
 			var oViewModel = this.getView().getModel("view");
 			var bEditMode = oViewModel.getProperty("editMode");
+
+			if (!bEditMode) {
+				sap.ui.require(["sap/ui/mdc/field/FieldInput"]); // as only rendered in edit mode
+			}
 
 			oViewModel.setProperty("/editMode", !bEditMode);
 

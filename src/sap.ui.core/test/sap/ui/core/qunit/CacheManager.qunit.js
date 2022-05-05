@@ -57,10 +57,8 @@ sap.ui.define([
 	} else {
 		QUnit.module("Instantiation", {
 			beforeEach: function() {
-				this.oBrowserBackup = {};
-				this.oSystemBackup = {};
-				jQuery.extend(this.oBrowserBackup, Device.browser);
-				jQuery.extend(this.oSystemBackup, Device.system);
+				this.oBrowserBackup = Object.assign({}, Device.browser);
+				this.oSystemBackup = Object.assign({}, Device.system);
 
 			},
 			afterEach: function() {
@@ -194,10 +192,10 @@ sap.ui.define([
 
 				/***
 				 * Executes given method with given arguments and verifies the execution had happened.
-				 * @param {string} sMethod the method
-				 * @param args the arguments to call the method with
-				 * @param reject value that the Promise reject with
-				 * @returns {*}
+				 * @param {string} sMethod CacheManager method to call
+				 * @param {any[]} args Arguments to call the method with
+				 * @param {any} rejectValue value to reject the Promise with
+				 * @returns {Promise}
 				 */
 				this.executeMethodWithError = function(sMethod, args, rejectValue) {
 					var that = this;
@@ -252,6 +250,12 @@ sap.ui.define([
 		QUnit.test("#reset", function(assert) {
 			return this.executeMethodSuccessfully("reset", []).then(function() {
 				return this.executeMethodWithError("reset", ["promised_sallary"], "Error: access denied");
+			}.bind(this));
+		});
+
+		QUnit.test("#delWithFilters", function(assert) {
+			return this.executeMethodSuccessfully("delWithFilters", [{ prefix: "key1", olderThan: new Date() }]).then(function() {
+				return this.executeMethodWithError("delWithFilters", [{ prefix: "key1", olderThan: new Date() }], "Error: access denied");
 			}.bind(this));
 		});
 

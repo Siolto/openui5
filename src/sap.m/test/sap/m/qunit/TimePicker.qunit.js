@@ -1904,6 +1904,40 @@ sap.ui.define([
 		this.typeAndCheckValueForDisplayFormat("hh a", "01P", "01 PM");
 	});
 
+	QUnit.test("entering incomplete value updates the model only once", function(assert) {
+		// arrange
+		var oModel = new JSONModel({
+				timeValue: new Date(2000, 1, 2, 16, 35, 54)
+			}),
+			oTp = new TimePicker({
+				value: {
+					path: "/timeValue",
+					type: new Time({pattern: "HH:mm", strictParsing: true})
+				}
+			}).setModel(oModel),
+			iCallCount;
+
+		oTp.placeAt("qunit-fixture");
+		oCore.applyChanges();
+
+		oModel.attachEvent("propertyChange", function() {
+			iCallCount++;
+		});
+
+		iCallCount = 0;
+
+		//act
+		triggerMultipleKeypress(oTp, "12");
+		qutils.triggerKeydown(jQuery(oTp.getFocusDomRef()), KeyCodes.ENTER);
+		oCore.applyChanges();
+
+		//assert
+		assert.equal(iCallCount, 1, "model uopdated only once");
+
+		//cleanup
+		oTp.destroy();
+	});
+
 	QUnit.test("on enter '15:--:--', autocomplete to '15:00:00'", function(assert) {
 		//system under test
 		var oTp = new TimePicker({
@@ -3280,6 +3314,26 @@ sap.ui.define([
 		oTp2.destroy();
 	});
 
+	QUnit.test("afterValueHelpOpen and afterValueHelpClose event fire when value help opens and closes", function(assert) {
+		var tp = new TimePicker(),
+			spyOpen = this.spy(tp, "fireAfterValueHelpOpen"),
+			spyClose = this.spy(tp, "fireAfterValueHelpClose");
+
+		tp.placeAt("qunit-fixture");
+		oCore.applyChanges();
+
+		var oPopup = tp._createPicker(tp._getDisplayFormatPattern());
+		oPopup.fireAfterOpen();
+		oPopup.fireAfterClose();
+
+		assert.ok(spyOpen.calledOnce, "afterValueHelpOpen event fired");
+		assert.ok(spyClose.calledOnce, "afterValueHelpClose event fired");
+
+		spyOpen = null;
+		spyClose = null;
+		tp.destroy();
+	});
+
 	QUnit.module("Private methods", {
 		beforeEach: function () {
 			this.oTP = new TimePicker();
@@ -3307,6 +3361,25 @@ sap.ui.define([
 		assert.ok(oPopupContent[1].isA("sap.m.TimePickerClocks"), "There is a sap.m.TimePickerClocks created in the popup content");
 	});
 
+	QUnit.test("Value state and value state text are properly updated", function(assert) {
+		// Arrange
+		var oFocusInSpy = this.spy(sap.m.DateTimeField.prototype, "onfocusin"),
+			oFakeEvent = {
+				target: {
+					classList: {
+						contains: function() { return false; }
+					}
+				}
+			};
+		this.oTP.placeAt("qunit-fixture");
+		oCore.applyChanges();
+
+		// Act
+		this.oTP.onfocusin(oFakeEvent);
+
+		// Assert
+		assert.ok(oFocusInSpy.calledOnce, "sap.m.DateTimeField.prototype.onfocusin method is called");
+	});
 
 	function triggerMultipleKeypress(timePicker, sFeed) {
 		var aFeed = sFeed.split(""),

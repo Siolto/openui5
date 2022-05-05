@@ -267,6 +267,44 @@ sap.ui.define([
 		assert.strictEqual(this.rangeSlider.getValue2(), 0, "Value should be limited to the MIN properly");
 	});
 
+
+	QUnit.test("set/getValue() should update advanced tooltip state and visualization", function (assert) {
+		this.rangeSlider.setShowAdvancedTooltip(true);
+		oCore.applyChanges();
+
+		var fnUpdateTooltipsPositionAndStateSpy = this.spy(this.rangeSlider, "updateTooltipsPositionAndState");
+		var fnUpdateTooltipContentSpy;
+		var fnFireChange = this.spy(this.rangeSlider, "fireChange");
+
+		fnUpdateTooltipContentSpy = this.spy(this.rangeSlider, "_updateTooltipContent");
+		this.rangeSlider.setValue(50);
+
+		oCore.applyChanges();
+
+		assert.strictEqual(fnUpdateTooltipContentSpy.callCount, 3, "UpdateTooltipContent is called when setValue is executed");
+		assert.ok(fnUpdateTooltipsPositionAndStateSpy.calledOnce, "UpdateTooltipContentSpy is called");
+
+		this.rangeSlider.setValue2(60);
+		oCore.applyChanges();
+
+		assert.strictEqual(fnUpdateTooltipContentSpy.callCount, 6, "UpdateTooltipContent is called when setValue2 is executed");
+		assert.ok(fnUpdateTooltipsPositionAndStateSpy.calledTwice, "UpdateTooltipContentSpy is called");
+		assert.notOk(fnFireChange.called, "fireChange is not called");
+	});
+
+	QUnit.test("set/getValue() should not throw if advanced tooltip is not passed", function (assert) {
+		this.rangeSlider.setShowAdvancedTooltip(true);
+		oCore.applyChanges();
+
+		this.rangeSlider._mHandleTooltip.start.tooltip = null;
+		this.rangeSlider._mHandleTooltip.end.tooltip = null;
+
+		this.rangeSlider.setValue(10);
+		this.rangeSlider.setValue2(20);
+
+		assert.ok(true, "No error is thrown");
+	});
+
 	QUnit.test("set/getStep()", function (assert) {
 		//arrange
 		var aTooltips, fnWarningSpy = this.spy(Log, "warning");
@@ -1308,7 +1346,7 @@ sap.ui.define([
 
 		// act
 		oSlider.focus();
-		clock.tick(1);
+		oCore.applyChanges();
 
 		// assert
 		assert.ok(oSlider.getDomRef("handle1").getAttribute("aria-controls"), 'The "aria-controls" should be set');
@@ -1436,6 +1474,7 @@ sap.ui.define([
 		assert.strictEqual(oProgressHandle.getAttribute("aria-valuetext"), "From XXXXXXX-0 to XXXXXXX-2", "The aria-valuetext should be 'From XXXXXXX-0 to XXXXXXX-2'.");
 
 		// Act
+		oSlider.getAggregation("_tooltipContainer").show(oSlider);
 		oSlider.setValue(1);
 		oCore.applyChanges();
 		clock.tick(1000);
@@ -1609,6 +1648,7 @@ sap.ui.define([
 		});
 
 		QUnit.test("Tooltips: Setting a value when TooltipContainer is not visible", function (assert) {
+			this.oRangeSlider.getAggregation("_tooltipContainer").show(this.oRangeSlider);
 			this.oRangeSlider.setValue(4);
 			oCore.applyChanges();
 

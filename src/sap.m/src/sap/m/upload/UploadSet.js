@@ -23,9 +23,10 @@ sap.ui.define([
 	"sap/m/upload/UploadSetRenderer",
 	"sap/m/upload/UploaderHttpRequestMethod",
 	"sap/ui/core/dnd/DragDropInfo",
-	"sap/ui/core/dnd/DropInfo"
+	"sap/ui/core/dnd/DropInfo",
+	"sap/m/library"
 ], function (Control, Icon, KeyCodes, Log, deepEqual, MobileLibrary, Button, Dialog, List, MessageBox, OverflowToolbar,
-			 StandardListItem, Text, ToolbarSpacer, FileUploader, UploadSetItem, Uploader, Renderer, UploaderHttpRequestMethod, DragDropInfo, DropInfo) {
+			 StandardListItem, Text, ToolbarSpacer, FileUploader, UploadSetItem, Uploader, Renderer, UploaderHttpRequestMethod, DragDropInfo, DropInfo, Library) {
 	"use strict";
 
 	/**
@@ -106,10 +107,30 @@ sap.ui.define([
 				 */
 				 uploadButtonInvisible: {type: "boolean", group: "Appearance", defaultValue: false},
 				/**
+				 * Allows the user to use the same name for a file while editing the file name.
+				 *'Same name' refers to an already existing file name in the list.
+				 * @since 1.100.0
+				 */
+				 sameFilenameAllowed: {type: "boolean", group: "Behavior", defaultValue: false},
+				 /**
 				 * HTTP request method chosen for file upload.
 				 * @since 1.90
 				 */
-				httpRequestMethod: {type: "sap.m.upload.UploaderHttpRequestMethod", defaultValue: UploaderHttpRequestMethod.Post}
+				httpRequestMethod: {type: "sap.m.upload.UploaderHttpRequestMethod", defaultValue: UploaderHttpRequestMethod.Post},
+				/**
+				 * Lets the user select multiple files from the same folder and then upload them.
+				 *
+				 * If multiple property is set to false, the control shows an error message if more than one file is chosen for drag & drop.
+				 */
+				 multiple: {type: "boolean", group: "Behavior", defaultValue: false},
+				 /**
+				 * Defines the selection mode of the control (e.g. None, SingleSelect, MultiSelect, SingleSelectLeft, SingleSelectMaster).
+				 * Since the UploadSet reacts like a list for attachments, the API is close to the ListBase Interface.
+				 * sap.m.ListMode.Delete mode is not supported and will be automatically set to sap.m.ListMode.None.
+				 * In addition, if instant upload is set to false the mode sap.m.ListMode.MultiSelect is not supported and will be automatically set to sap.m.ListMode.None.
+				 * @since 1.100.0
+				 */
+				mode: {type: "sap.m.ListMode", group: "Behavior", defaultValue: Library.ListMode.MultiSelect}
 				},
 			defaultAggregation: "items",
 			aggregations: {
@@ -142,6 +163,18 @@ sap.ui.define([
 					parameters: {
 						/**
 						 * The file that has just been added.
+						 */
+						item: {type: "sap.m.upload.UploadSetItem"}
+					}
+				},
+				/**
+				 * The event is triggered when the file name is changed.
+				 * @since 1.100.0
+				 */
+				fileRenamed: {
+					parameters: {
+						/**
+						 * The renamed UI element as an UploadSetItem.
 						 */
 						item: {type: "sap.m.upload.UploadSetItem"}
 					}
@@ -404,7 +437,7 @@ sap.ui.define([
 				 * @param {sap.ui.core.dnd.DragSession} oControlEvent.getParameters.dragSession The UI5 <code>dragSession</code> object that exists only during drag and drop
 				 * @param {sap.ui.core.Element} oControlEvent.getParameters.draggedControl The element being dragged
 				 * @param {sap.ui.core.Element} oControlEvent.getParameters.droppedControl The element being dropped
-				 * @param {string} oControlEvent.getParameters.dropPosition The calculated position of the drop action relative to the <code>droppedControl</code>, possible values are <code>Before</code>, <code>On</code>, <code>After</code>
+				 * @param {sap.ui.core.dnd.RelativeDropPosition} oControlEvent.getParameters.dropPosition The calculated position of the drop action relative to the <code>droppedControl</code>.
 				 * @param {Event} oControlEvent.getParameters.browserEvent The underlying browser event
 				 * @public
 				 * @since 1.99
@@ -439,18 +472,39 @@ sap.ui.define([
 		this._$Body = null;
 		this._$DragDropArea = null;
 		this._oLastEnteredTarget = null;
+
+		this._aGroupHeadersAdded = [];
 	};
 
 	UploadSet.prototype.exit = function () {
 		this._oNoDataIcon.destroy();
 		this._oNoDataIcon = null;
+		if (this._oList) {
+			this._oList.destroy();
+			this._oList = null;
+		}
+		if (this._oToolbar) {
+			this._oToolbar.destroy();
+			this._oToolbar = null;
+		}
+		if (this._oFileUploader) {
+			this._oFileUploader.destroy();
+			this._oFileUploader = null;
+		}
+		if (this._oUploader) {
+			this._oUploader.destroy();
+			this._oUploader = null;
+		}
 	};
 
 	/* ===================== */
 	/* Overriden API methods */
 	/* ===================== */
 
-	UploadSet.prototype.onBeforeRendering = function () {
+	UploadSet.prototype.onBeforeRendering = function (oEvent) {
+		this._aGroupHeadersAdded = [];
+		this._clearList();
+		this._fillListWithUploadSetItems(this.getItems());
 	};
 
 	UploadSet.prototype.onAfterRendering = function () {
@@ -550,18 +604,10 @@ sap.ui.define([
 
 	UploadSet.prototype.addAggregation = function (sAggregationName, oObject, bSuppressInvalidate) {
 		Control.prototype.addAggregation.call(this, sAggregationName, oObject, bSuppressInvalidate);
-		if (oObject && (sAggregationName === "items" || sAggregationName === "incompleteItems")) {
-			this._projectToNewListItem(oObject);
-			this._refreshInnerListStyle();
-		}
 	};
 
 	UploadSet.prototype.insertAggregation = function (sAggregationName, oObject, iIndex, bSuppressInvalidate) {
 		Control.prototype.insertAggregation.call(this, sAggregationName, oObject, iIndex, bSuppressInvalidate);
-		if (oObject && (sAggregationName === "items" || sAggregationName === "incompleteItems")) {
-			this._projectToNewListItem(oObject, iIndex || 0);
-			this._refreshInnerListStyle();
-		}
 	};
 
 	UploadSet.prototype.removeAggregation = function (sAggregationName, oObject, bSuppressInvalidate) {
@@ -572,13 +618,17 @@ sap.ui.define([
 				oItems = this.getItems();
 				oListItem = oItems[oObject];
 			} else if (typeof oObject === 'object') { // the object itself is given or has just been retrieved
-				oListItem = oObject._getListItem();
+				if (this.getList() && this.getList().getItems().length) {
+					oListItem = oObject._getListItem();
+				}
 			}
             var oItem = this.getList().removeAggregation("items", oListItem, bSuppressInvalidate);
-            if (oItem && oObject) {
-                oObject.destroy();
+            if (oItem) {
                 oItem.destroy();
             }
+			if (oObject) {
+				oObject.destroy();
+			}
             this._refreshInnerListStyle();
         }
     };
@@ -586,11 +636,15 @@ sap.ui.define([
 	UploadSet.prototype.removeAllAggregation = function (sAggregationName, bSuppressInvalidate) {
 		if (sAggregationName === "items") {
 			this.getItems().forEach(function (oItem) {
-				this.getList().removeAggregation("items", oItem._getListItem(), bSuppressInvalidate);
+				if (this._oList) {
+					this._oList.removeAggregation("items", oItem._getListItem(), bSuppressInvalidate);
+				}
 			}.bind(this));
 		} else if (sAggregationName === "incompleteItems") {
 			this.getIncompleteItems().forEach(function (oItem) {
-				this.getList().removeAggregation("items", oItem._getListItem(), bSuppressInvalidate);
+				if (this._oList) {
+					this._oList.removeAggregation("items", oItem._getListItem(), bSuppressInvalidate);
+				}
 			}.bind(this));
 		}
 		Control.prototype.removeAllAggregation.call(this, sAggregationName, bSuppressInvalidate);
@@ -600,8 +654,8 @@ sap.ui.define([
 		if (sAggregationName === "items" || sAggregationName === "incompleteItems") {
 			this.removeAllAggregation(sAggregationName, bSuppressInvalidate);
 		}
-		if (this.getList().getItems().length === 0) {
-			this.getList().destroyAggregation("items", bSuppressInvalidate);
+		if (this._oList && this._oList.getItems().length === 0) {
+			this._oList.destroyAggregation("items", bSuppressInvalidate);
 		}
 		Control.prototype.destroyAggregation.call(this, sAggregationName, bSuppressInvalidate);
 	};
@@ -692,6 +746,30 @@ sap.ui.define([
 		return this;
 	};
 
+	UploadSet.prototype.setMultiple = function (bMultiple) {
+		if (this.getMultiple() !== bMultiple) {
+			this.setProperty("multiple", bMultiple);
+			this.getDefaultFileUploader().setMultiple(bMultiple);
+		}
+		return this;
+	};
+
+	UploadSet.prototype.setMode = function(sMode) {
+		if (sMode === Library.ListMode.Delete) {
+			this.setProperty("mode", Library.ListMode.None);
+			Log.info("sap.m.ListMode.Delete is not supported by UploadSet. Value has been resetted to 'None'");
+		} else if (sMode === Library.ListMode.MultiSelect && !this.getInstantUpload()) {
+			this.setProperty("mode", Library.ListMode.None);
+			Log.info("sap.m.ListMode.MultiSelect is not supported by UploadSet for Pending Upload. Value has been reset to 'None'");
+		} else {
+			this.setProperty("mode", sMode);
+		}
+		if (this._oList) {
+			this._oList.setMode(this.getMode());
+		}
+		return this;
+	};
+
 	/* ============== */
 	/* Public methods */
 	/* ============== */
@@ -721,7 +799,8 @@ sap.ui.define([
 						dragEnter: [this._onDragEnterFile, this],
 						drop: [this._onDropFile, this]
 					})
-				]
+				],
+				mode: this.getMode()
 			});
 			this._oList.addStyleClass("sapMUCList");
 			this.addDependent(this._oList);
@@ -751,6 +830,13 @@ sap.ui.define([
 		oEvent.preventDefault();
 		if (this.getUploadEnabled()) {
 			oFiles = oEvent.getParameter("browserEvent").dataTransfer.files;
+			// Handling drag and drop of multiple files to upload with multiple property set
+			if (oFiles && oFiles.length > 1 && !this.getMultiple()) {
+				var sMessage = this._oRb.getText("UPLOADCOLLECTION_MULTIPLE_FALSE");
+				Log.warning("Multiple files upload is retsricted for this multiple property set");
+				MessageBox.error(sMessage);
+				return;
+			}
 			this._processNewFileObjects(oFiles);
 		}
 	};
@@ -803,7 +889,7 @@ sap.ui.define([
 				mimeType: this.getMediaTypes(),
 				icon: "",
 				iconFirst: false,
-				multiple: true,
+				multiple: this.getMultiple(),
 				style: "Transparent",
 				name: "uploadSetFileUploader",
 				sameFilenameAllowed: true,
@@ -836,6 +922,72 @@ sap.ui.define([
 		oUploader.attachUploadProgressed(this._onUploadProgressed.bind(this));
 		oUploader.attachUploadCompleted(this._onUploadCompleted.bind(this));
 		oUploader.attachUploadAborted(this._onUploadAborted.bind(this));
+	};
+
+	/**
+	 * Returns an array containing the selected UploadSetItems.
+	 * @returns {sap.m.upload.UploadSetItem[]} Array of all selected items
+	 * @public
+	 * @since 1.100.0
+	 */
+	 UploadSet.prototype.getSelectedItems = function() {
+		var aSelectedListItems = this._oList.getSelectedItems();
+		return this._getUploadSetItemsByListItems(aSelectedListItems);
+	};
+
+	/**
+	 * Retrieves the currently selected UploadSetItem.
+	 * @returns {sap.m.upload.UploadSetItem | null} The currently selected item or null
+	 * @public
+	 * @since 1.100.0
+	 */
+	UploadSet.prototype.getSelectedItem = function() {
+		var oSelectedListItem = this._oList.getSelectedItem();
+		if (oSelectedListItem) {
+			return this._getUploadSetItemsByListItems([oSelectedListItem]);
+		}
+		return null;
+	};
+
+	/**
+	 * Sets an UploadSetItem to be selected by ID. In single selection mode, the method removes the previous selection.
+	 * @param {string} id The ID of the item whose selection is to be changed.
+	 * @param {boolean} [select=true] The selection state of the item.
+	 * @returns {this} this to allow method chaining
+	 * @public
+	 * @since 1.100.0
+	 */
+	 UploadSet.prototype.setSelectedItemById = function(id, select) {
+		this._oList.setSelectedItemById(id + "-listItem", select);
+		this._setSelectedForItems([this._getUploadSetItemById(id)], select);
+		return this;
+	};
+
+	/**
+	 * Selects or deselects the given list item.
+	 * @param {sap.m.upload.UploadSetItem} uploadSetItem The item whose selection is to be changed. This parameter is mandatory.
+	 * @param {boolean} [select=true] The selection state of the item.
+	 * @returns {this} this to allow method chaining
+	 * @public
+	 * @since 1.100.0
+	 */
+	 UploadSet.prototype.setSelectedItem = function(uploadSetItem, select) {
+		return this.setSelectedItemById(uploadSetItem.getId(), select);
+	};
+
+	/**
+	 * Select all items in "MultiSelection" mode.
+	 * @returns {this} this to allow method chaining
+	 * @public
+	 * @since 1.100.0
+	 */
+	 UploadSet.prototype.selectAll = function() {
+		var aSelectedList = this._oList.selectAll();
+		if (aSelectedList.getItems().length !== this.getItems().length) {
+			Log.info("Internal 'List' and external 'UploadSet' are not in sync.");
+		}
+		this._setSelectedForItems(this.getItems(), true);
+		return this;
 	};
 
 	/* ============== */
@@ -914,22 +1066,55 @@ sap.ui.define([
 		var oEdit = oItem._getFileNameEdit(),
 			sNewFileName, sNewFullName,
 			sOrigFullFileName = oItem.getFileName(),
-			oFile = UploadSetItem._splitFileName(sOrigFullFileName);
+			oFile = UploadSetItem._splitFileName(sOrigFullFileName),
+			oSourceItem = UploadSetItem._findById(oItem.getId(), this._getAllItems());
 
-		sNewFileName = oEdit.getValue().trim();
+		// get new/changed file name and remove potential leading spaces
+		if (oEdit !== null) {
+			sNewFileName = oEdit.getValue().trim();
+		}
+		oEdit.focus();
+
 		if (!sNewFileName || sNewFileName.length === 0) {
 			oItem._setContainsError(true);
 			return;
 		}
 
-		if (oFile.name !== sNewFileName) {
+		if (oFile.name === sNewFileName) {
+			this._removeErrorStateFromItem(this, oSourceItem);
+			// nothing changed -> nothing to do!
+			oItem._setInEditMode(false);
+			this.fireAfterItemEdited({item: oItem});
+			this._oEditedItem = null;
+			return;
+		}
+
+		if (!this.getSameFilenameAllowed() && UploadSetItem._checkDoubleFileName(oEdit.getValue() + "." + oFile.extension, this._getAllItems())) {
+			oEdit.setValueStateText(this._oRb.getText("UPLOAD_SET_FILE_NAME_EXISTS"));
+			oEdit.setProperty("valueState", "Error", true);
+			oEdit.setShowValueStateMessage(true);
+		} else {
 			sNewFullName = oFile.extension ? sNewFileName + "." + oFile.extension : sNewFileName;
 			oItem.setFileName(sNewFullName);
+			this._removeErrorStateFromItem(this, oSourceItem);
+			oItem._setInEditMode(false);
+			this.fireFileRenamed({item: oItem});
 		}
-		oItem._setContainsError(false);
-		oItem._setInEditMode(false);
-		this.fireAfterItemEdited({item: oItem});
+
 		this._oEditedItem = null;
+		this.invalidate();
+	};
+
+	/**
+	 * Removes the error state from the list item. Used when the name of the file has been corrected.
+	 * @private
+	 * @param {object} oContext The UploadSet instance on which an attempt was made to save a new name of an existing List item.
+	 * @param {sap.m.UploadSetItem} oItem The List item on which the event was triggered.
+	 */
+	UploadSet.prototype._removeErrorStateFromItem = function(oContext, oItem) {
+		oItem.errorState = null;
+		oContext.sErrorState = null;
+		oContext.editModeItem = null;
 	};
 
 	/**
@@ -1168,11 +1353,11 @@ sap.ui.define([
 	UploadSet.prototype._projectToNewListItem = function (oItem, iIndex) {
 		var oListItem = oItem._getListItem();
 		this._mListItemIdToItemMap[oListItem.getId()] = oItem; // TODO: Probably unnecessary
-		if (iIndex || iIndex === 0) {
-			this.getList().insertAggregation("items", oListItem, iIndex, true);
-		} else {
-			this.getList().addAggregation("items", oListItem, true);
+		if (oItem.sParentAggregationName === 'items') {
+			// maps groups for each item if group configuration provided
+			this._mapGroupForItem(oItem);
 		}
+		this.getList().addAggregation("items", oListItem, true);
 		this._checkRestrictionsForItem(oItem);
 	};
 
@@ -1261,6 +1446,118 @@ sap.ui.define([
 
 	UploadSet.prototype._fireFilenameLengthExceed = function (oItem) {
 		this.fireFileNameLengthExceeded({item: oItem});
+	};
+
+	/**
+	 * Sets the selected value for elements in given array to state of the given parameter. It also handles list specific rules
+	 * @param {sap.m.ListItemBase[]} uploadSetItemsToUpdate The list items the selection state is to be set for
+	 * @param {boolean} selected The new selection state
+	 * @private
+	 */
+	 UploadSet.prototype._setSelectedForItems = function(uploadSetItemsToUpdate, selected) {
+		//Reset all 'selected' values in UploadSetItems
+		if (this.getMode() !== Library.ListMode.MultiSelect && selected) {
+			var aUploadSetItems = this.getItems();
+			for (var j = 0; j < aUploadSetItems.length; j++) {
+				aUploadSetItems[j].setSelected(false);
+			}
+		}
+		for (var i = 0; i < uploadSetItemsToUpdate.length; i++) {
+			uploadSetItemsToUpdate[i].setSelected(selected);
+		}
+	};
+
+	/**
+	 * Returns UploadSetItem based on the items aggregation
+	 * @param {string} uploadSetItemId used for finding the UploadSetItem
+	 * @returns {sap.m.UploadSetItem} The matching UploadSetItem
+	 * @private
+	 */
+	 UploadSet.prototype._getUploadSetItemById = function(uploadSetItemId) {
+		var aAllItems = this.getItems();
+		for (var i = 0; i < aAllItems.length; i++) {
+			if (aAllItems[i].getId() === uploadSetItemId) {
+				return aAllItems[i];
+			}
+		}
+		return null;
+	};
+
+	/**
+	 * Returns an array of UploadSet items based on the items aggregation
+	 * @param {sap.m.ListItemBase[]} listItems The list items used for finding the UploadSetItems
+	 * @returns {sap.m.UploadSetItem[]} The matching UploadSetItems
+	 * @private
+	 */
+	 UploadSet.prototype._getUploadSetItemsByListItems = function(listItems) {
+		var aUploadSetItems = [];
+		var aLocalUploadSetItems = this.getItems();
+
+		if (listItems) {
+			for (var i = 0; i < listItems.length; i++) {
+				for (var j = 0; j < aLocalUploadSetItems.length; j++) {
+					if (listItems[i].getId() === aLocalUploadSetItems[j].getId() + "-listItem") {
+						aUploadSetItems.push(aLocalUploadSetItems[j]);
+						break;
+					}
+				}
+			}
+			return aUploadSetItems;
+		}
+		return null;
+	};
+
+	/**
+	 * Destroy the items in the List.
+	 * @private
+	 */
+	 UploadSet.prototype._clearList = function() {
+		if (this._oList) {
+			this.getList().destroyAggregation("items", true);	// note: suppress re-rendering
+		}
+	};
+
+	/**
+	 * Map group for item.
+	 * @param {sap.m.UploadSetItem} item The UploadSetItem to map group
+	 * @private
+	 */
+	 UploadSet.prototype._mapGroupForItem = function(item) {
+		var oItemsBinding = this.getBinding("items"),
+			sModelName = this.getBindingInfo("items") ? this.getBindingInfo("items").oModel : undefined,
+			fnGroupHeader = this.getBindingInfo("items") ? this.getBindingInfo("items").groupHeaderFactory : null;
+		var fnGroup = function(oItem) {
+			//Added sModelName to consider named model cases if empty default model is picked without checking model bind to items.
+			return oItem.getBindingContext(sModelName) ? oItemsBinding.getGroup(oItem.getBindingContext(sModelName)) : null;
+		};
+		var fnGroupKey = function(item) {
+			return fnGroup(item) && fnGroup(item).key;
+		};
+
+		if (oItemsBinding && oItemsBinding.isGrouped() && item) {
+			if ( !this._aGroupHeadersAdded.some( function(group){ return group === fnGroupKey(item);} ) ) {
+				if (fnGroupHeader) {
+					this.getList().addItemGroup(fnGroup(item), fnGroupHeader(fnGroup(item)), true);
+				} else if (fnGroup(item)) {
+					this.getList().addItemGroup(fnGroup(item), null, true);
+				}
+				this._aGroupHeadersAdded.push(fnGroupKey(item));
+			}
+		}
+	};
+
+	/**
+	 * Fills list with uploadSet items.
+	 * @param {sap.m.UploadSetItem[]} aItems The UploadSetItems the internal list is to be filled with
+	 * @private
+	 */
+	UploadSet.prototype._fillListWithUploadSetItems = function (aItems){
+		var that = this;
+		aItems.forEach(function(item, index) {
+			item._reset();
+			that._projectToNewListItem(item, index, true);
+			that._refreshInnerListStyle();
+		});
 	};
 
 	return UploadSet;

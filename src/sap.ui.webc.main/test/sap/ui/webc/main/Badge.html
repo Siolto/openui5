@@ -5,7 +5,12 @@
     <meta charset="utf-8">
     <title>Badge - sap.ui.webc.main</title>
     <script src="shared-config.js"></script>
-    <script src="../../../../../resources/sap-ui-core.js" id="sap-ui-bootstrap" data-sap-ui-libs="sap.ui.webc.main">
+    <script src="../../../../../resources/sap-ui-core.js"
+        id="sap-ui-bootstrap"
+        data-sap-ui-libs="sap.ui.webc.main"
+        data-sap-ui-resourceroots='{
+					"qunit.internal.acc": "../../../../../test-resources/sap/ui/core/qunit/internal/acc"
+				}'>
     </script>
 
     <script>
@@ -21,6 +26,7 @@
                 var oBadge = new Badge({
                     text: "Some text...",
                     icon: new Icon({
+                        color: "blue",
                         name: "add",
                         click: function(oEvent) {
                             console.log("Event click fired for Icon with parameters: ", oEvent.getParameters());

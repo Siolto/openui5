@@ -115,7 +115,13 @@ sap.ui.define([
 				/**
 				 * Defines the display size of each avatar.
 				 */
-				avatarDisplaySize: { type: "sap.m.AvatarSize", group: "Appearance", defaultValue: AvatarSize.S }
+				avatarDisplaySize: { type: "sap.m.AvatarSize", group: "Appearance", defaultValue: AvatarSize.S },
+
+				/**
+				 * Defines if keyboard or mouse interactions on this control are allowed.
+				 * @private
+				 */
+				_interactive: { type: "boolean", group: "Behavior", defaultValue: true, visibility: "hidden" }
 			},
 			defaultAggregation : "items",
 			aggregations : {
@@ -151,8 +157,9 @@ sap.ui.define([
 	});
 
 	AvatarGroup.prototype.init = function () {
-		this._oShowMoreButton = new Button({});
+		this._oShowMoreButton = new Button();
 		this._oShowMoreButton.addStyleClass("sapFAvatarGroupMoreButton");
+		this._oShowMoreButton.addStyleClass("sapFAvatarGroupMoreButton" + this.getAvatarDisplaySize());
 		this._bFirstRendering = true;
 		this._onResizeRef = this._onResize.bind(this);
 		this._iCurrentAvatarColorNumber = 1;
@@ -161,15 +168,17 @@ sap.ui.define([
 
 	AvatarGroup.prototype.exit = function () {
 		this._detachResizeHandlers();
+		this._destroyItemNavigation();
+		this._oShowMoreButton.destroy();
+		this._oShowMoreButton = null;
+	};
 
+	AvatarGroup.prototype._destroyItemNavigation = function () {
 		if (this._oItemNavigation) {
 			this.removeEventDelegate(this._oItemNavigation);
 			this._oItemNavigation.destroy();
 			this._oItemNavigation = null;
 		}
-
-		this._oShowMoreButton.destroy();
-		this._oShowMoreButton = null;
 	};
 
 	AvatarGroup.prototype.onBeforeRendering = function () {
@@ -180,10 +189,12 @@ sap.ui.define([
 	};
 
 	AvatarGroup.prototype.onAfterRendering = function() {
-		var oDomRef,
+		var bInteractive = this.getProperty("_interactive"),
+			oDomRef,
 			aDomRefs = [];
 
-		if (!this._oItemNavigation) {
+		if (!this._oItemNavigation && bInteractive) {
+
 			this._oItemNavigation = new ItemNavigation(null, null);
 			this._oItemNavigation.setDisabledModifiers({
 				// Alt + arrow keys are reserved for browser navigation
@@ -199,11 +210,13 @@ sap.ui.define([
 			this.addEventDelegate(this._oItemNavigation);
 		}
 
-		oDomRef = this.getDomRef();
-		// set the root dom node that surrounds the items
-		this._oItemNavigation.setRootDomRef(oDomRef);
+		if (bInteractive) {
+			oDomRef = this.getDomRef();
+			// set the root dom node that surrounds the items
+			this._oItemNavigation.setRootDomRef(oDomRef);
+		}
 
-		if (this.getGroupType() === AvatarGroupType.Individual) {
+		if (bInteractive && this.getGroupType() === AvatarGroupType.Individual) {
 			this.getItems().forEach(function(oItem) {
 				aDomRefs.push(oItem.getDomRef());
 			});
@@ -288,6 +301,7 @@ sap.ui.define([
 		oItem._setDisplaySize(this.getAvatarDisplaySize());
 		oItem._setAvatarColor(AvatarColor["Accent" + this._iCurrentAvatarColorNumber]);
 		oItem._setGroupType(this.getGroupType());
+		oItem._setInteractive(this.getProperty("_interactive"));
 
 		this.addAggregation("items", oItem);
 
@@ -325,6 +339,10 @@ sap.ui.define([
 	 * @private
 	 */
 	AvatarGroup.prototype.ontap = function (oEvent) {
+		if (!this.getProperty("_interactive")) {
+			return;
+		}
+
 		var oEventSource = oEvent.srcControl;
 
 		this.firePress({
@@ -462,6 +480,10 @@ sap.ui.define([
 			iAvatarNetWidth = this._getAvatarNetWidth(iAvatarWidth, iAvatarMargin),
 			iRenderedAvatars = this.$().children(".sapFAvatarGroupItem").length;
 
+		if (iWidth === 0) {
+			return;
+		}
+
 		this._iAvatarsToShow = this._getAvatarsToShow(iWidth, iAvatarWidth, iAvatarNetWidth);
 
 		if (iAvatarGroupItems > this._iAvatarsToShow && iAvatarGroupItems > 0) {
@@ -482,6 +504,24 @@ sap.ui.define([
 				this.invalidate();
 			}
 		}
+	};
+
+	/**
+	 * Defines if keyboard or mouse interactions on this control are allowed.
+	 *
+	 * @param {boolean} bInteractive
+	 * @private
+	 */
+	AvatarGroup.prototype._setInteractive = function (bInteractive) {
+		if (!bInteractive) {
+			this._destroyItemNavigation();
+		}
+
+		this.getItems().forEach(function (oAvatar) {
+			oAvatar._setInteractive(bInteractive);
+		});
+
+		return this.setProperty("_interactive", bInteractive);
 	};
 
 	/**

@@ -9,12 +9,11 @@ sap.ui.define([
 	'sap/ui/unified/MenuItem',
 	'sap/ui/unified/MenuTextFieldItem',
 	"sap/ui/unified/MenuRenderer",
-	'sap/ui/Device',
 	'./utils/TableUtils',
 	"sap/base/assert",
 	"sap/ui/thirdparty/jquery"
 ],
-	function(library, Menu, MenuItem, MenuTextFieldItem, MenuRenderer, Device, TableUtils, assert, jQuery) {
+	function(library, Menu, MenuItem, MenuTextFieldItem, MenuRenderer, TableUtils, assert, jQuery) {
 	"use strict";
 
 	/**
@@ -49,7 +48,7 @@ sap.ui.define([
 		metadata : {
 			library : "sap.ui.table"
 		},
-		renderer: "sap.ui.unified.MenuRenderer"
+		renderer: MenuRenderer
 	});
 
 
@@ -144,6 +143,8 @@ sap.ui.define([
 	 * @private
 	 */
 	ColumnMenu.prototype._invalidate = function() {
+		this._removeColumnVisibilityFromAggregation();
+		this.destroyItems();
 		this._bInvalidated = true;
 	};
 
@@ -155,8 +156,6 @@ sap.ui.define([
 	ColumnMenu.prototype.open = function() {
 		if (this._bInvalidated) {
 			this._bInvalidated = false;
-			this._removeColumnVisibilityFromAggregation();
-			this.destroyItems();
 			this._addMenuItems();
 		} else if (this._oColumn) {
 			this._addColumnVisibilityMenuItem();
@@ -256,7 +255,7 @@ sap.ui.define([
 	ColumnMenu.prototype._addGroupMenuItem = function() {
 		var oColumn = this._oColumn;
 
-		if (oColumn.isGroupable()) {
+		if (oColumn.isGroupableByMenu()) {
 			var oTable = this._oTable;
 
 			this.addItem(this._createMenuItem(
@@ -331,7 +330,6 @@ sap.ui.define([
 
 	/**
 	 * Factory method for the column visibility menu item.
-	 * @param {string} sId the id of the menu item.
 	 * @param {sap.ui.table.Column} oColumn the associated column to the menu item.
 	 * @returns {sap.ui.unified.MenuItem} the created menu item.
 	 * @private

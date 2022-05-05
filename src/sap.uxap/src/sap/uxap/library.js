@@ -9,26 +9,25 @@ sap.ui.define([
 	"sap/ui/core/Core",
 	"sap/ui/base/DataType",
 	"sap/ui/Device",
+	"sap/ui/thirdparty/jquery",
 	"sap/ui/core/library", // library dependency
 	"sap/f/library", // library dependency
 	"sap/m/library", // library dependency
 	"sap/ui/layout/library" // library dependency
-], function(Core, DataType, Device) {
+], function(Core, DataType, Device, jQuery) {
 	"use strict";
 
 	/**
 	 * SAP UxAP
 	 *
 	 * @namespace
-	 * @name sap.uxap
+	 * @alias sap.uxap
 	 * @author SAP SE
 	 * @version ${version}
 	 * @since 1.36
 	 * @public
 	 */
-		// library dependencies
-		// delegate further initialization of this library to the Core
-	sap.ui.getCore().initLibrary({
+	var thisLib = sap.ui.getCore().initLibrary({
 		name: "sap.uxap",
 		dependencies: ["sap.ui.core", "sap.f", "sap.m", "sap.ui.layout"],
 		designtime: "sap/uxap/designtime/library.designtime",
@@ -99,15 +98,15 @@ sap.ui.define([
 	});
 
 	/**
-	 * @class Used by the <code>BlockBase</code> control to define how many columns should it be assigned by the <code>objectPageSubSection</code>.
+	 * Used by the <code>BlockBase</code> control to define how many columns should it be assigned by the <code>objectPageSubSection</code>.
 	 *     The allowed values can be auto (subsection assigned a number of columns based on the parent objectPageLayout subsectionLayout property), 1, 2, 3 or 4
 	 *     (This may not be a valid value for some <code>subSectionLayout</code>, for example, asking for 3 columns in a 2 column layout would raise warnings).
 	 *
-	 * @static
+	 * @namespace
 	 * @public
 	 * @ui5-metamodel This simple type also will be described in the UI5 (legacy) designtime metamodel
 	 */
-	sap.uxap.BlockBaseColumnLayout = DataType.createType('sap.uxap.BlockBaseColumnLayout', {
+	thisLib.BlockBaseColumnLayout = DataType.createType('sap.uxap.BlockBaseColumnLayout', {
 			isValid: function (vValue) {
 				return /^(auto|[1-4]{1})$/.test(vValue);
 			}
@@ -125,7 +124,7 @@ sap.ui.define([
 	 * @public
 	 * @ui5-metamodel This simple type also will be described in the UI5 (legacy) designtime metamodel
 	 */
-	sap.uxap.BlockBaseFormAdjustment = {
+	thisLib.BlockBaseFormAdjustment = {
 
 		/**
 		 * Any form within the block will be automatically adjusted to have as many columns as the colspan of its parent block.
@@ -152,7 +151,7 @@ sap.ui.define([
 	 * @public
 	 * @ui5-metamodel This enumeration also will be described in the UI5 (legacy) designtime metamodel
 	 */
-	sap.uxap.ObjectPageConfigurationMode = {
+	thisLib.ObjectPageConfigurationMode = {
 
 		/**
 		 * Determines the JSON URL.
@@ -175,7 +174,7 @@ sap.ui.define([
 	 * @public
 	 * @ui5-metamodel This enumeration also will be described in the UI5 (legacy) designtime metamodel
 	 */
-	sap.uxap.ObjectPageHeaderDesign = {
+	thisLib.ObjectPageHeaderDesign = {
 
 		/**
 		 * Light theme for the <code>ObjectPageHeader</code>.
@@ -198,7 +197,7 @@ sap.ui.define([
 	 * @public
 	 * @ui5-metamodel This enumeration also will be described in the UI5 (legacy) designtime metamodel
 	 */
-	sap.uxap.ObjectPageHeaderPictureShape = {
+	thisLib.ObjectPageHeaderPictureShape = {
 
 		/**
 		 * Circle shape for the images in the <code>ObjectPageHeader</code>.
@@ -221,7 +220,7 @@ sap.ui.define([
 	 * @public
 	 * @ui5-metamodel This enumeration also will be described in the UI5 (legacy) designtime metamodel
 	 */
-	sap.uxap.ObjectPageSubSectionLayout = {
+	thisLib.ObjectPageSubSectionLayout = {
 
 		/**
 		 * Title and actions on top of the block area.
@@ -244,7 +243,7 @@ sap.ui.define([
 	 * @public
 	 * @ui5-metamodel This enumeration also will be described in the UI5 (legacy) designtime metamodel
 	 */
-	sap.uxap.ObjectPageSubSectionMode = {
+	thisLib.ObjectPageSubSectionMode = {
 
 		/**
 		 * Collapsed mode of display of the <code>ObjectPageLayout</code>.
@@ -269,7 +268,7 @@ sap.ui.define([
 	 * @since 1.32.0
 	 * @ui5-metamodel This enumeration also will be described in the UI5 (legacy) designtime metamodel
 	 */
-	sap.uxap.Importance = {
+	thisLib.Importance = {
 
 		/**
 		 * Low importance of the content.
@@ -294,7 +293,7 @@ sap.ui.define([
 	 *
 	 * @type {{getClosestOPL: Function}}
 	 */
-	sap.uxap.Utilities = {
+	thisLib.Utilities = {
 
 		/**
 		 * Returns the reference to the <code>ObjectPageLayout</code> for a given control.
@@ -316,10 +315,10 @@ sap.ui.define([
 				return true;
 			}
 
-			return sap.uxap.Utilities._isCurrentMediaSize("Phone", oRange);
+			return thisLib.Utilities._isCurrentMediaSize("Phone", oRange);
 		},
 		isTabletScenario: function (oRange) {
-			return sap.uxap.Utilities._isCurrentMediaSize("Tablet", oRange);
+			return thisLib.Utilities._isCurrentMediaSize("Tablet", oRange);
 		},
 		_isCurrentMediaSize: function (sMedia, oRange) {
 			return oRange && oRange.name === sMedia;
@@ -401,6 +400,6 @@ sap.ui.define([
 	 * @see {@link topic:d2ef0099542d44dc868719d908e576d0 Object Page Headers}
 	 */
 
-	return sap.uxap;
+	return thisLib;
 
 });

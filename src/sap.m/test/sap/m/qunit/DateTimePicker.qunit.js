@@ -15,7 +15,8 @@ sap.ui.define([
 	"sap/ui/thirdparty/jquery",
 	"sap/ui/events/KeyCodes",
 	"sap/ui/unified/DateRange",
-	"sap/ui/core/Core"
+	"sap/ui/core/Core",
+	"sap/ui/base/ManagedObjectObserver"
 ], function(
 	qutils,
 	createAndAppendDiv,
@@ -32,7 +33,8 @@ sap.ui.define([
 	jQuery,
 	KeyCodes,
 	DateRange,
-	oCore
+	oCore,
+	ManagedObjectObserver
 ) {
 	"use strict";
 
@@ -134,7 +136,6 @@ sap.ui.define([
 		oCalendar = oDTP._getCalendar();
 
 		//Assert
-		assert.ok(oDTP._getCalendar()._bPoupupMode, "Popup mode is set");
 		assert.ok(oCalendar.hasListeners("cancel"), "Cancel event listener is added");
 
 		//Clean
@@ -569,26 +570,11 @@ sap.ui.define([
 	QUnit.module("Accessibility");
 
 	QUnit.test("aria-expanded correctly set", function(assert) {
-		var done = assert.async(),
-			oDTP = new DateTimePicker("DP", {}).placeAt("uiArea8");
-
+		var oDTP = new DateTimePicker("DP", {}).placeAt("uiArea8");
 		oCore.applyChanges();
 
 		//before opening the popup
-		assert.equal(oDTP.$("inner").attr("aria-expanded"), "false", "DP input has 'aria-expand' set to false when the picker is not open");
-
-		// open DatePicker
-		oDTP.focus();
-		qutils.triggerEvent("click", "DP-icon");
-
-		oCore.applyChanges();
-		setTimeout(function(){
-			//after opening popup
-			assert.equal(oDTP.$("inner").attr("aria-expanded"), "true", "DP input has 'aria-expand' set to true when the picker is open");
-
-			oDTP.destroy();
-			done();
-		}, 600);
+		assert.notOk(oDTP.$("inner").attr("aria-expanded"), "false", "DP input doesn't have 'aria-expanded' attrubute set.");
 	});
 
 	QUnit.test("aria-haspopup set correctly", function(assert) {
@@ -638,7 +624,7 @@ sap.ui.define([
 		oInput.destroy();
 	});
 
-	QUnit.test("When tab is pressed on year button the focus should go to first clock", function(assert) {
+	QUnit.test("_focusActiveButton method: moves the focus to the first clock", function(assert) {
 		//Prepare
 		var done = assert.async();
 
@@ -651,12 +637,9 @@ sap.ui.define([
 		oDTP._openPopup();
 
 		setTimeout(function() {
-			var oYearButton = oDTP._oPopup.getContent()[1].getCalendar().getAggregation("header").getDomRef("B2"),
-				oHoursClock = oDTP._oPopup.getContent()[1].getClocks().getAggregation("_buttons")[0];
-			oYearButton.focus();
-			oCore.applyChanges();
-			qutils.triggerKeydown(oYearButton, KeyCodes.TAB);
-			oCore.applyChanges();
+			var oHoursClock = oDTP._oPopup.getContent()[1].getClocks().getAggregation("_buttons")[0];
+			oDTP._oPopupContent.getClocks()._focusActiveButton();
+
 			// Assert
 			assert.strictEqual(oHoursClock.getDomRef(), document.activeElement, "The clock's value is focused after a tap");
 
@@ -731,7 +714,6 @@ sap.ui.define([
 						var $selectedDate = jQuery("#DTP5-cal--Month0-20211101");
 						$selectedDate.trigger("focus");
 						qutils.triggerKeydown($selectedDate, KeyCodes.ENTER);
-						oCore.applyChanges();
 						assert.strictEqual(jQuery("#DTP5-cal").css("display"), "none", "Calendar is not visible");
 						assert.strictEqual(jQuery("#DTP5-Clocks").css("display"), "block", "Clocks are visible");
 						assert.strictEqual(document.activeElement.id,
@@ -988,7 +970,7 @@ sap.ui.define([
 
 		// assert
 		assert.equal(oDTP.getDateValue().getTime(), 1643777700000, "dateValue contains the correct date and time");
-		assert.equal(oDTP.getValue(), "Feb 2, 2022, 9:25:00 AM Asia/Kabul", "the time part of the value stays the same");
+		assert.equal(oDTP.getValue(), "Feb 2, 2022, 9:25:00 AM Asia, Kabul", "the time part of the value stays the same");
 
 		// clean
 		oDTP.destroy();
@@ -1002,20 +984,20 @@ sap.ui.define([
 		});
 
 		// assert
-		assert.equal(oDTP.getValue(), "Feb 2, 2022, 8:25:00 AM America/New_York", "the value is correct");
+		assert.equal(oDTP.getValue(), "Feb 2, 2022, 8:25:00 AM Americas, New York", "the value is correct");
 
 		// act
 		oDTP.setDateValue(new Date(Date.UTC(2022, 1, 2, 14, 25, 0)));
 
 		// assert
-		assert.equal(oDTP.getValue(), "Feb 2, 2022, 9:25:00 AM America/New_York", "the value is correct");
+		assert.equal(oDTP.getValue(), "Feb 2, 2022, 9:25:00 AM Americas, New York", "the value is correct");
 
 		// act
 		oDTP.setTimezone("Asia/Kabul");
 
 		// assert
 		assert.equal(oDTP.getDateValue().getTime(), 1643777700000, "dateValue contains the correct date and time");
-		assert.equal(oDTP.getValue(), "Feb 2, 2022, 9:25:00 AM Asia/Kabul", "the time part of the value stays the same");
+		assert.equal(oDTP.getValue(), "Feb 2, 2022, 9:25:00 AM Asia, Kabul", "the time part of the value stays the same");
 
 		// clean
 		oDTP.destroy();
@@ -1084,7 +1066,7 @@ sap.ui.define([
 		oCore.applyChanges();
 
 		// assert
-		assert.equal(oDTP.getValue(), "Feb 18, 2016, 10:00:00 AM America/New_York", "value is correct");
+		assert.equal(oDTP.getValue(), "Feb 18, 2016, 10:00:00 AM Americas, New York", "value is correct");
 		assert.equal(oDTP.$("inner").val(), "Jum. I 9, 1437 AH, 10:00:00 AM", "correct displayed value");
 		assert.equal(oDTP.getDateValue().getTime(), 1455807600000, "correct dateValue");
 
@@ -1120,4 +1102,185 @@ sap.ui.define([
 		// clean
 		oDTP.destroy();
 	});
+
+	QUnit.test("timezone + bound value type DateTime - order", function(assert) {
+		// arrange
+		var oModel = new JSONModel({ date: new Date(2016, 1, 18, 3, 0, 0) }),
+			oDTP = new DateTimePicker("dtpbo", {
+				timezone: "America/New_York" // UTC-5
+			}).setModel(oModel);
+
+		oDTP.placeAt("qunit-fixture");
+		oCore.applyChanges();
+
+		// act
+		oDTP.bindProperty("value", { path: '/date', type: new DateTime() });
+		oCore.applyChanges();
+
+		// assert
+		assert.equal(oDTP.getDateValue().getTime(), Date.UTC(2016, 1, 18, 8, 0, 0), "correct dateValue");
+
+		// clean
+		oDTP.destroy();
+	});
+
+	QUnit.test("timezone + bound value data type String", function(assert) {
+		// arrange
+		var oModel = new JSONModel({ date: "Feb++18++2016, 3:00:00 AM" }),
+			oDTP = new DateTimePicker("dtpbs", {
+				valueFormat: "MMM++dd++yyyy, h:mm:ss a",
+				timezone: "America/New_York" // UTC-5
+			}).setModel(oModel);
+
+		oDTP.placeAt("qunit-fixture");
+		oCore.applyChanges();
+
+		// act
+		oDTP.bindProperty("value", { path: '/date', type: new sap.ui.model.type.String() });
+		oCore.applyChanges();
+
+		// assert
+		assert.ok(oDTP.getDateValue(), "has dateValue");
+		assert.equal(oDTP.getDateValue().getTime(), Date.UTC(2016, 1, 18, 8, 0, 0), "correct dateValue");
+
+		// clean
+		oDTP.destroy();
+	});
+
+	QUnit.test("timezone setter does not update 'value' when timezone is the same", function(assert) {
+		// arrange
+		var done = assert.async(),
+			oDTP = new sap.m.DateTimePicker("dtp", {
+				value: "2022-02-11T07:16:33",
+				valueFormat: "yyyy-MM-dd'T'HH:mm:ss",
+				displayFormat: "medium",
+				timezone: "Europe/Berlin",
+				showTimezone: true
+			}).placeAt("qunit-fixture"),
+			oObserver = new ManagedObjectObserver(function(oChanges) {
+				var oControl;
+
+				if (oChanges.name === "value") {
+					oControl = oChanges.object;
+					oControl.setTimezone(oControl.getTimezone());
+
+					// assert
+					assert.equal(oDTP.getValue(), "2022-02-17T17:16:33", "the value is as expected");
+
+					// clean
+					oDTP.destroy();
+					done();
+				}
+			});
+
+		oObserver.observe(oDTP, {
+			properties: ["value", "timezone"]
+		});
+
+		// act
+		oDTP.setValue("2022-02-17T17:16:33");
+	});
+
+	QUnit.test("when the displayFormat does not contain date part, the selected date is preserved", function(assert) {
+		// arrange
+		var oDTP = new DateTimePicker("dtp", {
+				value: "2022-02-11T07:16:33",
+				displayFormat: "HH:mm",
+				valueFormat: "yyyy-MM-ddTHH:mm:ss"
+			}).placeAt("qunit-fixture");
+
+		oCore.applyChanges();
+		oDTP.toggleOpen();
+
+		// assert
+		assert.equal(oDTP._getSelectedDate().getTime(), new Date(2022, 1, 11, 7, 16, 33).getTime(), "the selected date is as expected");
+
+		// clean
+		oDTP.destroy();
+	});
+
+	QUnit.test("when the timezone is updated via value binding, the timezone popup is updated", function(assert) {
+		// arrange
+		var oDTP = new DateTimePicker("dtp", {
+				timezone: "America/New_York"
+			}).placeAt("qunit-fixture"),
+			oTimezonePopup;
+
+		// act
+		oTimezonePopup = oDTP._getTimezoneNamePopup();
+
+		// assert
+		assert.equal(oTimezonePopup.getTitle(), "America/New_York",
+			"the popup shows the correct timezone");
+
+		// act
+		// simulate timezone change, not using the timezone setter
+		this.stub(oDTP, "_getTimezone").callsFake(function() {
+			return "America/Chicago";
+		});
+		// act
+		oTimezonePopup = oDTP._getTimezoneNamePopup();
+
+		// assert
+		assert.equal(oTimezonePopup.getTitle(), "America/Chicago",
+			"the popup shows the correct timezone");
+
+		// clean
+		oDTP.destroy();
+	});
+
+	QUnit.module("Different application timezone", {
+		before: function() {
+			var sTZ1 = "Europe/Sofia";
+			var sTZ2 = "Europe/Berlin";
+
+			this.localTimezone = oCore.getConfiguration().getTimezone();
+			oCore.getConfiguration().setTimezone(this.localTimezone === sTZ1 ? sTZ2 : sTZ1);
+			oCore.applyChanges();
+		},
+		after: function() {
+			oCore.getConfiguration().setTimezone(this.localTimezone);
+			oCore.applyChanges();
+		}
+	});
+
+	QUnit.test("measure label renders always the same UTC date and time", function(assert) {
+		// arrange
+		var oDTP = new DateTimePicker("dtp", {
+			showTimezone: true
+		}).placeAt("qunit-fixture");
+		oCore.applyChanges();
+
+		// assert
+		assert.equal(oDTP.$().find(".sapMDummyContent").text(), "Nov 20, 2000, 10:10:10 AM",
+			"the correct formatted date and time is used to measure the input width");
+
+		// clean
+		oDTP.destroy();
+	});
+
+	QUnit.module("Events");
+
+	QUnit.test("afterValueHelpOpen and afterValueHelpClose event fire when value help opens and closes", function(assert) {
+		var oDTP = new DateTimePicker(),
+			spyOpen = this.spy(oDTP, "fireAfterValueHelpOpen"),
+			spyClose = this.spy(oDTP, "fireAfterValueHelpClose");
+
+		oDTP.placeAt("qunit-fixture");
+		oCore.applyChanges();
+
+		oDTP._createPopup();
+		oDTP._createPopupContent();
+		oDTP._oPopup.fireAfterOpen();
+		oDTP._oPopup.fireAfterClose();
+
+		assert.ok(spyOpen.calledOnce, "afterValueHelpOpen event fired");
+		assert.ok(spyClose.calledOnce, "afterValueHelpClose event fired");
+
+		spyOpen = null;
+		spyClose = null;
+		oDTP.destroy();
+	});
+
+
 });

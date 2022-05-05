@@ -5,7 +5,12 @@
     <meta charset="utf-8">
     <title>Bar - sap.ui.webc.fiori</title>
     <script src="shared-config.js"></script>
-    <script src="../../../../../resources/sap-ui-core.js" id="sap-ui-bootstrap" data-sap-ui-libs="sap.ui.webc.fiori, sap.ui.webc.main">
+    <script src="../../../../../resources/sap-ui-core.js"
+        id="sap-ui-bootstrap"
+        data-sap-ui-libs="sap.ui.webc.fiori, sap.ui.webc.main"
+        data-sap-ui-resourceroots='{
+					"qunit.internal.acc": "../../../../../test-resources/sap/ui/core/qunit/internal/acc"
+				}'>
     </script>
 
     <script>
@@ -19,7 +24,7 @@
 
 
                 var oBar = new Bar({
-                    content: [
+                    endContent: [
                         new Button({
                             icon: "employee",
                             text: "Some text...",
@@ -42,7 +47,7 @@
                             }
                         })
                     ],
-                    endContent: [
+                    middleContent: [
                         new Button({
                             icon: "employee",
                             text: "Some text...",

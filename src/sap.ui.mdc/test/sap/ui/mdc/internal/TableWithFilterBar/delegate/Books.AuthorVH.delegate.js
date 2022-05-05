@@ -12,14 +12,15 @@ sap.ui.define([
 	"use strict";
 	var Delegate = Object.assign({}, ODataFieldValueHelpDelegate);
 
-	Delegate.retrieveContent = function (oPayload, oContainer) {
+	Delegate.retrieveContent = function (oPayload, oContainer, sContentId) {
 		var oValueHelp = oContainer && oContainer.getParent();
 		var bSuspended = false;
 		var aCurrentContent = oContainer && oContainer.getContent();
-		var oCurrentContent = aCurrentContent && aCurrentContent[0];
+		var oCurrentContent = aCurrentContent && aCurrentContent.find(function(oContent){ return oContent.getId() === sContentId; });
 		var bMultiSelect = oValueHelp.getMaxConditions() === -1;
 
-		if (oContainer.isA("sap.ui.mdc.valuehelp.Dialog")) {
+		if (oContainer.isA("sap.ui.mdc.valuehelp.Dialog") &&
+			["container-v4demo---books--FH1-Dialog-MTable_withCountry", "container-v4demo---books--FH1-Dialog-MTable_default"].indexOf(sContentId) >= 0 ) {
 
 			var oCurrentTable = oCurrentContent.getTable();
 			if (oCurrentTable) {
@@ -37,14 +38,14 @@ sap.ui.define([
 
 			var oTable;
 
-			switch (oCurrentContent.getCollectiveSearchKey()) {
-				case "template1":
+			switch (sContentId) {
+				case "container-v4demo---books--FH1-Dialog-MTable_withCountry":
 
 					if (!oCurrentContent.getFilterBar()) {
 						oCurrentContent.setFilterBar(
 							new FilterBar(oCurrentContent.getId() + "--" +  "template1-FB",{
 								liveMode: false,
-								delegate: {name: "sap/ui/mdc/filterbar/vh/GenericFilterBarDelegate", payload: {}},
+								delegate: {name: "delegates/GenericVhFilterBarDelegate", payload: {}},
 								basicSearchField: new FilterField({
 									delegate: {name: "sap/ui/mdc/odata/v4/FieldBaseDelegate", payload: {}},
 									dataType: "Edm.String",
@@ -95,7 +96,7 @@ sap.ui.define([
 						oCurrentContent.setFilterBar(
 							new FilterBar(oCurrentContent.getId() + "--" +  "default-FB", {
 								liveMode: false,
-								delegate: {name: "sap/ui/mdc/filterbar/vh/GenericFilterBarDelegate", payload: {}},
+								delegate: {name: "delegates/GenericVhFilterBarDelegate", payload: {}},
 								basicSearchField: new FilterField({
 									delegate: {	name: "sap/ui/mdc/odata/v4/FieldBaseDelegate", payload: {}},
 									dataType: "Edm.String",
@@ -143,7 +144,11 @@ sap.ui.define([
 			oCurrentContent.setTable(oTable);
 		}
 
-		return Promise.resolve();
+		return new Promise(function(resolve, reject) {
+			setTimeout(resolve, 0);
+		});
+
+		// return Promise.resolve();
 	};
 
 	// Delegate.contentRequest = function(oPayload, oFieldHelp, bSuggestion, oProperties) {
@@ -211,7 +216,7 @@ sap.ui.define([
 	// 			this.MySearchTemplate1Filterbar = new FilterBar(
 	// 			{
 	// 				liveMode: false,
-	// 				delegate: {name: 'sap/ui/mdc/filterbar/vh/GenericFilterBarDelegate', payload: {collectionName: ''}},
+	// 				delegate: {name: 'delegates/GenericVhFilterBarDelegate', payload: {collectionName: ''}},
 	// 				basicSearchField: new FilterField({
 	// 					delegate: {name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}},
 	// 					dataType: "Edm.String",

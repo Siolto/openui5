@@ -9,14 +9,10 @@ sap.ui.define([
 	'sap/ui/core/ValueStateSupport',
 	'sap/m/library',
 	'sap/ui/core/library',
-	'sap/m/Button',
-	'sap/m/GroupHeaderListItem',
 	'sap/m/List',
-	"sap/m/ValueStateHeader",
 	"sap/m/inputUtils/scrollToItem",
 	"sap/m/inputUtils/SuggestionsPopoverDialogMixin",
-	"sap/m/inputUtils/SuggestionsPopoverPopoverMixin",
-	"sap/m/inputUtils/ListHelpers"
+	"sap/m/inputUtils/SuggestionsPopoverPopoverMixin"
 ], function (
 	Device,
 	EventProvider,
@@ -24,14 +20,10 @@ sap.ui.define([
 	ValueStateSupport,
 	library,
 	coreLibrary,
-	Button,
-	GroupHeaderListItem,
 	List,
-	ValueStateHeader,
 	scrollToItem,
 	SuggestionsPopoverDialogMixin,
-	SuggestionsPopoverPopoverMixin,
-	ListHelpers
+	SuggestionsPopoverPopoverMixin
 ) {
 	"use strict";
 
@@ -136,12 +128,12 @@ sap.ui.define([
 	 * @param mOptions {object} Settings for the Popover
 	 * @public
 	 */
-	SuggestionsPopover.prototype.createSuggestionPopup = function (oParent, mOptions) {
+	SuggestionsPopover.prototype.createSuggestionPopup = function (oParent, mOptions, InputClass) {
 		var oPopover,
 			oList = this.getItemsContainer();
 
 		mOptions = mOptions || [];
-		oPopover = this.createPopover(oParent, mOptions);
+		oPopover = this.createPopover(oParent, mOptions, InputClass);
 
 		this.setPopover(oPopover);
 		oPopover.addStyleClass(CSS_CLASS_SUGGESTIONS_POPOVER);
@@ -224,8 +216,8 @@ sap.ui.define([
 	 * Handles the navigation inside the list.
 	 *
 	 * @private
-	 * @param {jQuery.Event} oEvent Arrow key event.
 	 * @param {sap.ui.core.Control} oParent The input control that instantiates this suggestions popover
+	 * @param {jQuery.Event} oEvent Arrow key event.
 	 */
 	SuggestionsPopover.prototype.handleListNavigation = function(oParent, oEvent) {
 		var	oPopover = this.getPopover();

@@ -64,7 +64,6 @@ sap.ui.define([
 				 */
 				width: {
 					type: "sap.ui.core.CSSSize",
-					defaultValue: null,
 					mapping: "style"
 				},
 
@@ -79,7 +78,8 @@ sap.ui.define([
 					type: "sap.ui.webc.main.WrappingType",
 					defaultValue: WrappingType.None
 				}
-			}
+			},
+			designtime: "sap/ui/webc/main/designtime/Title.designtime"
 		}
 	});
 

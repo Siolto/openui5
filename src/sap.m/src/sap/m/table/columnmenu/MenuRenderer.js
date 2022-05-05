@@ -11,7 +11,6 @@ sap.ui.define([], function () {
 	MenuRenderer.render = function (oRm, oMenu) {
 		oRm.openStart("div", oMenu);
 		oRm.class("sapMTCMenu");
-
 		oRm.openEnd();
 		this.renderQuickActions(oRm, oMenu);
 		this.renderItems(oRm, oMenu);
@@ -19,11 +18,12 @@ sap.ui.define([], function () {
 	};
 
 	MenuRenderer.renderQuickActions = function (oRm, oMenu) {
-		if (oMenu.getQuickActions().length === 0 && !oMenu.getAggregation("_quickActions")) {
+		// If no active QuickActions are found, do not render the quick action container.
+		if (oMenu._getAllEffectiveQuickActions().length === 0) {
 			return;
 		}
 
-		oRm.openStart("div", oMenu.getId() + "-quickActions");
+		oRm.openStart("div");
 		if (oMenu._oItemsContainer) {
 			if (oMenu._oItemsContainer.getCurrentViewKey() === "$default") {
 				oRm.class("sapMTCMenuQAList");
@@ -35,36 +35,13 @@ sap.ui.define([], function () {
 		}
 		oRm.openEnd();
 
-		var aQuickActions = (oMenu.getAggregation("_quickActions") || []).concat(oMenu.getQuickActions());
-		aQuickActions.forEach(function (oQuickAction) {
-			oQuickAction.getEffectiveQuickActions().forEach(function (oQuickAction) {
-				this.renderQuickAction(oRm, oQuickAction);
-			}, this);
-		}, this);
+		oRm.renderControl(oMenu._oForm);
 
-		oRm.close("div");
-	};
-
-	MenuRenderer.renderQuickAction = function (oRm, oQuickAction) {
-		oRm.openStart("div", oQuickAction);
-		oRm.class("sapMTCMenuQAction");
-		oRm.openEnd();
-		// Label
-		oRm.openStart("div");
-		oRm.class("sapMTCMenuQALabel");
-		oRm.openEnd();
-		oRm.text(oQuickAction.getLabel());
-		oRm.close("div");
-		// Content
-		oRm.openStart("div");
-		oRm.openEnd();
-		oRm.renderControl(oQuickAction.getContent());
-		oRm.close("div");
 		oRm.close("div");
 	};
 
 	MenuRenderer.renderItems = function (oRm, oMenu) {
-		if (oMenu.getItems().length === 0 && !oMenu.getAggregation("_items")) {
+		if (oMenu._getAllEffectiveItems().length === 0) {
 			return;
 		}
 

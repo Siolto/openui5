@@ -23,6 +23,8 @@ sap.ui.define([
 	"sap/m/Slider",
 	"sap/m/MenuItem",
 	"sap/m/Menu",
+	"sap/m/Popover",
+	"sap/m/OverflowToolbarAssociativePopover",
 	"sap/m/MenuButton",
 	"sap/m/FlexItemData",
 	"sap/m/Title",
@@ -51,6 +53,8 @@ sap.ui.define([
 	Slider,
 	MenuItem,
 	Menu,
+	Popover,
+	OverflowToolbarAssociativePopover,
 	MenuButton,
 	FlexItemData,
 	Title,
@@ -62,6 +66,8 @@ sap.ui.define([
 
 	// shortcut for sap.m.OverflowToolbarPriority
 	var OverflowToolbarPriority = mobileLibrary.OverflowToolbarPriority;
+
+	var PopoverPlacementType = mobileLibrary.PlacementType;
 
 	// shortcut for sap.ui.core.aria.HasPopup
 	var AriaHasPopup = coreLibrary.aria.HasPopup;
@@ -3389,6 +3395,31 @@ sap.ui.define([
 		oOverflowTB.destroy();
 	});
 
+	QUnit.test("getAccessibilityInfo method", function (assert) {
+		// arrange
+		var aDefaultContent = [
+				new Button({width: "150px", layoutData: new OverflowToolbarLayoutData({priority: OverflowToolbarPriority.NeverOverflow})}),
+				new Button({width: "150px", layoutData: new OverflowToolbarLayoutData({priority: OverflowToolbarPriority.NeverOverflow})})
+			],
+			oOverflowTB = createOverflowToolbar({width: '500px'}, aDefaultContent);
+
+		// assert
+		assert.strictEqual(oOverflowTB.getAccessibilityInfo().children.length, 2, "children property of accessibility info object contains correct amount of visible children");
+
+		oOverflowTB.getContent()[1].getLayoutData().setPriority(OverflowToolbarPriority.AlwaysOverflow);
+		oCore.applyChanges();
+
+		assert.strictEqual(oOverflowTB.getAccessibilityInfo().children.length, 2, "children property of accessibility info object contains correct amount of visible children and more button");
+
+		oOverflowTB.getContent()[0].getLayoutData().setPriority(OverflowToolbarPriority.AlwaysOverflow);
+		oCore.applyChanges();
+
+		assert.strictEqual(oOverflowTB.getAccessibilityInfo().children.length, 1, "children property of accessibility info object contains correct amount of visible children and more button");
+
+		// clean
+		oOverflowTB.destroy();
+	});
+
 	QUnit.module("Special cases", {
 		beforeEach: function () {
 			sinon.config.useFakeTimers = false;
@@ -3467,5 +3498,54 @@ sap.ui.define([
 				"of a content control the focus is back to OTB button");
 			done();
 		}, 1000);
+	});
+
+	QUnit.test("Clone button tooltip not anounced, when control used in List based conrols", function (assert) {
+
+		//Arrange
+		var oOtb = new OverflowToolbar({
+			content: [
+				new Button({
+					text: "Test Button",
+					layoutData: new OverflowToolbarLayoutData({priority: OverflowToolbarPriority.NeverOverflow})
+				}),
+				new Button({
+					text: "Test Button Without Announcement",
+					layoutData: new OverflowToolbarLayoutData({priority: OverflowToolbarPriority.AlwaysOverflow})
+				})
+			],
+			width: "200px"
+		}),
+		oTable = new sap.m.Table({
+			columns: [new sap.m.Column({})],
+			items: [new sap.m.ColumnListItem({ cells: [oOtb]})]
+		});
+
+		//Act
+		oTable.placeAt("qunit-fixture");
+		oCore.applyChanges();
+
+		//Assert
+		assert.equal(oTable.getItems()[0].getContentAnnouncement(), "Button Test Button Button More", "here");
+	});
+
+	QUnit.module("Associative popover");
+
+	QUnit.test("Popover _recalculateMargins method overwrite", function (assert) {
+		var oFakeObject = {
+				_fWindowHeight: 5,
+				_fPopoverOffsetY: 5,
+				_$parent: {
+					offset: function () {
+						return {top: 5};
+					}
+				}
+			},
+			oResultPopover = Popover.prototype._recalculateMargins(PopoverPlacementType.Top, Object.assign({}, oFakeObject)),
+			oResultAssociativePopover = OverflowToolbarAssociativePopover.prototype._recalculateMargins(PopoverPlacementType.Top, Object.assign({}, oFakeObject));
+
+		Object.keys(oResultPopover).forEach(function (sProperty) {
+			assert.notEqual(oResultAssociativePopover[sProperty], undefined, "Result object has property: " + sProperty);
+		});
 	});
 });

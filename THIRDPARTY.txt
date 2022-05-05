@@ -197,7 +197,7 @@ License: BSD-3-Clause
 License Text: https://github.com/SAP/openui5/blob/master/LICENSES/BSD-3-Clause.txt
 Contained in: src/sap.ui.core/src/sap/ui/thirdparty/sinon-qunit.js
 
-Component: URI.js, version: 1.19.7
+Component: URI.js, version: 1.19.10
 Copyright: Rodney Rehm
 License: MIT
 License Text: https://github.com/SAP/openui5/blob/master/LICENSES/MIT.txt
@@ -400,7 +400,7 @@ Contained in: src/sap.ui.mdc/test/sap/ui/mdc/sample/field/filterfieldwithoperato
 
 Library: sap.ui.webc.common:
 
-Component: UI5 Web Components, version: 1.0.0-rc.12
+Component: UI5 Web Components, version: 1.1.2
 Copyright: SAP
 License: Apache-2.0
 License Text: https://github.com/SAP/openui5/blob/master/LICENSES/Apache-2.0.txt
@@ -411,7 +411,7 @@ Contained in: src/sap.ui.webc.common/src/sap/ui/webc/common/thirdparty/base/*.*
 	src/sap.ui.webc.common/src/sap/ui/webc/common/thirdparty/icons-tnt/*.*
 	src/sap.ui.webc.common/src/sap/ui/webc/common/thirdparty/icons-business-suite/*.*
 
-Component: lit-html, version: 1.4.1
+Component: lit-html, version: 2.0.1
 Copyright: Google LLC
 License: BSD-3-Clause
 License Text: https://github.com/SAP/openui5/blob/master/LICENSES/BSD-3-Clause.txt
@@ -420,7 +420,7 @@ Contained in: src/sap.ui.webc.common/src/sap/ui/webc/common/thirdparty/lit-html/
 
 Library: sap.ui.webc.fiori:
 
-Component: UI5 Web Components, version: 1.0.0-rc.12
+Component: UI5 Web Components, version: 1.1.2
 Copyright: SAP
 License: Apache-2.0
 License Text: https://github.com/SAP/openui5/blob/master/LICENSES/Apache-2.0.txt
@@ -429,7 +429,7 @@ Contained in: src/sap.ui.webc.fiori/src/sap/ui/webc/fiori/thirdparty/*.*
 
 Library: sap.ui.webc.main:
 
-Component: UI5 Web Components, version: 1.0.0-rc.12
+Component: UI5 Web Components, version: 1.1.2
 Copyright: SAP
 License: Apache-2.0
 License Text: https://github.com/SAP/openui5/blob/master/LICENSES/Apache-2.0.txt
@@ -450,7 +450,7 @@ License: Apache-2.0
 License Text: https://github.com/SAP/openui5/blob/master/LICENSES/Apache-2.0.txt
 Contained in: lib/jsdoc/ui5/plugin.js
 
-Component: SAP Theming Base Content, version: 11.1.35
+Component: SAP Theming Base Content, version: 11.1.39
 Copyright: SAP SE or an SAP affiliate company and Theming Base Content contributors
 License: Apache-2.0
 License Text: https://github.com/SAP/openui5/blob/master/LICENSES/Apache-2.0.txt

@@ -87,7 +87,16 @@ sap.ui.define([
 				 * URL where the uploaded files will be stored. If empty, uploadUrl from the uploader is considered.
 				 * @since 1.90
 				 */
-				uploadUrl: {type: "string", defaultValue: null}
+				uploadUrl: {type: "string", defaultValue: null},
+				/**
+				 * Defines the selected state of the UploadSetItem.
+				 * @since 1.100.0
+				 */
+				 selected: {
+					type: "boolean",
+					group: "Behavior",
+					defaultValue: false
+				}
 			},
 			defaultAggregation: "attributes",
 			aggregations: {
@@ -358,6 +367,14 @@ sap.ui.define([
 					}
 				}
 			}
+		}
+		return this;
+	};
+
+	UploadSetItem.prototype.setSelected = function(selected) {
+		if (this.getSelected() !== selected) {
+			this.setProperty("selected", selected, true);
+			this.fireEvent("selected");
 		}
 		return this;
 	};
@@ -644,16 +661,53 @@ sap.ui.define([
 			oEdit.setValueState(ValueState.Error);
 			oEdit.setValueStateText("");
 			oEdit.setShowValueStateMessage(true);
-		} else {
-			oEdit.setValueState(ValueState.None);
 			if (oEdit.getValue().length === 0) {
 				oEdit.setValueStateText(this._oRb.getText("UPLOAD_SET_TYPE_FILE_NAME"));
 			} else {
 				oEdit.setValueStateText(this._oRb.getText("UPLOAD_SET_FILE_NAME_EXISTS"));
 			}
-			oEdit.setShowValueStateMessage(false);
 		}
 	};
+
+	/**
+	 * Determines if the fileName is already in usage.
+	 * @param {string} filename inclusive file extension
+	 * @param {array} items Collection of uploaded files
+	 * @returns {boolean} true for an already existing item with the same file name(independent of the path)
+	 * @private
+	 * @static
+	 */
+	UploadSetItem._checkDoubleFileName = function(filename, items) {
+		if (items.length === 0 || !filename) {
+			return false;
+		}
+
+		var iLength = items.length;
+		filename = filename.replace(/^\s+/, "");
+
+		for (var i = 0; i < iLength; i++) {
+			if (filename === items[i].getProperty("fileName")) {
+				return true;
+			}
+		}
+		return false;
+	};
+
+	/**
+	 * Retrieves the sap.m.ListItem from the internal sap.m.List based on the ID
+	 * @param {string} listItemId The item ID used for finding the UploadSetItem
+	 * @param {sap.m.ListItemBase[]} listItems The array of list items to search in
+	 * @returns {sap.m.UploadSetItem} The matching UploadSetItem or null if none is found
+	 * @private
+	 */
+	UploadSetItem._findById = function(listItemId, listItems) {
+		for (var i = 0; i < listItems.length; i++) {
+			if (listItems[i].getId() === listItemId) {
+				return listItems[i];
+			}
+		}
+		return null;
+    };
 
 	UploadSetItem.prototype._setInEditMode = function (bInEditMode) {
 		if (bInEditMode && !this._bInEditMode) {
@@ -662,6 +716,8 @@ sap.ui.define([
 		}
 		this._bInEditMode = bInEditMode;
 		this._setContainsError(false);
+		this._getFileNameEdit().setShowValueStateMessage(false);
+		this._getFileNameEdit().setProperty("valueState", "None", true);
 		this.invalidate();
 	};
 
@@ -671,6 +727,9 @@ sap.ui.define([
 
 	UploadSetItem.prototype._setContainsError = function (bContainsError) {
 		this._bContainsError = bContainsError;
+		if (!this._bContainsError) {
+			return;
+		}
 		this._updateFileNameEdit();
 	};
 
@@ -984,6 +1043,16 @@ sap.ui.define([
 			this._oProgressBox.destroy();
 			this._oProgressBox = null;
 		}
+	};
+
+	/**
+	 * Resets item flags to initial state, that can be used to recreate the item
+	 * @private
+	 */
+	UploadSetItem.prototype._reset = function() {
+		this._oListItem = null;
+		this._oIcon = null;
+		this._oDynamicContent = null;
 	};
 
 	return UploadSetItem;

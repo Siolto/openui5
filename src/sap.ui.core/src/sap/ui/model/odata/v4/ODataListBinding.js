@@ -141,6 +141,7 @@ sap.ui.define([
 		// A kept-alive context may be parked here for a longer time, with undefined index.
 		this.mPreviousContextsByPath = {};
 		this.aPreviousData = [];
+		this.bRefreshKeptElements = false; // refresh kept elements when resuming?
 		this.bSharedRequest = mParameters.$$sharedRequest || oModel.bSharedRequests;
 		this.aSorters = _Helper.toArray(vSorters);
 		this.sUpdateGroupId = mParameters.$$updateGroupId;
@@ -421,6 +422,9 @@ sap.ui.define([
 			oOldAggregation = this.mParameters && this.mParameters.$$aggregation,
 			sOldApply = this.mQueryOptions && this.mQueryOptions.$apply;
 
+		if ("$$getKeepAliveContext" in mParameters && "$apply" in mParameters) {
+			throw new Error("Cannot combine $$getKeepAliveContext and $apply");
+		}
 		if ("$$aggregation" in mParameters) {
 			if ("$apply" in mParameters) {
 				throw new Error("Cannot combine $$aggregation and $apply");
@@ -790,8 +794,7 @@ sap.ui.define([
 	 *   contexts within this list.
 	 * @param {boolean} [bInactive]
 	 *   Create an inactive context. Such a context will only be sent to the server after the first
-	 *   property update. From then on it behaves like any other created context. This parameter is
-	 *   experimental and its implementation may still change. Do not use it in productive code yet.
+	 *   property update. From then on it behaves like any other created context.
 	 *   Supported since 1.97.0
 	 *   <p>
 	 *   Since 1.98.0, when the first property updates happens, the context is no longer
@@ -840,7 +843,7 @@ sap.ui.define([
 			throw new Error(
 				"Must know the final length to create at the end. Consider setting $count");
 		}
-		if (this.bCreatedAtEnd && !bAtEnd) {
+		if (this.bFirstCreateAtEnd && !bAtEnd) {
 			throw new Error("Cannot create at the start after creation at end");
 		}
 		if (bInactive) {
@@ -852,12 +855,17 @@ sap.ui.define([
 			this.iActiveContexts += 1;
 		}
 
-		if (this.bCreatedAtEnd === undefined) {
-			this.bCreatedAtEnd = bAtEnd;
+		if (this.bFirstCreateAtEnd === undefined) {
+			this.bFirstCreateAtEnd = bAtEnd;
 		}
 
 		// only for createInCache
 		oGroupLock = this.lockGroup(sGroupId, true, true, function () {
+			if (!that.aContexts.includes(oContext)) { // #setContext changed the parent context
+				oContext.destroy();
+				return;
+			}
+
 			that.destroyCreated(oContext);
 			return Promise.resolve().then(function () {
 				// Fire the change asynchronously so that Cache#delete is finished and #getContexts
@@ -866,7 +874,7 @@ sap.ui.define([
 			});
 		});
 		oCreatePromise = this.createInCache(oGroupLock, oCreatePathPromise, sResolvedPath,
-			sTransientPredicate, oInitialData, this.bCreatedAtEnd !== bAtEnd,
+			sTransientPredicate, oInitialData, this.bFirstCreateAtEnd !== bAtEnd,
 			function (oError) { // error callback
 				that.oModel.reportError("POST on '" + oCreatePathPromise
 					+ "' failed; will be repeated automatically", sClassName, oError);
@@ -876,7 +884,7 @@ sap.ui.define([
 			function () { // submit callback
 				that.fireEvent("createSent", {context : oContext});
 			}
-		).then(function (oCreatedEntity) {
+		).then(function (oCreatedEntity) { // the entity was created on the server
 			var sGroupId, sPredicate;
 
 			if (!(oInitialData && oInitialData["@$ui5.keepTransientPath"])) {
@@ -893,7 +901,7 @@ sap.ui.define([
 				return oContext.refreshDependentBindings(oContext.getPath().slice(1), sGroupId,
 					/*bCheckUpdate*/true);
 			}
-			if (!that.oModel.isDirectGroup(sGroupId) && !that.oModel.isAutoGroup(sGroupId)) {
+			if (that.oModel.isApiGroup(sGroupId)) {
 				sGroupId = "$auto";
 			}
 
@@ -906,8 +914,15 @@ sap.ui.define([
 		this.iCreatedContexts += 1;
 		oContext = Context.create(this.oModel, this, sTransientPath, -this.iCreatedContexts,
 			oCreatePromise, bInactive);
+		oContext.fetchValue("", null, true).then(function (oElement) {
+			if (oElement) {
+				_Helper.setPrivateAnnotation(oElement, "context", oContext);
+				_Helper.setPrivateAnnotation(oElement, "firstCreateAtEnd",
+					that.bFirstCreateAtEnd);
+			} // else: context already destroyed
+		});
 
-		if (this.bCreatedAtEnd !== bAtEnd) {
+		if (this.bFirstCreateAtEnd !== bAtEnd) {
 			this.aContexts.splice(this.iCreatedContexts - 1, 0, oContext);
 			for (i = this.iCreatedContexts - 1; i >= 0; i -= 1) {
 				this.aContexts[i].iIndex = i - this.iCreatedContexts;
@@ -977,20 +992,14 @@ sap.ui.define([
 			if (this.aContexts[iStart + i] === undefined && aResults[i]) {
 				bChanged = true;
 				i$skipIndex = iStart + i - this.iCreatedContexts; // index on server ($skip)
-				sPredicate = _Helper.getPrivateAnnotation(aResults[i], "predicate")
-					|| _Helper.getPrivateAnnotation(aResults[i], "transientPredicate");
+				sPredicate = _Helper.getPrivateAnnotation(aResults[i], "predicate");
 				sContextPath = sPath + (sPredicate || "/" + i$skipIndex);
 				oContext = this.mPreviousContextsByPath[sContextPath];
-				if (oContext && (!oContext.created() || oContext.isTransient())) {
-					// reuse the previous context, unless it is created and persisted
+				if (oContext && (!oContext.created() || oContext.isKeepAlive())) {
+					// reuse the previous context, unless it is created (and persisted), but not
+					// kept alive
 					delete this.mPreviousContextsByPath[sContextPath];
-					if (oContext.isTransient() && !this.iCreatedContexts) {
-						// this can only happen in bindings w/o cache, where all created contexts
-						// are active
-						this.iCreatedContexts = this.iActiveContexts = -oContext.iIndex;
-					} else {
-						oContext.iIndex = i$skipIndex;
-					}
+					oContext.iIndex = i$skipIndex;
 					oContext.checkUpdate();
 				} else {
 					oContext = Context.create(oModel, this, sContextPath, i$skipIndex);
@@ -1085,7 +1094,7 @@ sap.ui.define([
 			this.aContexts[i].iIndex += 1;
 		}
 		if (!this.iCreatedContexts) {
-			this.bCreatedAtEnd = undefined;
+			this.bFirstCreateAtEnd = undefined;
 		}
 		this.aContexts.splice(iIndex, 1);
 		this.destroyLater(oContext);
@@ -1118,7 +1127,8 @@ sap.ui.define([
 	 *
 	 * @param {string[]} [aPathsToDelete]
 	 *   If given, only contexts with paths in this list except kept-alive ones are removed and
-	 *   destroyed; otherwise all contexts in the list are removed and destroyed
+	 *   destroyed (transient contexts are removed only); otherwise all contexts in the list are
+	 *   removed and destroyed
 	 *
 	 * @private
 	 */
@@ -1133,7 +1143,9 @@ sap.ui.define([
 					if (aPathsToDelete && oContext.isKeepAlive()) {
 						oContext.iIndex = undefined;
 					} else {
-						oContext.destroy();
+						if (!oContext.isTransient()) {
+							oContext.destroy();
+						}
 						delete mPreviousContextsByPath[sPath];
 					}
 				}
@@ -1146,10 +1158,9 @@ sap.ui.define([
 	 * @see sap.ui.model.odata.v4.ODataBinding#doCreateCache
 	 */
 	ODataListBinding.prototype.doCreateCache = function (sResourcePath, mQueryOptions, oContext,
-			sDeepResourcePath, bOldCacheReadOnly, oOldCache) {
+			sDeepResourcePath, sGroupId, oOldCache) {
 		var sBindingPath,
 			aKeptElementPaths,
-			oCache,
 			that = this;
 
 		if (oOldCache && oOldCache.getResourcePath() === sResourcePath
@@ -1159,10 +1170,10 @@ sap.ui.define([
 				return that.mPreviousContextsByPath[sPath].isKeepAlive();
 			});
 
-			if (!bOldCacheReadOnly && (aKeptElementPaths.length || this.iCreatedContexts)) {
+			if (this.iCreatedContexts || aKeptElementPaths.length) {
 				oOldCache.reset(aKeptElementPaths.map(function (sPath) {
 					return _Helper.getRelativePath(sPath, sBindingPath);
-				}));
+				}), sGroupId);
 				// Note: #inheritQueryOptions as called below should not matter in case of own
 				// requests, which are a precondition for kept-alive elements
 				oOldCache.setQueryOptions(mQueryOptions, true);
@@ -1171,20 +1182,12 @@ sap.ui.define([
 			}
 		}
 
-		oCache = _AggregationCache.create(this.oModel.oRequestor, sResourcePath, sDeepResourcePath,
-			this.mParameters.$$aggregation, this.inheritQueryOptions(mQueryOptions, oContext),
-			this.oModel.bAutoExpandSelect, this.bSharedRequest);
+		mQueryOptions = this.inheritQueryOptions(mQueryOptions, oContext);
 
-		if (aKeptElementPaths && aKeptElementPaths.length) {
-			oCache.setLateQueryOptions(oOldCache.getLateQueryOptions());
-			aKeptElementPaths.forEach(function (sPath) {
-				oCache.addKeptElement(
-					oOldCache.getValue(_Helper.getRelativePath(sPath, sBindingPath)));
-				that.mPreviousContextsByPath[sPath].checkUpdate(); // add change listeners
-			});
-		}
-
-		return oCache;
+		return this.getCacheAndMoveKeepAliveContexts(sResourcePath, mQueryOptions)
+			|| _AggregationCache.create(this.oModel.oRequestor, sResourcePath, sDeepResourcePath,
+				this.mParameters.$$aggregation, mQueryOptions, this.oModel.bAutoExpandSelect,
+				this.bSharedRequest);
 	};
 
 	/**
@@ -1241,8 +1244,13 @@ sap.ui.define([
 			bNew = true;
 		}
 		oOldContext.iIndex = undefined;
-		this.aContexts[iIndex] = oResult;
-		this.oCache.doReplaceWith(iIndex, oElement);
+		if (iIndex === undefined) {
+			this.mPreviousContextsByPath[sPath] = oResult;
+			this.oCache.addKeptElement(oElement);
+		} else {
+			this.aContexts[iIndex] = oResult;
+			this.oCache.doReplaceWith(iIndex, oElement);
+		}
 		if (bKeepAlive) {
 			this.mPreviousContextsByPath[oOldContext.getPath()] = oOldContext;
 			if (bNew) {
@@ -1354,7 +1362,7 @@ sap.ui.define([
 		var oPromise,
 			that = this;
 
-		if (this.bCreatedAtEnd) {
+		if (this.bFirstCreateAtEnd) {
 			// Note: We still have to read iLength rows in this case to get all entities from
 			// the server. The created entities then are placed behind using the calculated or
 			// estimated length.
@@ -1810,7 +1818,7 @@ sap.ui.define([
 
 		this.withCache(function (oCache, sPath) {
 				aElements = oCache.getAllElements(sPath);
-			}, "", /*bSync=*/true);
+			}, "", /*bSync*/true);
 
 		if (this.createContexts(0, aElements)) {
 			// In the case that a control has requested new data and the data request is already
@@ -1821,7 +1829,65 @@ sap.ui.define([
 
 		return this.aContexts.filter(function (oContext) {
 			return oContext;
-		}).concat(Object.values(this.mPreviousContextsByPath));
+		}).concat(Object.values(this.mPreviousContextsByPath).filter(function (oContext) {
+			return oContext.isKeepAlive();
+		}));
+	};
+
+	/**
+	 * Tries to get a cache from the model. This is only relevant for the $$getKeepAlive scenario
+	 * when the model created a temporary binding for this binding's path. If there is such a
+	 * binding, its contexts are moved here, it is destroyed and its cache is returned.
+	 *
+	 * @param {string} sResourcePath
+	 *   The resoure path for the cache
+	 * @param {object} mQueryOptions
+	 *   The query options for the cache
+	 * @returns {sap.ui.model.odata.v4.lib._CollectionCache|undefined}
+	 *   The cache or <code>undefined</code> if the model has no matching temporary binding
+	 *
+	 * @private
+	 */
+	ODataListBinding.prototype.getCacheAndMoveKeepAliveContexts = function (sResourcePath,
+			mQueryOptions) {
+		var oBinding,
+			oCache,
+			that = this;
+
+		if (!this.mParameters.$$getKeepAliveContext) {
+			return undefined;
+		}
+		// $$canonicalPath is not allowed, binding path and resource path are (almost) identical
+		oBinding = this.oModel.releaseKeepAliveBinding("/" + sResourcePath);
+		if (!oBinding) {
+			return undefined;
+		}
+
+		Object.keys(oBinding.mParameters).concat(Object.keys(this.mParameters))
+			.forEach(function (sParameter) {
+				if ((sParameter[0] !== "$" || sParameter === "$$patchWithoutSideEffects"
+						|| sParameter === "$$updateGroupId")
+						&& that.mParameters[sParameter] !== oBinding.mParameters[sParameter]) {
+					throw new Error(that + ": parameter does not match getKeepAliveContext: "
+						+ sParameter);
+				}
+			});
+		// createAndSetCache copies them to the cache later
+		this.mLateQueryOptions = _Helper.clone(mQueryOptions);
+		_Helper.aggregateExpandSelect(this.mLateQueryOptions, oBinding.mLateQueryOptions);
+		this.mPreviousContextsByPath = oBinding.mPreviousContextsByPath;
+		Object.values(this.mPreviousContextsByPath).forEach(function (oContext) {
+			oContext.oBinding = that;
+		});
+		oCache = oBinding.oCache;
+		oCache.setQueryOptions(mQueryOptions);
+		// avoid that the cache is set inactive or that contexts are destroyed
+		oBinding.oCache = null;
+		oBinding.oCachePromise = SyncPromise.resolve(null);
+		oBinding.mPreviousContextsByPath = {};
+		oBinding.destroy();
+
+		return oCache;
 	};
 
 	/**
@@ -1957,7 +2023,7 @@ sap.ui.define([
 		if (!this.oDiff) { // w/o E.C.D there won't be a diff
 			// make sure "refresh" is followed by async "change"
 			oPromise = this.fetchContexts(iStart, iLength, iMaximumPrefetchSize, oGroupLock,
-				/*bAsync=*/bRefreshEvent, function () {
+				/*bAsync*/bRefreshEvent, function () {
 					bDataRequested = true;
 					that.fireDataRequested();
 				});
@@ -2028,7 +2094,7 @@ sap.ui.define([
 	ODataListBinding.prototype.getContextsInViewOrder = function (iStart, iLength) {
 		var aContexts, iCount, i;
 
-		if (this.bCreatedAtEnd) {
+		if (this.bFirstCreateAtEnd) {
 			aContexts = [];
 			iCount = Math.min(iLength, this.getLength() - iStart);
 			for (i = 0; i < iCount; i += 1) {
@@ -2094,6 +2160,7 @@ sap.ui.define([
 	 *
 	 * @public
 	 * @see sap.ui.model.ListBinding#getCurrentContexts
+	 * @see #getAllCurrentContexts
 	 * @since 1.39.0
 	 */
 	// @override sap.ui.model.ListBinding#getCurrentContexts
@@ -2299,7 +2366,7 @@ sap.ui.define([
 	 * @private
 	 */
 	ODataListBinding.prototype.getModelIndex = function (iViewIndex) {
-		if (!this.bCreatedAtEnd) {
+		if (!this.bFirstCreateAtEnd) {
 			return iViewIndex;
 		}
 		if (!this.bLengthFinal) { // created at end, but the read is pending and $count unknown yet
@@ -2313,30 +2380,71 @@ sap.ui.define([
 
 	/**
 	 * Calls {@link sap.ui.model.odata.v4.Context#setKeepAlive} at the context for the given path
-	 * and returns it.
+	 * and returns it. Since 1.100.0 the function always returns such a context. If none exists yet,
+	 * it is created without data and a request for its entity is sent.
 	 *
 	 * @param {string} sPath
 	 *   The path of the context to be kept alive
 	 * @param {boolean} [bRequestMessages]
 	 *   Whether to request messages for the context's entity
-	 * @returns {sap.ui.model.odata.v4.Context|undefined}
-	 *   The kept-alive context, or <code>undefined</code> if it does not exist
-	 * @throws {Error}
-	 *   If {@link sap.ui.model.odata.v4.Context#setKeepAlive} fails
+	 * @param {string} [sGroupId]
+	 *   The group ID used for read requests for the context's entity or its properties. If not
+	 *   given, the binding's {@link #getGroupId group ID} is used. Supported since 1.100.0
+	 * @returns {sap.ui.model.odata.v4.Context}
+	 *   The kept-alive context
+	 * @throws {Error} If
+	 *   <ul>
+	 *     <li> the group ID is invalid,
+	 *     <li> the binding is unresolved,
+	 *     <li> the given context path does not match this binding,
+	 *     <li> the binding's root binding is suspended,
+	 *     <li> or {@link sap.ui.model.odata.v4.Context#setKeepAlive} fails
+	 *   </ul>
 	 *
 	 * @public
 	 * @see sap.ui.model.odata.v4.Model#getKeepAliveContext
 	 * @since 1.99.0
 	 */
-	ODataListBinding.prototype.getKeepAliveContext = function (sPath, bRequestMessages) {
+	ODataListBinding.prototype.getKeepAliveContext = function (sPath, bRequestMessages, sGroupId) {
 		var oContext = this.mPreviousContextsByPath[sPath]
 				|| this.aContexts.find(function (oCandidate) {
 					return oCandidate && oCandidate.getPath() === sPath;
-				});
+				}),
+			iPredicateIndex = this.oModel.getPredicateIndex(sPath),
+			sResolvedPath = this.getResolvedPath();
 
-		if (oContext) {
-			oContext.setKeepAlive(true, oContext.fnOnBeforeDestroy, bRequestMessages);
+		this.checkSuspended();
+		this.oModel.checkGroupId(sGroupId);
+		if (!oContext) {
+			if (!sResolvedPath) {
+				throw new Error("Binding is unresolved: " + this);
+			}
+			if (sPath.slice(0, iPredicateIndex) !== sResolvedPath) {
+				throw new Error(this + ": Not a valid context path: " + sPath);
+			}
+			oContext = Context.create(this.oModel, this, sPath);
+			this.mPreviousContextsByPath[sPath] = oContext;
+			this.oCachePromise.then(function (oCache) {
+				// call ASAP so that dependent property bindings find the entity in the cache
+				var oElement = oCache.createEmptyElement(sPath.slice(iPredicateIndex));
+
+				if (sGroupId) {
+					_Helper.setPrivateAnnotation(oElement, "groupId", sGroupId);
+				}
+			});
+			// *request*Object so that requestProperty definitely runs after setKeepAlive and adds
+			// to mLateProperties
+			this.oModel.getMetaModel().requestObject(_Helper.getMetaPath(sResolvedPath) + "/")
+				.then(function (oType) {
+					// ensure that the key properties are requested even if unbound
+					return oContext.requestProperty(oType.$Key.map(function (vKey) {
+						return typeof vKey === "object" ? Object.values(vKey)[0] : vKey;
+					}));
+				})
+				.catch(this.oModel.getReporter());
 		}
+
+		oContext.setKeepAlive(true, oContext.fnOnBeforeDestroy, bRequestMessages);
 		return oContext;
 	};
 
@@ -2527,7 +2635,22 @@ sap.ui.define([
 	 * @since 1.99.0
 	 */
 	ODataListBinding.prototype.isFirstCreateAtEnd = function () {
-		return this.bCreatedAtEnd;
+		return this.bFirstCreateAtEnd;
+	};
+
+	/**
+	 * Check whether this binding is an active $$getKeepAliveContext binding for the given path.
+	 *
+	 * @param {string} sPath - An absolute binding path
+	 * @returns {boolean} - Whether this binding matches
+	 *
+	 * @private
+	 */
+	ODataListBinding.prototype.isKeepAliveBindingFor = function (sPath) {
+		// When suspended it matches if it already has contexts. Then its getKeepAliveContext fails.
+		return this.mParameters.$$getKeepAliveContext && this.getResolvedPath() === sPath
+			&& (!this.isRootBindingSuspended() || this.aContexts.length
+				|| Object.keys(this.mPreviousContextsByPath).length);
 	};
 
 	/**
@@ -2552,22 +2675,14 @@ sap.ui.define([
 	 * @see sap.ui.model.odata.v4.ODataBinding#refreshInternal
 	 */
 	ODataListBinding.prototype.refreshInternal = function (sResourcePathPrefix, sGroupId,
-			bCheckUpdate, bKeepCacheOnError) {
-		var bDropTransient = !bCheckUpdate || bKeepCacheOnError, // "side effect refresh" & Co.
-			that = this;
-
-		function onRemove(sPredicate) {
-			var sPath = that.getResolvedPath();
-
-			that.mPreviousContextsByPath[sPath + sPredicate].resetKeepAlive();
-		}
+			_bCheckUpdate, bKeepCacheOnError) {
+		var that = this;
 
 		// calls refreshInternal on all given bindings and returns an array of promises
 		function refreshAll(aBindings) {
 			return aBindings.map(function (oBinding) {
 				if (oBinding.bIsBeingDestroyed
-						|| !bDropTransient && oBinding.getContext().isKeepAlive()
-							&& oBinding.hasPendingChanges()) {
+						|| oBinding.getContext().isKeepAlive() && oBinding.hasPendingChanges()) {
 					return;
 				}
 				// Call refreshInternal with bCheckUpdate = false because property bindings
@@ -2581,7 +2696,9 @@ sap.ui.define([
 		}
 
 		if (this.isRootBindingSuspended()) {
+			// Note: side-effects (incl. refresh) are forbidden while suspended
 			this.refreshSuspended(sGroupId);
+			this.bRefreshKeptElements = true;
 			return SyncPromise.all(refreshAll(that.getDependentBindings()));
 		}
 
@@ -2589,47 +2706,92 @@ sap.ui.define([
 		return this.oCachePromise.then(function (oCache) {
 			var iActiveContexts = that.iActiveContexts,
 				iCreatedContexts = that.iCreatedContexts,
+				aContexts = that.aContexts.slice(0, iCreatedContexts),
 				aDependentBindings,
 				oKeptElementsPromise,
 				oPromise = that.oRefreshPromise;
 
 			if (oCache && !oPromise) { // do not refresh twice
 				that.removeCachesAndMessages(sResourcePathPrefix);
-				that.fetchCache(that.oContext, false, /*bKeepQueryOptions*/true, bKeepCacheOnError);
-				oKeptElementsPromise = that.oCachePromise.then(function (oNewCache) {
-					return oNewCache.refreshKeptElements(that.lockGroup(sGroupId), onRemove);
-				}).catch(function (oError) {
-					that.oModel.reportError("Failed to refresh kept-alive elements", sClassName,
-						oError);
-					throw oError;
-				});
+				that.fetchCache(that.oContext, false, /*bKeepQueryOptions*/true,
+					bKeepCacheOnError ? sGroupId : undefined);
+				oKeptElementsPromise = that.refreshKeptElements(sGroupId);
 				if (that.iCurrentEnd > 0) {
 					oPromise = that.createRefreshPromise().catch(function (oError) {
 						if (!bKeepCacheOnError || oError.canceled) {
 							throw oError;
 						}
 						return that.fetchResourcePath(that.oContext).then(function (sResourcePath) {
+							var i;
+
 							if (!that.bRelative || oCache.getResourcePath() === sResourcePath) {
-								that.oCache = oCache;
-								that.oCachePromise = SyncPromise.resolve(oCache);
+								if (that.oCache === oCache) {
+									oCache.restore(true);
+								} else { // still needed in case of _AggregationCache
+									oCache.setActive(true);
+									that.oCache = oCache;
+									that.oCachePromise = SyncPromise.resolve(oCache);
+								}
 								that.iActiveContexts = iActiveContexts;
 								that.iCreatedContexts = iCreatedContexts;
-								oCache.setActive(true);
+								for (i = 0; i < iCreatedContexts; i += 1) {
+									aContexts[i].iIndex = i - iCreatedContexts;
+									delete that.mPreviousContextsByPath[aContexts[i].getPath()];
+								}
+								that.aContexts = aContexts; // restore created contexts
 								that._fireChange({reason : ChangeReason.Change});
 							}
 							throw oError;
 						});
+					}).finally(function () {
+						if (oCache.restore) {
+							oCache.restore(false);
+						}
 					});
 				}
 			}
 			// Note: after reset the dependent bindings cannot be found any more
 			aDependentBindings = that.getDependentBindings();
-			that.reset(ChangeReason.Refresh, bDropTransient); // this may reset that.oRefreshPromise
+			// this may reset that.oRefreshPromise
+			that.reset(ChangeReason.Refresh, bKeepCacheOnError ? false : undefined, sGroupId);
 			return SyncPromise.all(
-				refreshAll(aDependentBindings).concat(oPromise, oKeptElementsPromise,
-					// Update after refresh event, otherwise $count is fetched before the request
-					that.oHeaderContext.checkUpdate()) // this is NOT done by refreshAll!
-			);
+				refreshAll(aDependentBindings).concat(oPromise, oKeptElementsPromise)
+			).then(function () {
+				// Update after refresh event, otherwise $count is fetched before the request.
+				// Avoid update in case bKeepCacheOnError needs to roll back.
+				return that.oHeaderContext.checkUpdateInternal(); // this is NOT done by refreshAll!
+			});
+		});
+	};
+
+	/**
+	 * Refreshes the kept-alive elements. This needs to be called before the cache has filled the
+	 * collection.
+	 *
+	 * @param {string} sGroupId
+	 *   The effective group ID
+	 * @returns {sap.ui.base.SyncPromise}
+	 *   A promise resolving without a defined result, or rejecting with an error if the refresh
+	 *   fails.
+	 *
+	 * @private
+	 */
+	ODataListBinding.prototype.refreshKeptElements = function (sGroupId) {
+		var that = this;
+
+		return this.oCachePromise.then(function (oCache) {
+			return oCache.refreshKeptElements(that.lockGroup(sGroupId),
+				function onRemove(sPredicate, iIndex) {
+					if (iIndex === undefined) {
+						that.mPreviousContextsByPath[that.getResolvedPath() + sPredicate]
+							.resetKeepAlive();
+					} else { // Note: implies oContext.created()
+						that.destroyCreated(that.aContexts[iIndex]);
+					}
+				});
+		}).catch(function (oError) {
+			that.oModel.reportError("Failed to refresh kept-alive elements", sClassName, oError);
+			throw oError;
 		});
 	};
 
@@ -3015,19 +3177,25 @@ sap.ui.define([
 	 *   A change reason; if given, a refresh event with this reason is fired and the next
 	 *   getContexts() fires a change event with this reason. Change reason "change" is ignored
 	 *   as long as the binding is still empty.
-	 * @param {boolean} [bDropTransient]
-	 *   Whether transient contexts shall also be dropped, not just created persisted ones
+	 * @param {boolean} [bDrop]
+	 *   By default, all created persisted contexts are dropped while transient ones are not.
+	 *   <code>true</code> also drops transient ones, and <code>false</code> keeps inline creation
+	 *   rows only and transient ones where the POST is not within the same $batch as the GET for
+	 *   the side-effects refresh.
+	 * @param {string} [sGroupId]
+	 *   The group ID to be used for refresh; used only in case <code>bDrop === false</code>
 	 *
 	 * @private
 	 */
-	ODataListBinding.prototype.reset = function (sChangeReason, bDropTransient) {
+	ODataListBinding.prototype.reset = function (sChangeReason, bDrop, sGroupId) {
 		var oContext,
+			iCreated = 0, // index (and finally number) of created elements that we keep
 			bEmpty = this.iCurrentEnd === 0,
-			iTransient = 0,
+			bKeepTransient = sGroupId && sGroupId !== this.getUpdateGroupId(),
 			i,
 			that = this;
 
-		if (bDropTransient) {
+		if (bDrop === true) { // drop 'em all
 			this.iActiveContexts = 0;
 			this.iCreatedContexts = 0;
 		}
@@ -3037,26 +3205,29 @@ sap.ui.define([
 			});
 			for (i = 0; i < this.iCreatedContexts; i += 1) {
 				oContext = this.aContexts[i];
-				if (oContext.isTransient()) {
-					this.aContexts[iTransient] = oContext;
-					iTransient += 1;
-				} else { // Note: "created persisted" elements must be active
+				if (bDrop === false
+						? bKeepTransient && oContext.isTransient()
+							|| oContext.isInactive() !== undefined
+						: oContext.isTransient()) {
+					this.aContexts[iCreated] = oContext;
+					iCreated += 1;
+				} else { // Note: inactive elements are always kept
 					this.iActiveContexts -= 1;
 					this.mPreviousContextsByPath[oContext.getPath()] = oContext;
 				}
 			}
-			for (i = 0; i < iTransient; i += 1) {
-				this.aContexts[i].iIndex = i - iTransient;
+			for (i = 0; i < iCreated; i += 1) {
+				this.aContexts[i].iIndex = i - iCreated;
 			}
 			// Note: no strict need to keep the reference here
-			this.aContexts.length = this.iCreatedContexts = iTransient;
+			this.aContexts.length = this.iCreatedContexts = iCreated;
 		} else {
 			this.aContexts = [];
 		}
 		if (!this.iCreatedContexts) {
 			// true if contexts have been created at the end, false if contexts have been created at
 			// the start, undefined if there are no created contexts
-			this.bCreatedAtEnd = undefined;
+			this.bFirstCreateAtEnd = undefined;
 		}
 		// the range of array indices for getCurrentContexts
 		this.iCurrentBegin = this.iCurrentEnd = 0;
@@ -3095,13 +3266,36 @@ sap.ui.define([
 	};
 
 	/**
+	 * Restores all created elements, the bFirstCreateAtEnd flag and the iCreatedContexts,
+	 * iActiveContexts counters from cache to this list binding.
+	 *
+	 * @private
+	 */
+	ODataListBinding.prototype.restoreCreated = function () {
+		var that = this;
+
+		this.withCache(function (oCache, sPath) {
+			oCache.getCreatedElements(sPath).forEach(function (oElement, i) {
+				that.aContexts[i] = _Helper.getPrivateAnnotation(oElement, "context");
+				that.bFirstCreateAtEnd
+					= _Helper.getPrivateAnnotation(oElement, "firstCreateAtEnd");
+				that.iCreatedContexts += 1;
+				if (!oElement["@$ui5.context.isInactive"]) {
+					that.iActiveContexts += 1;
+				}
+			});
+		}).catch(this.oModel.getReporter());
+	};
+
+	/**
 	 * @override
 	 * @see sap.ui.model.odata.v4.ODataParentBinding#resumeInternal
 	 */
 	ODataListBinding.prototype.resumeInternal = function (_bCheckUpdate, bParentHasChanges) {
 		var aBindings = this.getDependentBindings(),
 			sResumeChangeReason = this.sResumeChangeReason,
-			bRefresh = bParentHasChanges || sResumeChangeReason;
+			bRefresh = bParentHasChanges || sResumeChangeReason,
+			that = this;
 
 		this.sResumeChangeReason = undefined;
 
@@ -3111,6 +3305,11 @@ sap.ui.define([
 			// if the parent binding resumes but there are no changes in the parent binding
 			// ignore the parent cache and create an own cache
 			this.fetchCache(this.oContext, !bParentHasChanges);
+
+			if (this.bRefreshKeptElements) {
+				this.bRefreshKeptElements = false;
+				that.refreshKeptElements(that.getGroupId());
+			}
 		}
 		aBindings.forEach(function (oDependentBinding) {
 			// do not call checkUpdate in dependent property bindings if the cache of this
@@ -3264,35 +3463,25 @@ sap.ui.define([
 	 * @param {sap.ui.model.Context} oContext
 	 *   The context object
 	 * @throws {Error}
-	 *   If the binding's root binding is suspended, or for relative bindings containing transient
-	 *   entities
+	 *   If the binding's root binding is suspended
 	 *
 	 * @private
 	 */
 	// @override sap.ui.model.Binding#setContext
 	ODataListBinding.prototype.setContext = function (oContext) {
-		var sResolvedPath,
-			i,
-			that = this;
+		var sResolvedPath;
 
 		if (this.oContext !== oContext) {
 			if (this.bRelative) {
 				this.checkSuspended(true);
-				for (i = 0; i < that.iCreatedContexts; i += 1) {
-					if (that.aContexts[i].isTransient()) {
-						// to allow switching the context for new created entities (transient or
-						// not), we first have to implement a store/restore mechanism for them
-						throw new Error("setContext on relative binding is forbidden if a "
-							+ "transient entity exists: " + that);
-					}
-				}
 				// Keep the header context even if we lose the parent context, so that the header
 				// context remains unchanged if the parent context is temporarily dropped during a
 				// refresh.
-				this.reset();
+				this.reset(/*sChangeReason*/undefined, /*bDrop*/true);
 				this.resetKeepAlive(); // before fetchCache to avoid that it copies data
 				this.fetchCache(oContext);
 				if (oContext) {
+					this.restoreCreated();
 					sResolvedPath = this.oModel.resolve(this.sPath, oContext);
 					// Note: oHeaderContext is missing only if called from c'tor
 					if (this.oHeaderContext && this.oHeaderContext.getPath() !== sResolvedPath) {

@@ -30,7 +30,6 @@ sap.ui.define([
 	"sap/base/util/isEmptyObject",
 	"sap/base/util/merge",
 	"sap/ui/events/KeyCodes",
-	"sap/ui/events/F6Navigation",
 	"sap/ui/dom/getFirstEditableInput",
 	"sap/ui/core/theming/Parameters",
 	'sap/ui/dom/units/Rem'
@@ -61,7 +60,6 @@ sap.ui.define([
 	isEmptyObject,
 	merge,
 	KeyCodes,
-	F6Navigation,
 	getFirstEditableInput,
 	Parameters,
 	DomUnitsRem
@@ -824,7 +822,7 @@ sap.ui.define([
 	 * Snaps the header
 	 * and toggles the state of the title and the anchorBar accordingly
 	 *
-	 * @param bAppendHeaderToContent, determines if the header should be snapped
+	 * @param {boolean} bAppendHeaderToContent - determines if the header should be snapped
 	 * with or without scroll:
 	 *
 	 * (1) If the <code>bAppendHeaderToContent</code> is <code>true</code>, then the
@@ -880,7 +878,7 @@ sap.ui.define([
 	 * Expands the header
 	 * and toggles the state of the title and the anchorBar accordingly
 	 *
-	 * @param bAppendHeaderToTitle, determines if the header should be in the
+	 * @param {boolean} bAppendHeaderToTitle - determines if the header should be in the
 	 * scrollable content-area or in the non-scrollable title-area
 	 *
 	 * @private
@@ -1135,22 +1133,7 @@ sap.ui.define([
 
 		this._ensureCorrectParentHeight();
 
-		if (this._$sectionsContainer) {
-			this._$sectionsContainer.off("focusout");
-			this._$sectionsContainer.off("focusin");
-		}
-
 		this._cacheDomElements();
-
-		if (this._$sectionsContainer) {
-			this._$sectionsContainer.on("focusin", function () {
-				this._skipToNextFastGroup = true;
-			}.bind(this));
-
-			this._$sectionsContainer.on("focusout", function () {
-				this._skipToNextFastGroup = false;
-			}.bind(this));
-		}
 
 		if (this._hasDynamicTitle()) {
 			this.addStyleClass("sapUxAPObjectPageHasDynamicTitle");
@@ -1479,12 +1462,17 @@ sap.ui.define([
 	 *
 	 * The section can either be given by itself or by its id.
 	 *
-	 * Note that an argument of <code>null</code> will cause the first visible section be set as <code>selectedSection</code>.
-	 * This is because the <code>sap.uxap.ObjectPageLayout</code> should always have one of its sections selected (unless it has 0 visible sections).
+	 * If left unspecified, then the page automatically sets
+	 * the value to the first visible section before rendering.
+	 * The value never remains empty because <code>sap.uxap.ObjectPageLayout</code> should
+	 * always have one of its sections selected (unless it has 0 visible sections).
+	 *
+	 * <b>Note:</b> Updating the <code>selectedSection</code> with a value of <code>null</code>
+	 * resets the <code>selectedSection</code> to the first visible section and scrolls the page to the top.
 	 *
 	 * @param {string | sap.uxap.ObjectPageSection} sId
 	 *            The ID or the section instance that should be selected
-	 *            Note that <code>null</code> or <code>undefined</code> are not valid arguments
+	 *            Note that <code>undefined</code> is not a valid argument
 	 * @return {this} Returns <code>this</code> to allow method chaining
 	 * @public
 	 */
@@ -1517,6 +1505,7 @@ sap.ui.define([
 		//but we still need to save the selectedSection value
 		vClosestSection = ObjectPageSection._getClosestSection(sId);
 		sSectionIdToSet = (vClosestSection instanceof ObjectPageSection) ? vClosestSection.getId() : vClosestSection;
+		this.setDirectScrollingToSection(sSectionIdToSet);
 		return this.setAssociation("selectedSection", sSectionIdToSet, true);
 	};
 
@@ -1576,7 +1565,6 @@ sap.ui.define([
 		this._$stickyHeaderContent = this.$("stickyHeaderContent");
 		this._$contentContainer = this.$("scroll");
 		this._$sectionsContainer = this.$("sectionsContainer");
-		this._$skipFastGroupAnchor = this.$("skipFastGroupAnchor");
 
 		// BCP 1870201875: explicitly set the latest scrollContainer dom ref
 		// (as the scroller obtains the latest scrollContainer dom ref in a LATER hook, which fails in conditions detailed in BCP 1870201875)
@@ -1598,7 +1586,8 @@ sap.ui.define([
 	 * @private
 	 */
 	ObjectPageLayout.prototype._toggleHeaderTitle = function (bExpand, bUserInteraction) {
-		var oHeaderTitle = this.getHeaderTitle();
+		var oHeaderTitle = this.getHeaderTitle(),
+			oAnchorBar = this._oABHelper._getAnchorBar();
 
 		// note that <code>this._$titleArea</code> is the placeholder [of the sticky area] where both the header title and header content are placed
 		if (this._$titleArea.length) {
@@ -1612,6 +1601,8 @@ sap.ui.define([
 		} else {
 			oHeaderTitle && oHeaderTitle.snap(bUserInteraction);
 		}
+
+		oAnchorBar.scrollToCurrentlySelectedSection();
 	};
 
 	/**
@@ -1711,6 +1702,12 @@ sap.ui.define([
 				}
 
 			}, this);
+
+			if (iVisibleSubSections > 1) {
+				aSubSections.forEach(function(oSubSection) {
+					oSubSection._setBorrowedTitleDomId("");
+				});
+			}
 
 			//rule noVisibleSubSection: If a section has no content (or only empty subsections) the section will be hidden.
 			if (iVisibleSubSections == 0) {
@@ -1829,37 +1826,6 @@ sap.ui.define([
 		}
 		this.setProperty("useIconTabBar", bValue);
 		return this;
-	};
-
-	/**
-	 * Handler for F6
-	 *
-	 * @param {Object} oEvent - The event object
-	 */
-	ObjectPageLayout.prototype.onsapskipforward = function(oEvent) {
-		if (this._skipToNextFastGroup) {
-			this._handleGroupNavigation(oEvent, true);
-		}
-	};
-
-	/**
-	 * Handler for Shift + F6
-	 *
-	 * @param {Object} oEvent - The event object
-	 */
-	ObjectPageLayout.prototype.onsapskipback = function(oEvent) {
-		if (this._skipToNextFastGroup) {
-			this._handleGroupNavigation(oEvent, false);
-		}
-	};
-
-	ObjectPageLayout.prototype._handleGroupNavigation = function (oEvent, bForward) {
-		var oSettings = {
-			target: bForward ? this._$skipFastGroupAnchor[0] : this._$sectionsContainer[0]
-		};
-
-		oEvent.type = "keydown";
-		F6Navigation.handleF6GroupNavigation(oEvent, oSettings);
 	};
 
 	/**
@@ -2030,9 +1996,11 @@ sap.ui.define([
 				this._setCurrentTabSection(oSelectedSection);
 				this._bAllContentFitsContainer = this._hasSingleVisibleFullscreenSubSection(oSelectedSection);
 			}
-			this._oLazyLoading.doLazyLoading();
+			if (this.getEnableLazyLoading() && this._oLazyLoading) {
+				this._oLazyLoading.doLazyLoading();
+			}
 			// if the current scroll position is not at the selected section OR the ScrollEnablement is still scrolling due to an animation
-			if (!this._isClosestScrolledSection(sSelectedSectionId) || this._oScroller._$Container.is(":animated")) {
+			if (!this._isClosestScrolledSection(sSelectedSectionId) || (this._oScroller._$Container && this._oScroller._$Container.is(":animated"))) {
 				// then change the selection to match the correct section
 				this.scrollToSection(sSelectedSectionId, null, 0, false, true /* redirect scroll */);
 			}
@@ -2528,8 +2496,9 @@ sap.ui.define([
 		this._aSectionBases.forEach(function (oSectionBase) {
 			var oInfo = this._oSectionInfo[oSectionBase.getId()],
 				$this = oSectionBase.$(),
+				bPromoted = false,
 				oSection,
-				bPromoted = false;
+				iSectionsTopMargin;
 
 			if (!oInfo /* sectionBase is visible */ || !$this.length) {
 				return;
@@ -2543,7 +2512,7 @@ sap.ui.define([
 
 			//calculate the scrollTop value to get the section title at the bottom of the header
 			//performance improvements possible here as .position() is costly
-			var realTop = $this.position().top; //first get the dom position = scrollTop to get the section at the window top
+			var realTop = library.Utilities.getChildPosition($this, this._$contentContainer).top;
 
 			//the amount of scrolling required is the distance between their position().top and the bottom of the anchorBar
 			oInfo.positionTop = Math.ceil(realTop);
@@ -2606,8 +2575,9 @@ sap.ui.define([
 				bParentIsFirstVisibleSection = bUseIconTabBar /* there is only single section per tab */ || (oSectionBase.getParent() === this._oFirstVisibleSection);
 				bIsFirstVisibleSubSection = bParentIsFirstVisibleSection && (iSubSectionIndex === 0); /* index of *visible* subSections is first */
 				bIsFullscreenSection = oSectionBase.hasStyleClass(ObjectPageSubSection.FIT_CONTAINER_CLASS);
+				iSectionsTopMargin = oSection && oSection.$().length ? parseInt(oSection.$().css("marginTop")) : 0;
 
-				oSectionBase._setHeight(this._computeSubSectionHeight(bIsFirstVisibleSubSection, bIsFullscreenSection, Math.ceil(realTop), iSectionsContainerOffsetTop));
+				oSectionBase._setHeight(this._computeSubSectionHeight(bIsFirstVisibleSubSection, bIsFullscreenSection, Math.ceil(realTop), iSectionsContainerOffsetTop, iSectionsTopMargin));
 			}
 
 		}, this);
@@ -2672,7 +2642,8 @@ sap.ui.define([
 		return true; // return success flag
 	};
 
-	ObjectPageLayout.prototype._computeSubSectionHeight = function(bFirstVisibleSubSection, bFullscreenSection, iSubSectionOffsetTop, iSectionsContainerOffsetTop) {
+	ObjectPageLayout.prototype._computeSubSectionHeight = function(bFirstVisibleSubSection, bFullscreenSection,
+		iSubSectionOffsetTop, iSectionsContainerOffsetTop, iSectionsTopMargin) {
 
 		var iSectionsContainerHeight,
 			iRemainingSectionContentHeight;
@@ -2697,8 +2668,8 @@ sap.ui.define([
 
 		if (this._bAllContentFitsContainer) {
 			// if we have a single fullscreen subsection [that takes the entire available height within the sections container]
-			// => subtract the heights above and bellow the subSection to *avoid having a scrollbar*
-			iRemainingSectionContentHeight = (iSubSectionOffsetTop - iSectionsContainerOffsetTop) + this.iFooterHeight;
+			// => subtract the heights above and bellow the subSection to *avoid having a scrollbar*, having in mind the top margin of the Section
+			iRemainingSectionContentHeight = (iSubSectionOffsetTop - iSectionsContainerOffsetTop) + iSectionsTopMargin + this.iFooterHeight;
 			iSectionsContainerHeight -= iRemainingSectionContentHeight;
 		}
 
@@ -2751,7 +2722,7 @@ sap.ui.define([
 		var bIsStickyMode = this._bStickyAnchorBar || this._bHeaderInTitleArea; // get current mode
 		var iLastSectionPositionTop = this._getSectionPositionTop(oLastVisibleSubSection, bIsStickyMode); /* we need to get the position in the current mode */
 
-		return this._$spacer.position().top - iLastSectionPositionTop;
+		return Math.ceil(this._$spacer.position().top) - iLastSectionPositionTop;
 	};
 
 	ObjectPageLayout.prototype._getStickyAreaHeight = function(bIsStickyMode) {
@@ -3208,7 +3179,7 @@ sap.ui.define([
 		var iScrollTop = Math.max(Math.ceil(oEvent.target.scrollTop), 0), // top of the visible page
 			$wrapper = this._$opWrapper.length && this._$opWrapper[0],
 			$spacer = this._$spacer.length && this._$spacer[0],
-			iSpacerHeight = $spacer.offsetHeight,
+			iSpacerHeight = this._$spacer.height(),
 			iPageHeight,
 			oHeader = this.getHeaderTitle(),
 			bShouldStick = this._shouldSnapHeaderOnScroll(iScrollTop),
@@ -3318,10 +3289,12 @@ sap.ui.define([
 	 * @param iScrollTop
 	 * @private
 	 */
-	ObjectPageLayout.prototype._updateSelectionOnScroll = function(iScrollTop) {
+	 ObjectPageLayout.prototype._updateSelectionOnScroll = function(iScrollTop) {
 
 		var iPageHeight = this.iScreenHeight,
 			sClosestId,
+			oClosestSection,
+			sClosestSectionId,
 			sClosestSubSectionId;
 
 		if (iPageHeight === 0) {
@@ -3330,6 +3303,8 @@ sap.ui.define([
 
 		//find the currently scrolled section = where position - iScrollTop is closest to 0
 		sClosestId = this._getClosestScrolledSectionBaseId(iScrollTop, iPageHeight);
+		oClosestSection = ObjectPageSection._getClosestSection(sClosestId);
+		sClosestSectionId = oClosestSection ? oClosestSection.getId() : null;
 		sClosestSubSectionId = this._getClosestScrolledSectionBaseId(iScrollTop, iPageHeight, true /* subSections only */);
 
 		if (sClosestId) {
@@ -3349,13 +3324,13 @@ sap.ui.define([
 				// then we do not want to process intermediate sections (i.e. sections between scroll-start section and scroll-destination sections)
 				// so if current section is not destination section
 				// then no need to proceed further
-				if (sDestinationSectionId && sDestinationSectionId !== sClosestId) {
+				if (sDestinationSectionId && sDestinationSectionId !== sClosestSectionId) {
 					return;
 				}
 				this.clearDirectScrollingToSection();
 
 				this._setAsCurrentSection(sClosestId);
-			} else if (sClosestId === this.getDirectScrollingToSection()) { //we are already in the destination section
+			} else if (sClosestSectionId === this.getDirectScrollingToSection()) { //we are already in the destination section
 				this.clearDirectScrollingToSection();
 			}
 
@@ -3432,10 +3407,7 @@ sap.ui.define([
 
 			// on desktop/tablet, skip subsections
 			// BCP 1680331690. Should skip subsections that are in a section with lower importance, which makes them hidden.
-			section = this.oCore.byId(sId);
-			if (!section) {
-				return;
-			}
+			section = oInfo.sectionReference;
 			sectionParent = section.getParent();
 			isParentHiddenSection = sectionParent instanceof ObjectPageSection && sectionParent._getIsHidden();
 
@@ -3480,7 +3452,7 @@ sap.ui.define([
 
 		}.bind(this));
 
-		return sClosestId;
+		return this.oCore.byId(sClosestId) ? sClosestId : null;
 	};
 
 

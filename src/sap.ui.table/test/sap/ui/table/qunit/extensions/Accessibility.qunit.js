@@ -4,17 +4,41 @@ sap.ui.define([
 	"sap/ui/table/qunit/TableQUnitUtils",
 	"sap/ui/table/utils/TableUtils",
 	"sap/ui/base/ManagedObject",
+	"sap/ui/core/Control",
+    "sap/ui/table/AnalyticalTable",
 	"sap/ui/table/Column",
+    "sap/ui/table/RowAction",
 	"sap/ui/table/RowSettings",
+    "sap/ui/table/TreeTable",
 	"sap/ui/table/library",
-	"sap/ui/model/json/JSONModel",
+    "sap/ui/model/json/JSONModel",
 	"sap/ui/Device",
 	"sap/ui/core/library",
 	"sap/ui/model/Filter",
 	"sap/ui/model/FilterOperator",
 	"sap/ui/thirdparty/jquery",
-	"sap/ui/core/Core"
-], function(TableQUnitUtils, TableUtils, ManagedObject, Column, RowSettings, Library, JSONModel, Device, coreLibrary, Filter, FilterOperator, jQuery, oCore) {
+	"sap/ui/core/Core",
+	"sap/m/IllustratedMessage"
+], function(
+	TableQUnitUtils,
+	TableUtils,
+	ManagedObject,
+	Control,
+	AnalyticalTable,
+	Column,
+	RowAction,
+	RowSettings,
+	TreeTable,
+	Library,
+	JSONModel,
+	Device,
+	coreLibrary,
+	Filter,
+	FilterOperator,
+	jQuery,
+	oCore,
+	IllustratedMessage
+) {
 	"use strict";
 
 	var SelectionMode = Library.SelectionMode;
@@ -280,7 +304,7 @@ sap.ui.define([
 		var oCell = oRow.getCells()[iCol];
 		var iIndex = Column.ofCell(oCell).getIndex();
 
-		if (oTable instanceof sap.ui.table.TreeTable && iIndex == 0 && $Cell.find(".sapUiTableTreeIcon").not(".sapUiTableTreeIconLeaf").length == 1 || bGroup){
+		if (oTable instanceof TreeTable && iIndex == 0 && $Cell.find(".sapUiTableTreeIcon").not(".sapUiTableTreeIconLeaf").length == 1 || bGroup){
 			aDescriptions.push(oTable.getId() + (bExpanded ? "-rowcollapsetext" : "-rowexpandtext"));
 		}
 
@@ -1416,7 +1440,7 @@ sap.ui.define([
 		oTable.attachEventOnce("rowsUpdated", function() {
 			assert.strictEqual($Elem.attr("aria-rowcount"), "4", "aria-rowcount after filter is applied");
 
-			oTable.setRowActionTemplate(new sap.ui.table.RowAction());
+			oTable.setRowActionTemplate(new RowAction());
 			oTable.setRowActionCount(1);
 			oCore.applyChanges();
 
@@ -1445,7 +1469,7 @@ sap.ui.define([
 		oTable.attachEventOnce("rowsUpdated", function() {
 			assert.strictEqual($Elem.attr("aria-rowcount"), "4", "aria-rowcount after filter is applied");
 
-			oTreeTable.setRowActionTemplate(new sap.ui.table.RowAction());
+			oTreeTable.setRowActionTemplate(new RowAction());
 			oTreeTable.setRowActionCount(1);
 			oCore.applyChanges();
 
@@ -1454,7 +1478,7 @@ sap.ui.define([
 			oCore.applyChanges();
 			assert.strictEqual($Elem.attr("aria-labelledby"), oTreeTable.getTitle().getId(), "aria-labelledby when ariaLabelledBy association is empty array");
 
-			var oAnalyticalTable = new sap.ui.table.AnalyticalTable();
+			var oAnalyticalTable = new AnalyticalTable();
 			oAnalyticalTable.placeAt("qunit-fixture");
 			oCore.applyChanges();
 			$Elem = oAnalyticalTable.$("sapUiTableGridCnt");
@@ -1526,7 +1550,7 @@ sap.ui.define([
 		var iNumberOfColumns = oTable._getVisibleColumns().length;
 		var $Elem, i;
 
-		oTable.setRowActionTemplate(new sap.ui.table.RowAction());
+		oTable.setRowActionTemplate(new RowAction());
 		oTable.setRowActionCount(1);
 		oCore.applyChanges();
 
@@ -1646,6 +1670,24 @@ sap.ui.define([
 			$NoDataCoveredElements.each(function() {
 				assert.ok(jQuery(this).attr("aria-hidden") === "true", "aria-hidden");
 			});
+
+			var $Elem = oTable.$("noDataCnt");
+			assert.equal($Elem.attr("aria-labelledby"), oTable.getId() + "-noDataMsg");
+
+			oTable.setNoData(new Control({id: "_noDataControl"}));
+			oCore.applyChanges();
+			assert.strictEqual($Elem.attr("aria-labelledby"), "_noDataControl");
+
+			oTable.setNoData(new IllustratedMessage({
+				illustrationType: "NoSearchResults",
+				title: "No Items found",
+				description: "Adjust your filter settings."
+			}));
+
+			oCore.applyChanges();
+			assert.strictEqual($Elem.attr("aria-labelledby"), oTable.getDomRef("noDataCnt").querySelector("figcaption>div").getAttribute("id") +
+				" " + oTable.getDomRef("noDataCnt").querySelector("figcaption>span").getAttribute("id"));
+
 			oTable.setShowNoData(false);
 			oCore.applyChanges();
 			$NoDataCoveredElements = oTable.$().find("[data-sap-ui-table-acc-covered*='nodata']");

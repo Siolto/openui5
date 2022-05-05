@@ -4,7 +4,8 @@ sap.ui.define([
 	"sap/ui/core/format/DateFormat",
 	"sap/ui/core/Core",
 	"sap/ui/core/Fragment",
-	"sap/ui/core/MessageType",
+	"sap/ui/core/library",
+	"sap/ui/fl/write/api/Version",
 	"sap/ui/fl/Layer",
 	"sap/ui/model/json/JSONModel",
 	"sap/ui/rta/appVariant/Feature",
@@ -15,7 +16,8 @@ sap.ui.define([
 	DateFormatter,
 	Core,
 	Fragment,
-	MessageType,
+	coreLibrary,
+	Version,
 	Layer,
 	JSONModel,
 	AppVariantFeature,
@@ -24,6 +26,8 @@ sap.ui.define([
 	sinon
 ) {
 	"use strict";
+
+	var MessageType = coreLibrary.MessageType;
 
 	var sandbox = sinon.createSandbox();
 
@@ -45,6 +49,23 @@ sap.ui.define([
 		});
 	}
 
+	function createAndWaitForToolbar() {
+		this.oToolbar = new Adaptation({
+			textResources: Core.getLibraryResourceBundle("sap.ui.rta")
+		});
+		document.getElementById("qunit-fixture").style.width = "1600px";
+		this.oToolbar.placeAt("qunit-fixture");
+		Core.applyChanges();
+
+		this.oToolbar.setModel(this.oVersionsModel, "versions");
+		this.oToolbar.setModel(this.oToolbarControlsModel, "controls");
+		this.oToolbar.animation = false;
+
+		return this.oToolbar._pFragmentLoaded.then(function() {
+			return this.oToolbar.show();
+		}.bind(this));
+	}
+
 	QUnit.module("Different Screen Sizes", {
 		beforeEach: function() {
 			this.oVersionsModel = new JSONModel({
@@ -54,16 +75,6 @@ sap.ui.define([
 			});
 			this.oToolbarControlsModel = createToolbarControlsModel();
 			this.oGetCurrentRangeStub = sandbox.stub(Device.media, "getCurrentRange");
-
-			this.oToolbar = new Adaptation({
-				textResources: Core.getLibraryResourceBundle("sap.ui.rta")
-			});
-
-			document.getElementById("qunit-fixture").style.width = "1600px";
-			this.oToolbar.placeAt("qunit-fixture");
-			Core.applyChanges();
-
-			return this.oToolbar._pFragmentLoaded;
 		},
 		afterEach: function() {
 			this.oToolbar.destroy();
@@ -71,117 +82,187 @@ sap.ui.define([
 		}
 	}, function() {
 		QUnit.test("when the toolbar gets initially shown in desktop mode (>= 900px) and then rerendered in the other 2 modes", function(assert) {
-			this.oToolbar.setModel(this.oVersionsModel, "versions");
-			this.oToolbar.setModel(this.oToolbarControlsModel, "controls");
+			var oInitRangeSetStub = sandbox.stub(Device.media, "initRangeSet");
+			// the 'calledOnceWithMatch' function is not yet available in the current sinon versions
+			// and the toolbar does not exist in time to only stub the call from the toolbar
+			var nCallCount = 0;
+			sandbox.stub(Device.media, "attachHandler").callsFake(function(fnHandler, oContext, sName) {
+				if (sName === "sapUiRtaToolbar") {
+					nCallCount++;
+				}
+			});
 			this.oGetCurrentRangeStub.returns({name: Adaptation.modes.DESKTOP});
-			this.oToolbar.animation = false;
-			return this.oToolbar.show().then(function() {
+
+			return createAndWaitForToolbar.call(this).then(function() {
+				assert.equal(oInitRangeSetStub.callCount, 1, "our range set was initialized");
+				assert.equal(oInitRangeSetStub.lastCall.args[0], "sapUiRtaToolbar", "the first parameter is correct");
+				assert.deepEqual(oInitRangeSetStub.lastCall.args[1], [900, 1200], "the second parameter is correct");
+				assert.equal(oInitRangeSetStub.lastCall.args[2], "px", "the third parameter is correct");
+				assert.deepEqual(oInitRangeSetStub.lastCall.args[3], [Adaptation.modes.MOBILE, Adaptation.modes.TABLET, Adaptation.modes.DESKTOP], "the fourth parameter is correct");
+				assert.equal(nCallCount, 1, "the handler was attached once");
 				assert.equal(this.oToolbar.sMode, Adaptation.modes.DESKTOP, "the mode was correctly set");
 				assert.notOk(this.oToolbar.getControl("exit").getIcon(), "the exit button has no icon");
 				assert.ok(this.oToolbar.getControl("exit").getText(), "the exit button has text");
 				assert.equal(this.oToolbar.getControl("restore").getLayoutData().getPriority(), "High", "the layout data priority is correct");
 				assert.notOk(this.oToolbar.getControl("versionButton").getVisible(), "the version button is hidden");
 
-				return this.oToolbar._onSizeChanged({name: Adaptation.modes.TABLET});
-			}.bind(this))
-			.then(function() {
+				this.oToolbar._onSizeChanged({name: Adaptation.modes.TABLET});
 				assert.equal(this.oToolbar.sMode, Adaptation.modes.TABLET, "the mode was correctly set");
 				assert.notOk(this.oToolbar.getControl("versionButton").getVisible(), "the version button is hidden");
 
-				return this.oToolbar._onSizeChanged({name: Adaptation.modes.MOBILE});
-			}.bind(this))
-			.then(function() {
+				this.oToolbar._onSizeChanged({name: Adaptation.modes.MOBILE});
 				assert.equal(this.oToolbar.sMode, Adaptation.modes.MOBILE, "the mode was correctly set");
 				assert.notOk(this.oToolbar.getControl("versionButton").getVisible(), "the version button is hidden");
 
-				return this.oToolbar._onSizeChanged({name: Adaptation.modes.DESKTOP});
-			}.bind(this))
-			.then(function() {
+				this.oToolbar._onSizeChanged({name: Adaptation.modes.DESKTOP});
 				assert.notOk(this.oToolbar.getControl("versionButton").getVisible(), "the version button is hidden");
 			}.bind(this));
 		});
 
 		QUnit.test("when a draft is visible and the toolbar gets initially shown in desktop mode (>= 1200px) and then rerendered in the other 2 modes and back", function(assert) {
-			this.oToolbar.setModel(this.oVersionsModel, "versions");
-			this.oToolbar.setModel(this.oToolbarControlsModel, "controls");
+			var oInitRangeSetStub = sandbox.stub(Device.media, "initRangeSet");
+			sandbox.stub(Device.media, "hasRangeSet").withArgs("sapUiRtaToolbar").returns(true);
+
 			this.oVersionsModel.setProperty("/versioningEnabled", true);
 			this.oGetCurrentRangeStub.returns({name: Adaptation.modes.DESKTOP});
-			this.oToolbar.animation = false;
 
-			return this.oToolbar.show().then(function() {
+			return createAndWaitForToolbar.call(this).then(function() {
+				assert.equal(oInitRangeSetStub.callCount, 0, "our range set was not initialized");
 				assert.ok(this.oToolbar.getControl("versionButton").getVisible(), "the version button is visible");
-				return this.oToolbar._onSizeChanged({name: Adaptation.modes.TABLET});
-			}.bind(this))
-			.then(function() {
+				this.oToolbar._onSizeChanged({name: Adaptation.modes.TABLET});
 				assert.ok(this.oToolbar.getControl("versionButton").getVisible(), "the version button is visible");
-				return this.oToolbar._onSizeChanged({name: Adaptation.modes.MOBILE});
-			}.bind(this))
-			.then(function() {
+				this.oToolbar._onSizeChanged({name: Adaptation.modes.MOBILE});
 				assert.ok(this.oToolbar.getControl("versionButton").getVisible(), "the version button is visible");
-				return this.oToolbar._onSizeChanged({name: Adaptation.modes.DESKTOP});
-			}.bind(this))
-			.then(function() {
+				this.oToolbar._onSizeChanged({name: Adaptation.modes.DESKTOP});
 				assert.ok(this.oToolbar.getControl("versionButton").getVisible(), "the version button is visible");
 			}.bind(this));
 		});
 
 		QUnit.test("when the toolbar gets initially shown in tablet mode (between 900px and 1200px)", function(assert) {
-			this.oToolbar.setModel(this.oVersionsModel, "versions");
-			this.oToolbar.setModel(this.oToolbarControlsModel, "controls");
 			this.oGetCurrentRangeStub.returns({name: Adaptation.modes.TABLET});
-			this.oToolbar.animation = false;
-			return this.oToolbar.show()
-				.then(function() {
-					assert.notOk(this.oToolbar.getControl("versionButton").getVisible(), "the version button is hidden");
-					assert.equal(this.oToolbar.sMode, Adaptation.modes.TABLET, "the mode was correctly set");
-					assert.notOk(this.oToolbar.getControl("exit").getIcon(), "the exit button has no icon");
-					assert.ok(this.oToolbar.getControl("exit").getText(), "the exit button has text");
-				}.bind(this));
+
+			return createAndWaitForToolbar.call(this).then(function() {
+				assert.notOk(this.oToolbar.getControl("versionButton").getVisible(), "the version button is hidden");
+				assert.equal(this.oToolbar.sMode, Adaptation.modes.TABLET, "the mode was correctly set");
+				assert.notOk(this.oToolbar.getControl("exit").getIcon(), "the exit button has no icon");
+				assert.ok(this.oToolbar.getControl("exit").getText(), "the exit button has text");
+			}.bind(this));
 		});
 
 		QUnit.test("when the draft is set to visible and toolbar gets initially shown in tablet mode (between 900px and 1200px)", function(assert) {
-			this.oToolbar.setModel(this.oVersionsModel, "versions");
-			this.oToolbar.setModel(this.oToolbarControlsModel, "controls");
 			this.oVersionsModel.setProperty("/versioningEnabled", true);
 			this.oVersionsModel.setProperty("/draftAvailable", true);
 			this.oGetCurrentRangeStub.returns({name: Adaptation.modes.TABLET});
 
-			this.oToolbar.animation = false;
-			return this.oToolbar.show()
-				.then(function() {
-					assert.ok(this.oToolbar.getControl("versionButton").getVisible(), "the version button is shown");
-					assert.equal(this.oToolbar.sMode, Adaptation.modes.TABLET, "the mode was correctly set");
-				}.bind(this));
+			return createAndWaitForToolbar.call(this).then(function() {
+				assert.ok(this.oToolbar.getControl("versionButton").getVisible(), "the version button is shown");
+				assert.equal(this.oToolbar.sMode, Adaptation.modes.TABLET, "the mode was correctly set");
+			}.bind(this));
 		});
 
 		QUnit.test("when the toolbar gets initially shown in mobile mode (< 900px)", function(assert) {
-			this.oToolbar.setModel(this.oVersionsModel, "versions");
-			this.oToolbar.setModel(this.oToolbarControlsModel, "controls");
 			this.oGetCurrentRangeStub.returns({name: Adaptation.modes.MOBILE});
-			this.oToolbar.animation = false;
-			return this.oToolbar.show()
-				.then(function() {
-					assert.notOk(this.oToolbar.getControl("versionButton").getVisible(), "the version button is hidden");
-					assert.equal(this.oToolbar.sMode, Adaptation.modes.MOBILE, "the mode was correctly set");
-					assert.ok(this.oToolbar.getControl("exit").getIcon(), "the exit button has an icon");
-					assert.notOk(this.oToolbar.getControl("exit").getText(), "the exit button has no text");
-				}.bind(this));
+
+			return createAndWaitForToolbar.call(this).then(function() {
+				assert.notOk(this.oToolbar.getControl("versionButton").getVisible(), "the version button is hidden");
+				assert.equal(this.oToolbar.sMode, Adaptation.modes.MOBILE, "the mode was correctly set");
+				assert.ok(this.oToolbar.getControl("exit").getIcon(), "the exit button has an icon");
+				assert.notOk(this.oToolbar.getControl("exit").getText(), "the exit button has no text");
+			}.bind(this));
 		});
 
 		QUnit.test("when the draft is set to visible and the toolbar gets initially shown in mobile mode (< 900px)", function(assert) {
-			this.oToolbar.setModel(this.oVersionsModel, "versions");
-			this.oToolbar.setModel(this.oToolbarControlsModel, "controls");
 			this.oVersionsModel.setProperty("/versioningEnabled", true);
 			this.oVersionsModel.setProperty("/draftAvailable", true);
 			this.oGetCurrentRangeStub.returns({name: Adaptation.modes.MOBILE});
-			this.oToolbar.animation = false;
-			return this.oToolbar.show()
-				.then(function() {
-					assert.ok(this.oToolbar.getControl("versionButton").getVisible(), "the version button is visible");
-					assert.equal(this.oToolbar.sMode, Adaptation.modes.MOBILE, "the mode was correctly set");
-					assert.ok(this.oToolbar.getControl("exit").getIcon(), "the exit button has an icon");
-					assert.notOk(this.oToolbar.getControl("exit").getText(), "the exit button has no text");
-				}.bind(this));
+
+			return createAndWaitForToolbar.call(this).then(function() {
+				assert.ok(this.oToolbar.getControl("versionButton").getVisible(), "the version button is visible");
+				assert.equal(this.oToolbar.sMode, Adaptation.modes.MOBILE, "the mode was correctly set");
+				assert.ok(this.oToolbar.getControl("exit").getIcon(), "the exit button has an icon");
+				assert.notOk(this.oToolbar.getControl("exit").getText(), "the exit button has no text");
+			}.bind(this));
+		});
+	});
+
+	QUnit.module("Publish Version button", {
+		beforeEach: function () {
+			this.setUpToolbar = function (assert, oToolbar, mProperties) {
+				var oVersionsModel = new JSONModel({
+					versioningEnabled: mProperties.versioningEnabled,
+					displayedVersion: mProperties.displayedVersion
+				});
+				var oToolbarControlsModel = createToolbarControlsModel();
+				oToolbarControlsModel.setProperty("/publishVisible", mProperties.publishVisible);
+
+				oToolbar.setModel(oVersionsModel, "versions");
+				oToolbar.setModel(oToolbarControlsModel, "controls");
+
+				oToolbar.animation = false;
+				return oToolbar.show().then(function () {
+					assert.equal(oToolbar.getControl("publishVersion").getVisible(), mProperties.expectedPublishVersionVisible, "the publish version visibility is set correct");
+					assert.equal(oToolbar.getControl("publish").getVisible(), mProperties.expectedPublishVisible, "the publish visibility is set correct");
+				});
+			};
+
+			this.oToolbar = new Adaptation({
+				textResources: Core.getLibraryResourceBundle("sap.ui.rta")
+			});
+
+			return this.oToolbar._pFragmentLoaded;
+		},
+		afterEach: function () {
+			this.oToolbar.destroy();
+		}
+	}, function () {
+		QUnit.test("When versioning and publishing in unavailable", function (assert) {
+			return this.setUpToolbar(assert, this.oToolbar, {
+				versioningEnabled: false,
+				publishVisible: false,
+				displayedVersion: Version.Number.Original,
+				expectedPublishVersionVisible: false,
+				expectedPublishVisible: false
+			});
+		});
+
+		QUnit.test("When versioning is available, but is publishing not", function (assert) {
+			return this.setUpToolbar(assert, this.oToolbar, {
+				versioningEnabled: true,
+				publishVisible: false,
+				displayedVersion: Version.Number.Original,
+				expectedPublishVersionVisible: false,
+				expectedPublishVisible: false
+			});
+		});
+
+		QUnit.test("When publishing is available, but versioning not", function (assert) {
+			return this.setUpToolbar(assert, this.oToolbar, {
+				versioningEnabled: false,
+				publishVisible: true,
+				displayedVersion: Version.Number.Original,
+				expectedPublishVersionVisible: false,
+				expectedPublishVisible: true
+			});
+		});
+
+		QUnit.test("When publishing and versioning is available and a non-draft version is displayed", function (assert) {
+			return this.setUpToolbar(assert, this.oToolbar, {
+				versioningEnabled: true,
+				publishVisible: true,
+				displayedVersion: Version.Number.Original,
+				expectedPublishVersionVisible: true,
+				expectedPublishVisible: false
+			});
+		});
+
+		QUnit.test("When publishing and versioning is available and the Draft version is displayed", function (assert) {
+			return this.setUpToolbar(assert, this.oToolbar, {
+				versioningEnabled: true,
+				publishVisible: true,
+				displayedVersion: Version.Number.Draft,
+				expectedPublishVersionVisible: false,
+				expectedPublishVisible: false
+			});
 		});
 	});
 
@@ -246,7 +327,7 @@ sap.ui.define([
 				versioningEnabled: true,
 				versions: [],
 				draftAvailable: false,
-				displayedVersion: sap.ui.fl.Versions.Draft
+				displayedVersion: Version.Number.Draft
 			});
 			this.oToolbarControlsModel = createToolbarControlsModel();
 			this.oTextResources = Core.getLibraryResourceBundle("sap.ui.rta");
@@ -261,6 +342,7 @@ sap.ui.define([
 				this.sActiveVersionAccent = "sapUiRtaActiveVersionAccent";
 				this.oVersionButton = this.oToolbar.getControl("versionButton");
 				this.oDiscardDraftButton = this.oToolbar.getControl("discardDraft");
+				this.oPublishVersionButton = this.oToolbar.getControl("publishVersion");
 			}.bind(this));
 		},
 		after: function() {
@@ -270,12 +352,13 @@ sap.ui.define([
 	}, function() {
 		QUnit.test("Given only a draft is present in the back end", function (assert) {
 			var aVersions = [{
-				version: sap.ui.fl.Versions.Draft,
+				version: Version.Number.Draft,
 				type: "draft"
 			}];
-			var sText = this.oToolbar.formatVersionButtonText(aVersions, sap.ui.fl.Versions.Draft);
+			var sText = this.oToolbar.formatVersionButtonText(aVersions, Version.Number.Draft);
 			var sExpectedText = this.oTextResources.getText("TIT_DRAFT");
-			assert.ok(this.oDiscardDraftButton.getVisible(), "the discard button is visible");
+			assert.equal(this.oDiscardDraftButton.getVisible(), true, "the discard button is visible");
+			assert.equal(this.oPublishVersionButton.getVisible(), false, "the publish version button is hidden");
 			assert.equal(sText, sExpectedText, "then the button text matches 'Draft'");
 			assert.equal(this.oVersionButton.hasStyleClass(this.sDraftVersionAccent), true, "and the button color is not a draft accent");
 			assert.equal(this.oVersionButton.hasStyleClass(this.sActiveVersionAccent), false, "and the button color is an active version accent");
@@ -283,14 +366,14 @@ sap.ui.define([
 
 		QUnit.test("Given a draft version is the draft version in the list", function(assert) {
 			var aVersions = [{
-				version: sap.ui.fl.Versions.Draft,
+				version: Version.Number.Draft,
 				type: "draft"
 			}, {
 				version: "1",
 				title: "Version Title",
 				type: "active"
 			}];
-			var sText = this.oToolbar.formatVersionButtonText(aVersions, sap.ui.fl.Versions.Draft);
+			var sText = this.oToolbar.formatVersionButtonText(aVersions, Version.Number.Draft);
 
 			var sExpectedText = this.oTextResources.getText("TIT_DRAFT");
 			assert.equal(sText, sExpectedText, "then the button text matches 'Draft'");
@@ -306,7 +389,7 @@ sap.ui.define([
 				versioningEnabled: true,
 				versions: [],
 				draftAvailable: false,
-				displayedVersion: sap.ui.fl.Versions.Original
+				displayedVersion: Version.Number.Original
 			});
 			this.oToolbarControlsModel = createToolbarControlsModel();
 			this.oTextResources = Core.getLibraryResourceBundle("sap.ui.rta");
@@ -357,14 +440,14 @@ sap.ui.define([
 
 		QUnit.test("Given a draft version is the draft version in the list", function(assert) {
 			var aVersions = [{
-				version: sap.ui.fl.Versions.Draft,
+				version: Version.Number.Draft,
 				type: "draft"
 			}, {
 				version: "1",
 				title: "Version Title",
 				type: "active"
 			}];
-			var sText = this.oToolbar.formatVersionButtonText(aVersions, sap.ui.fl.Versions.Draft);
+			var sText = this.oToolbar.formatVersionButtonText(aVersions, Version.Number.Draft);
 
 			var sExpectedText = this.oTextResources.getText("TIT_DRAFT");
 			assert.equal(sText, sExpectedText, "then the button text matches 'Draft'");
@@ -375,10 +458,10 @@ sap.ui.define([
 
 		QUnit.test("Given a draft in the list", function(assert) {
 			var aVersions = [{
-				version: sap.ui.fl.Versions.Draft,
+				version: Version.Number.Draft,
 				type: "draft"
 			}];
-			var sText = this.oToolbar.formatVersionButtonText(aVersions, sap.ui.fl.Versions.Draft);
+			var sText = this.oToolbar.formatVersionButtonText(aVersions, Version.Number.Draft);
 
 			var sExpectedText = this.oTextResources.getText("TIT_DRAFT");
 			assert.equal(sText, sExpectedText, "then the button text matches 'Draft'");
@@ -389,7 +472,7 @@ sap.ui.define([
 		QUnit.test("Given two versions and a draft and the displayed version is the second one", function(assert) {
 			var sVersionTitle2 = "Version Title 2";
 			var aVersions = [{
-				version: sap.ui.fl.Versions.Draft,
+				version: Version.Number.Draft,
 				type: "draft"
 			}, {
 				version: "2",
@@ -402,7 +485,7 @@ sap.ui.define([
 			}];
 			var sText = this.oToolbar.formatVersionButtonText(aVersions, "2");
 
-			assert.equal(sText, sVersionTitle2, "then the button text matches 'Draft'");
+			assert.equal(sText, sVersionTitle2, "then the button text matches 'Version Title 2'");
 			assert.notOk(this.oDiscardDraftButton.getVisible(), "the discard button is hidden");
 			assert.equal(this.oVersionButton.hasStyleClass(this.sDraftVersionAccent), false, "and the button color is not a draft accent");
 			assert.equal(this.oVersionButton.hasStyleClass(this.sActiveVersionAccent), true, "and the button color an active version accent");
@@ -411,7 +494,7 @@ sap.ui.define([
 		QUnit.test("Given two versions and a draft and the displayed version is the first one", function(assert) {
 			var sVersionTitle1 = "Version Title 1";
 			var aVersions = [{
-				version: sap.ui.fl.Versions.Draft,
+				version: Version.Number.Draft,
 				type: "draft"
 			}, {
 				version: "2",
@@ -424,14 +507,14 @@ sap.ui.define([
 			}];
 			var sText = this.oToolbar.formatVersionButtonText(aVersions, "1");
 
-			assert.equal(sText, sVersionTitle1, "then the button text matches 'Draft'");
+			assert.equal(sText, sVersionTitle1, "then the button text matches 'Version Title 1'");
 			assert.notOk(this.oDiscardDraftButton.getVisible(), "the discard button is hidden");
 			assert.equal(this.oVersionButton.hasStyleClass(this.sDraftVersionAccent), false, "and the button color is not a draft accent");
 			assert.equal(this.oVersionButton.hasStyleClass(this.sActiveVersionAccent), false, "and the button color is not an active version accent");
 		});
 
 		QUnit.test("Given no version is present", function(assert) {
-			var sText = this.oToolbar.formatVersionButtonText([], sap.ui.fl.Versions.Original);
+			var sText = this.oToolbar.formatVersionButtonText([], Version.Number.Original);
 			this.oVersionsModel.updateBindings();
 			var sExpectedText = this.oTextResources.getText("TIT_ORIGINAL_APP");
 			assert.equal(sText, sExpectedText, "then the button text matches 'Original App'");
@@ -461,7 +544,7 @@ sap.ui.define([
 			var oSetInputSpy;
 			var oConfirmButtonEnabledSpy;
 			var sExpectedTitle = this.oToolbar.getTextResources().getText("TIT_VERSION_TITLE_DIALOG");
-			return this.oToolbar._openVersionTitleDialog(sap.ui.fl.Versions.Draft)
+			return this.oToolbar._openVersionTitleDialog(Version.Number.Draft)
 				.then(function () {
 					assert.equal(oFragmentLoadSpy.callCount, 1, "the fragment was loaded");
 					// checking for the dialog instance wrapped into a promise
@@ -489,15 +572,15 @@ sap.ui.define([
 
 		QUnit.test("Given display version is original, when the activate version button is pressed", function(assert) {
 			var sExpectedTitle = this.oToolbar.getTextResources().getText("TIT_REACTIVATE_VERSION_TITLE_DIALOG");
-			return this.oToolbar._openVersionTitleDialog(sap.ui.fl.Versions.Original)
+			return this.oToolbar._openVersionTitleDialog(Version.Number.Original)
 				.then(function () {
 					assert.equal(this.oToolbar._oDialog.getTitle(), sExpectedTitle, "the title is 'Reactivate Version'");
 				}.bind(this));
 		});
 	});
 
-	QUnit.module("Versions Button", {
-		before: function () {
+	QUnit.module("Versions History", {
+		beforeEach: function () {
 			this.oToolbar = new Adaptation({
 				textResources: Core.getLibraryResourceBundle("sap.ui.rta")
 			});
@@ -505,12 +588,12 @@ sap.ui.define([
 			this.oToolbar.setModel(this.oToolbarControlsModel, "controls");
 			return this.oToolbar._pFragmentLoaded;
 		},
-		after: function() {
+		afterEach: function() {
 			this.oToolbar.destroy();
 			sandbox.restore();
 		}
 	}, function() {
-		QUnit.test("Given no dialog is created, when the version button is pressed and afterwards pressed a second time", function(assert) {
+		QUnit.test("when the version button is pressed twice", function(assert) {
 			var done = assert.async();
 			var oFragmentLoadSpy = sandbox.spy(Fragment, "load");
 			var oVersionButton = this.oToolbar.getControl("versionButton");
@@ -545,6 +628,55 @@ sap.ui.define([
 				})
 				.then(this.oToolbar.showVersionHistory.bind(this.oToolbar, oEvent));
 		});
+
+		QUnit.test("when the version history is opened with publish enabled", function(assert) {
+			var oVersionButton = this.oToolbar.getControl("versionButton");
+			oVersionButton.placeAt("qunit-fixture");
+			Core.applyChanges();
+
+			var oVersionsModel = new JSONModel({
+				versioningEnabled: true,
+				versions: [{
+					version: Version.Number.Draft,
+					type: "draft",
+					isPublished: false
+				}, {
+					version: "1",
+					title: "Version Title",
+					type: "active",
+					isPublished: true
+				}, {
+					version: "2",
+					title: "Version Title",
+					type: "active",
+					isPublished: false
+				}],
+				draftAvailable: true
+			});
+			// the models have to be set on both the button and the toolbar for this test,
+			// because the toolbar is not actually rendered and the version button propagates the models to the version history
+			oVersionButton.setModel(oVersionsModel, "versions");
+			this.oToolbar.setModel(oVersionsModel, "versions");
+			var oControlsModel = new JSONModel({
+				publishVisible: true
+			});
+			this.oToolbar.setModel(oControlsModel, "controls");
+			oVersionButton.setModel(oControlsModel, "controls");
+			var oEvent = {
+				getSource: function () {
+					return oVersionButton;
+				}
+			};
+			return this.oToolbar.showVersionHistory(oEvent)
+				.then(this.oToolbar.oVersionDialogPromise)
+				.then(function () {
+					var oList = this.oToolbar.getControl("versionHistoryDialog--versionList");
+					assert.ok(oList.getBindingInfo("items").groupHeaderFactory, "a grouping is in place");
+					assert.strictEqual(oList.getBinding("items").aSorters.length, 1, "a sorter is in place");
+					assert.strictEqual(oList.getItems().length, 5, "there are 5 entries (two group titles, 3 versions)");
+				}.bind(this))
+				.then(this.oToolbar.showVersionHistory.bind(this.oToolbar, oEvent));
+		});
 	});
 
 	function createControlWithStubbedBindingContextFireSwitchAndAssert(assert, oToolbar, sVersion) {
@@ -554,7 +686,7 @@ sap.ui.define([
 			if (sVersion !== undefined) {
 				assert.equal(oEvent.getParameter("version"), sVersion, "the event was fired with the bound version number");
 			} else {
-				assert.equal(oEvent.getParameter("version"), sap.ui.fl.Versions.Original, "the event was fired with the original app number");
+				assert.equal(oEvent.getParameter("version"), Version.Number.Original, "the event was fired with the original app number");
 			}
 			done();
 		});
@@ -599,7 +731,7 @@ sap.ui.define([
 		});
 
 		QUnit.test("Given a version entry of the draft was selected", function(assert) {
-			createControlWithStubbedBindingContextFireSwitchAndAssert(assert, this.oToolbar, sap.ui.fl.Versions.Draft);
+			createControlWithStubbedBindingContextFireSwitchAndAssert(assert, this.oToolbar, Version.Number.Draft);
 		});
 
 		QUnit.test("Given a version entry of an created version was selected", function(assert) {
@@ -840,64 +972,6 @@ sap.ui.define([
 				assert.strictEqual(oGetOverviewStub.lastCall.args[1], Layer.CUSTOMER, "the second agrument is the current layer");
 			}.bind(this));
 		});
-
-		QUnit.module("Changes list popover", {
-			before: function () {
-				this.oToolbar = new Adaptation({
-					textResources: Core.getLibraryResourceBundle("sap.ui.rta")
-				});
-				this.oToolbarControlsModel = new JSONModel({
-					undoEnabled: false,
-					redoEnabled: false,
-					publishVisible: true,
-					publishEnabled: true,
-					restoreEnabled: false,
-					appVariantsOverviewVisible: false,
-					appVariantsOverviewEnabled: false,
-					saveAsVisible: false,
-					saveAsEnabled: false,
-					manageAppsVisible: false,
-					manageAppsEnabled: false,
-					modeSwitcher: "adaptation"
-				});
-				this.oToolbar.setModel(this.oToolbarControlsModel, "controls");
-				return this.oToolbar._pFragmentLoaded;
-			},
-			after: function () {
-				this.oToolbar.destroy();
-				sandbox.restore();
-			}
-		}, function () {
-			QUnit.test("When the translation button is pressed", function (assert) {
-				var oFragmentLoadSpy = sandbox.spy(Fragment, "load");
-				var oTranslationButton = this.oToolbar.getControl("translate");
-
-				// force a rendering of the button for the Popover.openBy function
-				oTranslationButton.placeAt("qunit-fixture");
-				Core.applyChanges();
-
-				var oAddDependentSpy = sandbox.spy(oTranslationButton, "addDependent");
-				var oTranslationDialog;
-				var oEvent = {
-					getSource: function () {
-						return oTranslationButton;
-					}
-				};
-				return this.oToolbar.showTranslationPopover(oEvent)
-				.then(function () {
-					assert.equal(oFragmentLoadSpy.callCount, 1, "the fragment was loaded");
-					// checking for the dialog instance wrapped into a promise
-					return oFragmentLoadSpy.getCall(0).returnValue;
-				})
-				.then(this.oToolbar.oTranslationDialogPromise)
-				.then(function (oVersionDialogResolveValue) {
-					oTranslationDialog = oVersionDialogResolveValue;
-					assert.ok(oTranslationDialog, "and the dialog promise was assigned");
-					assert.equal(oTranslationDialog.isOpen(), true, "and the dialog was opened");
-					assert.equal(oAddDependentSpy.callCount, 1, "and the dialog is set as a dependent for the button");
-				});
-			});
-		});
 	});
 
 	QUnit.module("Setting different modes", {
@@ -907,7 +981,7 @@ sap.ui.define([
 			});
 			this.oVersionsModel = new JSONModel({
 				versioningEnabled: true,
-				displayedVersion: sap.ui.fl.Versions.Draft
+				displayedVersion: Version.Number.Draft
 			});
 			this.oControlsModel = new JSONModel({
 				publishVisible: true,
@@ -932,10 +1006,11 @@ sap.ui.define([
 					assert.ok(this.oToolbar.getControl("versionButton").getVisible(), "versionButton is visible");
 					assert.ok(this.oToolbar.getControl("activate").getVisible(), "activate is visible");
 					assert.ok(this.oToolbar.getControl("discardDraft").getVisible(), "discardDraft is visible");
+					assert.notOk(this.oToolbar.getControl("publishVersion").getVisible(), "publishVersion is visible");
 					assert.ok(this.oToolbar.getControl("undo").getVisible(), "undo is visible");
 					assert.ok(this.oToolbar.getControl("redo").getVisible(), "redo is visible");
 					assert.notOk(this.oToolbar.getControl("toggleChangeVisualizationMenuButton").getVisible(), "toggleChangeVisualizationMenuButton is not visible");
-					assert.ok(this.oToolbar.getControl("publish").getVisible(), "publish is visible");
+					assert.notOk(this.oToolbar.getControl("publish").getVisible(), "publish is hidden");
 					assert.notOk(this.oToolbar.getControl("restore").getVisible(), "restore is not visible");
 					assert.ok(this.oToolbar.getControl("manageApps").getVisible(), "manageApps is visible");
 					assert.ok(this.oToolbar.getControl("appVariantOverview").getVisible(), "appVariantOverview is visible");
@@ -951,6 +1026,7 @@ sap.ui.define([
 					assert.notOk(this.oToolbar.getControl("versionButton").getVisible(), "versionButton is not visible");
 					assert.notOk(this.oToolbar.getControl("activate").getVisible(), "activate is not visible");
 					assert.notOk(this.oToolbar.getControl("discardDraft").getVisible(), "discardDraft is not visible");
+					assert.notOk(this.oToolbar.getControl("publishVersion").getVisible(), "publishVersion is visible");
 					assert.notOk(this.oToolbar.getControl("undo").getVisible(), "undo is not visible");
 					assert.notOk(this.oToolbar.getControl("redo").getVisible(), "redo is not visible");
 					assert.notOk(this.oToolbar.getControl("toggleChangeVisualizationMenuButton").getVisible(), "toggleChangeVisualizationMenuButton is not visible");
@@ -971,6 +1047,7 @@ sap.ui.define([
 					assert.notOk(this.oToolbar.getControl("versionButton").getVisible(), "versionButton is not visible");
 					assert.notOk(this.oToolbar.getControl("activate").getVisible(), "activate is not visible");
 					assert.notOk(this.oToolbar.getControl("discardDraft").getVisible(), "discardDraft is not visible");
+					assert.notOk(this.oToolbar.getControl("publishVersion").getVisible(), "publishVersion is visible");
 					assert.notOk(this.oToolbar.getControl("undo").getVisible(), "undo is not visible");
 					assert.notOk(this.oToolbar.getControl("redo").getVisible(), "redo is not visible");
 					assert.ok(this.oToolbar.getControl("toggleChangeVisualizationMenuButton").getVisible(), "toggleChangeVisualizationMenuButton is visible");

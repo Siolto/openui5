@@ -1,12 +1,14 @@
 /*global QUnit */
 
 sap.ui.define([
+	"sap/m/Page",
 	"sap/f/AvatarGroup",
 	"sap/f/AvatarGroupItem",
 	"sap/ui/core/Core",
 	"sap/ui/events/KeyCodes"
 ],
 function (
+	Page,
 	AvatarGroup,
 	AvatarGroupItem,
 	Core,
@@ -345,4 +347,42 @@ function (
 		assert.strictEqual(this.oAvatarGroup._oShowMoreButton.getText(), "", "Show more button should not have text");
 	});
 
+	QUnit.test("_onResize does not invalidates infinitely when control is not visible", function (assert) {
+		// Arrange
+		var oSpy;
+		this.oPage = new sap.m.Page({
+			content: [ this.oAvatarGroup ]
+		});
+		this.oPage.placeAt(DOM_RENDER_LOCATION);
+		Core.applyChanges();
+
+		oSpy = this.spy(this.oAvatarGroup, "invalidate");
+
+		// Act
+		this.oPage.$().css("display", "none");
+		this.oAvatarGroup._onResize(); // Not waiting for ResizeHandler
+
+		// Assert
+		assert.ok(oSpy.notCalled, "AvatarGroup is not invalidated, when parent gets hidden");
+
+		// Clean up
+		oSpy.restore();
+		this.oPage.destroy();
+	});
+
+	QUnit.test("non-interactive AvatarGroup - using _interactive property", function (assert) {
+		//Arrange
+		this.oAvatarGroup.placeAt(DOM_RENDER_LOCATION);
+		this.oAvatarGroup._setInteractive(false);
+		var oFirePressSpy = this.spy(this.oAvatarGroup, "firePress");
+		Core.applyChanges();
+
+		// Act
+		this.oAvatarGroup.ontap();
+
+		// Assert
+		assert.strictEqual(oFirePressSpy.callCount, 0, "firePress event is not fired");
+		var iTabbaleAvatars = this.oAvatarGroup.getDomRef().querySelectorAll('.sapFAvatarGroupItem[tabindex="-1"]').length;
+		assert.strictEqual(iTabbaleAvatars, 0, "Avatars are not included in the tab chain");
+	});
 });

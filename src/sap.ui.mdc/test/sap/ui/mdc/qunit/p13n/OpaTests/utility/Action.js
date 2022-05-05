@@ -308,7 +308,7 @@ sap.ui.define([
 		},
 		iClickOnP13nSelect: function (sName) {
 			return this.waitFor({
-				controlType: "sap.m.Select",
+				controlType: "sap.m.ComboBox",
 				searchOpenDialogs: true,
 				matchers: {
 					properties: {
@@ -316,7 +316,7 @@ sap.ui.define([
 					}
 				},
 				success: function(aSelect) {
-					Opa5.assert.equal(aSelect.length, 1, "Found one Select control for key " + sName);
+					Opa5.assert.equal(aSelect.length, 1, "Found one ComboBox control for key " + sName);
 				},
 				actions: new Press()
 			});
@@ -324,10 +324,10 @@ sap.ui.define([
 		iSelectP13nMenuItem: function (sName) {
 			return this.waitFor({
 				searchOpenDialogs: true,
-				controlType: "sap.ui.core.Item",
+				controlType: "sap.m.StandardListItem",
 				matchers: {
 					properties: {
-						text: sName
+						title: sName
 					}
 				},
 				actions: new Press()
@@ -426,6 +426,14 @@ sap.ui.define([
 					value: sItemText
 				}),
 				actions: new Press()
+			});
+		},
+		iSimulateColumnResize: function (sName, sWidth) {
+			return this.waitFor({
+				controlType: "sap.ui.table.Table",
+				success: function(aTable) {
+					aTable[0].fireColumnResize({column:aTable[0].getColumns()[0],width: sWidth});
+				}
 			});
 		},
 		iClickOnColumn: function(sName, bResponsiveTable){
@@ -542,6 +550,11 @@ sap.ui.define([
 		iSelectVariant: function (sVariantName) {
 			return this.waitFor({
 				controlType: "sap.ui.fl.variants.VariantManagement",
+				matchers: {
+					ancestor: {
+						controlType: "sap.m.App"
+					}
+				},
 				check: function (aVariantManagements) {
 					return !!aVariantManagements.length;
 				},
@@ -572,6 +585,11 @@ sap.ui.define([
 		iSelectDefaultVariant: function(sVariant){
 			return this.waitFor({
 				controlType: "sap.ui.fl.variants.VariantManagement",
+				matchers: {
+					ancestor: {
+						controlType: "sap.m.App"
+					}
+				},
 				actions: new Press(),
 				success: function(aVM){
 					this.waitFor({
@@ -625,6 +643,11 @@ sap.ui.define([
 		iDestroyTheVariantManagement: function() {
 			return this.waitFor({
 				controlType: "sap.ui.fl.variants.VariantManagement",
+				matchers: {
+					ancestor: {
+						controlType: "sap.m.App"
+					}
+				},
 				success: function(aVM) {
 					aVM.forEach(function (oVM) {
 						oVM.destroy();
@@ -635,6 +658,11 @@ sap.ui.define([
 		iSaveVariantAs: function (sVariantNameOld, sVariantNameNew) {
 			return this.waitFor({
 				controlType: "sap.ui.fl.variants.VariantManagement",
+				matchers: {
+					ancestor: {
+						controlType: "sap.m.App"
+					}
+				},
 				check: function (aVariantManagements) {
 					return !!aVariantManagements.length;
 				},
@@ -683,6 +711,216 @@ sap.ui.define([
 					});
 				},
 				errorMessage: "Could not find VariantManagement"
+			});
+		},
+		iEnterValueInP13nSearchField: function(sValue) {
+			return this.waitFor({
+				controlType: "sap.m.Dialog",
+				success: function(aDialogs) {
+					return this.waitFor({
+						controlType: "sap.m.SearchField",
+						matchers: new Ancestor(aDialogs[0], false),
+						actions: new EnterText({
+							text: sValue
+						})
+					});
+				}
+			});
+		},
+		iCloseTheColumnMenu: function() {
+			return TestUtil.waitForColumnMenu.call(this, {
+				success: function(oColumnMenu) {
+					oColumnMenu.close();
+				}
+			});
+		},
+		iUseColumnMenuQuickSort: function(mConfig) {
+			return TestUtil.waitForColumnMenu.call(this, {
+				success: function(oColumnMenu) {
+					this.waitFor({
+						controlType: "sap.m.table.columnmenu.QuickSortItem",
+						visible: false,
+						matchers: [{
+							ancestor: oColumnMenu,
+							properties: {
+								key: mConfig.key
+							}
+						}],
+						success: function(aQuickSortItems) {
+							this.waitFor({
+								controlType: "sap.m.ToggleButton",
+								matchers: [{
+									ancestor: aQuickSortItems[0]
+								}],
+								success: function(aToggleButtons) {
+									function pressButton(oButton, bShouldBePressed) {
+										if (mConfig.sortOrder === "None" && oButton.getPressed() || bShouldBePressed && !oButton.getPressed()) {
+											new Press().executeOn(oButton);
+										}
+									}
+
+									pressButton(aToggleButtons[0], mConfig.sortOrder === "Ascending");
+									pressButton(aToggleButtons[1], mConfig.sortOrder === "Descending");
+								},
+								errorMessage: "QuickSortItem content is not visible"
+							});
+						},
+						errorMessage: "Column menu QuickSortItem not found"
+					});
+				}
+			});
+		},
+		iUseColumnMenuQuickGroup: function(mConfig) {
+			return TestUtil.waitForColumnMenu.call(this, {
+				success: function(oColumnMenu) {
+					this.waitFor({
+						controlType: "sap.m.table.columnmenu.QuickGroupItem",
+						visible: false,
+						matchers: [{
+							ancestor: oColumnMenu,
+							properties: {
+								key: mConfig.key
+							}
+						}],
+						success: function(aQuickGroupItems) {
+							this.waitFor({
+								controlType: "sap.m.ToggleButton",
+								matchers: [{
+									ancestor: aQuickGroupItems[0].getParent(),
+									properties: {
+										text: aQuickGroupItems[0].getLabel()
+									}
+								}],
+								success: function(aToggleButtons) {
+									if (mConfig.grouped && !aToggleButtons[0].getPressed() || !mConfig.grouped && aToggleButtons[0].getPressed()) {
+										new Press().executeOn(aToggleButtons[0]);
+									}
+								},
+								errorMessage: "QuickSortItem content is not visible"
+							});
+						},
+						errorMessage: "Column menu QuickSortItem not found"
+					});
+				}
+			});
+		},
+		iUseColumnMenuQuickTotal: function(mConfig) {
+			return TestUtil.waitForColumnMenu.call(this, {
+				success: function(oColumnMenu) {
+					this.waitFor({
+						controlType: "sap.m.table.columnmenu.QuickTotalItem",
+						visible: false,
+						matchers: [{
+							ancestor: oColumnMenu,
+							properties: {
+								key: mConfig.key
+							}
+						}],
+						success: function(aQuickTotalItems) {
+							this.waitFor({
+								controlType: "sap.m.ToggleButton",
+								matchers: [{
+									ancestor: aQuickTotalItems[0].getParent(),
+									properties: {
+										text: aQuickTotalItems[0].getLabel()
+									}
+								}],
+								success: function(aToggleButtons) {
+									if (mConfig.totaled && !aToggleButtons[0].getPressed() || !mConfig.totaled && aToggleButtons[0].getPressed()) {
+										new Press().executeOn(aToggleButtons[0]);
+									}
+								},
+								errorMessage: "QuickTotalItem content is not visible"
+							});
+						},
+						errorMessage: "Column menu QuickTotalItem not found"
+					});
+				}
+			});
+		},
+		iPressOnColumnMenuItem: function(sLabel) {
+			return TestUtil.waitForColumnMenu.call(this, {
+				success: function(oColumnMenu) {
+					this.waitFor({
+						controlType: "sap.m.StandardListItem",
+						matchers: [{
+							ancestor: oColumnMenu,
+							properties: {
+								title: sLabel
+							}
+						}],
+						actions: new Press(),
+						errorMessage: "Column menu item '" + sLabel + "' not found"
+					});
+				}
+			});
+		},
+		iNavigateBackFromColumnMenuItemContent: function() {
+			return TestUtil.waitForColumnMenu.call(this, {
+				success: function(oColumnMenu) {
+					this.waitFor({
+						controlType: "sap.m.Button",
+						matchers: [{
+							ancestor: oColumnMenu,
+							properties: {
+								type: "Back"
+							}
+						}],
+						actions: new Press(),
+						errorMessage: "Could not navigate back from column menu item content"
+					});
+				}
+			});
+		},
+		iResetColumnMenuItemContent: function() {
+			return TestUtil.waitForColumnMenu.call(this, {
+				success: function(oColumnMenu) {
+					this.waitFor({
+						controlType: "sap.m.Button",
+						matchers: [{
+							ancestor: oColumnMenu,
+							properties: {
+								text: TestUtil.getTextFromResourceBundle("sap.m", "table.COLUMNMENU_RESET")
+							}
+						}],
+						actions: new Press(),
+						errorMessage: "Colum menu item content could not be reset"
+					});
+				}
+			});
+		},
+		iConfirmColumnMenuItemContent: function() {
+			return TestUtil.waitForColumnMenu.call(this, {
+				success: function(oColumnMenu) {
+					this.waitFor({
+						controlType: "sap.m.Button",
+						matchers: [{
+							ancestor: oColumnMenu,
+							properties: {
+								text: TestUtil.getTextFromResourceBundle("sap.m", "table.COLUMNMENU_CONFIRM")
+							}
+						}],
+						actions: new Press(),
+						errorMessage: "Colum menu item content could not be confirmed"
+					});
+				}
+			});
+		},
+		iCancelColumnMenuItemContent: function() {
+			return TestUtil.waitForColumnMenu.call(this, {
+				success: function(oColumnMenu) {
+					this.waitFor({
+						controlType: "sap.m.Button",
+						matchers: [{
+							ancestor: oColumnMenu,
+							properties: {
+								text: TestUtil.getTextFromResourceBundle("sap.m", "table.COLUMNMENU_CANCEL")
+							}
+						}],
+						actions: new Press(),
+						errorMessage: "Colum menu item content could not be canceled"
+					});
+				}
 			});
 		}
 	});

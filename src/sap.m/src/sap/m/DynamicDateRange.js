@@ -17,6 +17,7 @@ sap.ui.define([
 	'sap/ui/core/Icon',
 	"sap/ui/core/LabelEnablement",
 	'sap/ui/core/format/DateFormat',
+	'sap/ui/core/format/TimezoneUtil',
 	'sap/ui/base/ManagedObjectObserver',
 	'sap/ui/Device',
 	'./Label',
@@ -50,6 +51,7 @@ sap.ui.define([
 		Icon,
 		LabelEnablement,
 		DateFormat,
+		TimezoneUtil,
 		ManagedObjectObserver,
 		Device,
 		Label,
@@ -379,13 +381,18 @@ sap.ui.define([
 			this._oInput.setPlaceholder(this.getPlaceholder());
 			this._oInput.setValueState(this.getValueState());
 			this._oInput.setValueStateText(this.getValueStateText());
+
+			this.setValue(this._substitudeMissingValue(this.getValue()));
 		};
 
 		DynamicDateRange.prototype.setValue = function(oValue) {
+			var sOptionKey = oValue && oValue.operator;
+
 			// substutude the semantically equivalent values
 			oValue = this._substitudeValue(oValue);
 
 			this.setProperty("value", oValue);
+			this._oSelectedOption = DynamicDateUtil.getOption(sOptionKey);
 
 			// Forward Dynamic Date Range control property values to inner sap.m.Input instance.
 			this._updateInputValue(oValue);
@@ -589,11 +596,13 @@ sap.ui.define([
 				switch (sType) {
 					case "datetime":
 						oFormatOptions = Object.create(this._getFormatter()._dateTimeFormatter.oFormatOptions);
+						oFormatOptions.singleIntervalValue = true;
 						oFormatOptions.interval = true;
 						this._oDatesLabelFormatter = DateFormat.getDateTimeInstance(oFormatOptions);
 						break;
 					default:
 						oFormatOptions = Object.create(this._getFormatter()._dateFormatter.oFormatOptions);
+						oFormatOptions.singleIntervalValue = true;
 						oFormatOptions.interval = true;
 						this._oDatesLabelFormatter = DateFormat.getInstance(oFormatOptions);
 				}
@@ -620,7 +629,9 @@ sap.ui.define([
 		 * @private
 		 */
 		DynamicDateRange.prototype._addSuggestionItem = function(oSuggestValue) {
-			var aResultingDates = DynamicDateUtil.toDates(oSuggestValue);
+			var aResultingDates = DynamicDateUtil.toDates(oSuggestValue).map(function(oDate) {
+				return this._convertDate(oDate);
+			}, this);
 
 			var oItem = new ListItem({
 				text: DynamicDateUtil.getOption(oSuggestValue.operator).format(oSuggestValue, this._getFormatter()),
@@ -689,7 +700,44 @@ sap.ui.define([
 		};
 
 		DynamicDateRange.prototype._toDatesString = function(oValue) {
-			return this._getDatesLabelFormatter().format(DynamicDateUtil.toDates(oValue));
+			var aDates = DynamicDateUtil.toDates(oValue).map(function(oDate) {
+				return this._convertDate(oDate);
+			}, this);
+
+			return this._getDatesLabelFormatter().format(aDates);
+		};
+
+		DynamicDateRange.prototype._convertDate = function(oDate) {
+			var sFormattedDate = this._getPickerParser().format(oDate, TimezoneUtil.getLocalTimezone());
+			var oParts = this._getPickerParser().parse(
+				sFormattedDate,
+				sap.ui.getCore().getConfiguration().getTimezone()
+			);
+			var oNewDate = oParts ? new Date(oParts[0].getTime()) : oParts;
+
+			return oNewDate;
+		};
+
+		DynamicDateRange.prototype._reverseConvertDate = function(oDate) {
+			var sFormattedDate = this._getPickerParser().format(
+				oDate,
+				sap.ui.getCore().getConfiguration().getTimezone()
+			);
+			var oParts = this._getPickerParser().parse(
+				sFormattedDate,
+				TimezoneUtil.getLocalTimezone()
+			);
+			var oNewDate = oParts ? new Date(oParts[0].getTime()) : oParts;
+
+			return oNewDate;
+		};
+
+		DynamicDateRange.prototype._getPickerParser = function() {
+			if (!this._calendarParser) {
+				this._calendarParser = DateFormat.getDateTimeWithTimezoneInstance({ showTimezone: false });
+			}
+
+			return this._calendarParser;
 		};
 
 		DynamicDateRange.prototype._createPopup = function() {
@@ -911,8 +959,15 @@ sap.ui.define([
 				return;
 			}
 
-			aResultDates = DynamicDateUtil.toDates(oOutputValue);
+			aResultDates = DynamicDateUtil.toDates(oOutputValue).map(function(oDate) {
+				return this._convertDate(oDate);
+			}, this);
+
 			if (aResultDates) {
+				if (this._oSelectedOption.getKey() === "FROMDATETIME" || this._oSelectedOption.getKey() === "TODATETIME"
+					|| this._oSelectedOption.getKey() === "FROM" || this._oSelectedOption.getKey() === "TO") {
+					aResultDates.push(null);
+				}
 				sFormattedDates = this._getDatesLabelFormatter().format(aResultDates);
 				this._getDatesLabel().setText(oResourceBundle.getText("DDR_INFO_DATES", [sFormattedDates]));
 			}
@@ -1076,7 +1131,7 @@ sap.ui.define([
 			if (oToPage === oOptionDetailsPage) {
 				this.aInputControls.forEach(function(oControl) {
 					if (oControl.$().firstFocusableDomRef()) {
-						oControl.addAriaLabelledBy && oControl.addAriaLabelledBy(oToPage.getAggregation("_internalHeader"));
+						oControl.addAriaLabelledBy && oControl.addAriaLabelledBy(oToPage.getId() + "-title");
 
 						if (!this._isCalendarBasedControl(oControl) && oControl.addAriaDescribedBy) {
 							oControl.addAriaDescribedBy(oToPage.getFooter().getContent()[0]);
@@ -1114,12 +1169,20 @@ sap.ui.define([
 				return;
 			}
 
-			this._oPopup._getPopup().setAutoCloseAreas([this._oInput.getDomRef()]);
+			this._oPopup._getPopup().setExtraContent([this._oInput.getDomRef()]);
 			this._oPopup.openBy(this._oInput);
 		};
 
 		DynamicDateRange.prototype._applyValue = function() {
 			this._oOutput = this._oSelectedOption.getValueHelpOutput(this);
+
+			this._oOutput.values = this._oOutput.values.map(function(val) {
+				if (val instanceof Date) {
+					return this._convertDate(val);
+				}
+
+				return val;
+			}, this);
 
 			var prevValue = this.getValue();
 			this.setValue(this._oOutput);
@@ -1179,6 +1242,7 @@ sap.ui.define([
 		/**
 		 * Some of the values are semantically equivalent to others.
 		 * So we substitute them everywhere, if needed. Example: Last 1 days === Yesterday
+		 * This substitution is performed only with options that are present in the options property.
 		 *
 		 * @param {object} oValue A valid control value
 		 * @private
@@ -1194,12 +1258,12 @@ sap.ui.define([
 			sKey = oValue.operator;
 			aParams = oValue.values;
 
-			if (sKey === "LASTDAYS" && aParams[0] === 1) {
+			if (sKey === "LASTDAYS" && aParams[0] === 1 && this.getOptions().includes("YESTERDAY")) {
 				oNewValue = {
 					operator: "YESTERDAY",
 					values: []
 				};
-			} else if (sKey === "NEXTDAYS" && aParams[0] === 1) {
+			} else if (sKey === "NEXTDAYS" && aParams[0] === 1  && this.getOptions().includes("TOMORROW")) {
 				oNewValue = {
 					operator: "TOMORROW",
 					values: []
@@ -1214,20 +1278,57 @@ sap.ui.define([
 			return oNewValue ? oNewValue : oValue;
 		};
 
-		var DynamicDateRangeInputRenderer = Renderer.extend(InputRenderer);
-		DynamicDateRangeInputRenderer.apiVersion = 2;
-
 		/**
-		 * Returns ARIA accessibility role for the control.
+		 * Returns the DOMNode Id to be used for the "labelFor" attribute of the label.
 		 *
-		 * @param {sap.ui.core.Control} oControl an object representation of the control
-		 * @returns {string}
+		 * By default, this is the Id of the control itself.
+		 *
+		 * @return {string} Id to be used for the <code>labelFor</code>
+		 * @public
 		 */
-		DynamicDateRangeInputRenderer.getAriaRole = function(oControl) {
-			return "combobox";
+		DynamicDateRange.prototype.getIdForLabel = function () {
+			// The DynamicDateRangeInput inherits from the Input
+			return this.getAggregation("_input").getIdForLabel();
 		};
 
+		/**
+		 * Some of the values are semantically equivalent to others.
+		 * Example: Last 1 days === Yesterday
+		 * When we receive value that is not present in the options property, we try to replace it with another existing equivalent option.
+		 *
+		 * @param {object} oValue A valid control value
+		 * @private
+		 * @returns {object} A substituted value if needed, or the same value if not
+		 */
+		DynamicDateRange.prototype._substitudeMissingValue = function(oValue) {
+			var oNewValue = oValue;
+
+			if (oValue  && oValue.operator === "YESTERDAY" && !this.getOptions().includes("YESTERDAY") && this.getOptions().includes("LASTDAYS")) {
+				oNewValue = {
+					operator: "LASTDAYS",
+					values: [1]
+				};
+			} else if (oValue && oValue.operator === "TOMORROW"  && !this.getOptions().includes("TOMORROW") && this.getOptions().includes("NEXTDAYS")) {
+				oNewValue = {
+					operator: "NEXTDAYS",
+					values: [1]
+				};
+			}
+
+			return oNewValue;
+		};
+
+		var DynamicDateRangeInputRenderer = Renderer.extend(InputRenderer);
+
+		DynamicDateRangeInputRenderer.apiVersion = 2;
+
 		DynamicDateRangeInputRenderer.writeInnerAttributes = function(oRm, oControl) {
+			var oDynamicDateRange = oControl._getControlOrigin ? oControl._getControlOrigin() : null,
+				mAccAttributes = this.getAccessibilityState(oControl);
+
+			if (oDynamicDateRange && oDynamicDateRange.isA("sap.m.DynamicDateRange")) {
+				oRm.accessibilityState(oDynamicDateRange, mAccAttributes);
+			}
 			oRm.attr("type", "text");
 		};
 
@@ -1261,7 +1362,6 @@ sap.ui.define([
 
 			mAccessibilityState.roledescription = oResourceBundle.getText("ACC_CTR_TYPE_DYNAMIC_DATE_RANGE");
 			mAccessibilityState.role = this.getAriaRole();
-			mAccessibilityState.expanded = oDynamicDateRange._oPopup ? oDynamicDateRange._oPopup.isOpen() : false;
 			mAccessibilityState.haspopup = coreLibrary.aria.HasPopup.ListBox.toLowerCase();
 			mAccessibilityState.autocomplete = "list";
 			mAccessibilityState.controls = oDynamicDateRange._oPopup && oDynamicDateRange._oPopup.getDomRef() ?
@@ -1309,6 +1409,13 @@ sap.ui.define([
 				&& this.getShowSuggestion()
 				&& !bIsClickedOnIcon
 				&& (!this._bClearButtonPressed);
+		};
+
+		DynamicDateRangeInput.prototype.onfocusin = function (oEvent) {
+			Input.prototype.onfocusin.apply(this, arguments);
+			if (this._getControlOrigin()._oPopup && this._getControlOrigin()._oPopup.isOpen()) {
+				this._getControlOrigin()._closePopup();
+			}
 		};
 
 		var DynamicDateRangeListItem = StandardListItem.extend("sap.m.DynamicDateRangeListItem", {

@@ -1,12 +1,9 @@
 /*!
  * ${copyright}
  */
-
-/* Provides a sandbox for this component:
- * For the "realOData" (realOData=true) case when the component runs with backend, the v2.ODataModel
- * constructor is wrapped so that the URL is adapted to a proxy URL.
- * For the case realOData=false a mockserver will be set up. Unknown values default to false.
- */
+// The SandboxModel is used in the manifest instead of OData V2 model for the following purposes:
+// Certain constructor parameters are taken from URL parameters. For the "non-realOData" case, a
+// mock server for the back-end requests is set up.
 sap.ui.define([
 	"sap/base/util/merge",
 	"sap/base/util/UriParameters",
@@ -254,6 +251,12 @@ sap.ui.define([
 						return true;
 					},
 					source : "metadata.xml"
+				},
+				"SAP__Currencies?$skip=0&$top=5000" : {
+					source : "../../data/SAP__Currencies.json"
+				},
+				"SAP__UnitsOfMeasure?$skip=0&$top=5000" : {
+					source : "../../data/SAP__UnitsOfMeasure.json"
 				},
 
 				/* Messages: Test Case I */
@@ -590,15 +593,15 @@ sap.ui.define([
 				"SalesOrderSet('109')" : {
 					source : "Messages/TC9/SalesOrderSet.json"
 				},
-				"SalesOrderSet('109')?$select=ChangedAt,GrossAmount,SalesOrderID" : [{
+				"SalesOrderSet('109')?$expand=ToLineItems%2CToLineItems%2FToProduct" : {
+					source : "Messages/TC9/SalesOrderSet_expand.json"
+				},
+				"SalesOrderSet('109')?$select=ChangedAt,GrossAmount,SalesOrderID" : {
 					headers : getMessageHeader([0], oCurrentMessages.reset().add("order",
 							"ToLineItems(SalesOrderID='109',ItemPosition='010')/Quantity")
 						.add("successFix", "")),
-					ifMatch : ithCall.bind(null, 1),
 					source : "Messages/TC9/SalesOrderSet.json"
-				}, {
-					source : "Messages/TC9/SalesOrderSet.json"
-				}],
+				},
 				"SalesOrderSet('109')/ToLineItems?$skip=0&$top=4&$inlinecount=allpages" : [{
 					ifMatch : ithCall.bind(null, 1),
 					message : getLineItems("Messages/TC9/SalesOrderSet-ToLineItems.json",
@@ -707,6 +710,12 @@ sap.ui.define([
 					},
 					code : 201,
 					source : "ODLB.create/TC1/SalesOrderSet_220.json"
+				}, { // used in ODataListBinding#create: Test Case III
+					ifMatch : function (oRequest) {
+						return JSON.parse(oRequest.requestBody).Note === "C";
+					},
+					code : 201,
+					source : "ODLB.create/TC3/SalesOrderSet_240.json"
 				}],
 				"SalesOrderSet('222')" : {
 					source : "ODLB.create/TC1/SalesOrderSet_222.json"
@@ -826,6 +835,35 @@ sap.ui.define([
 				},
 				"SalesOrderSet('230.1')?$select=ChangedAt,GrossAmount,SalesOrderID" : {
 					source : "ODLB.create/TC2/SalesOrder('230.1').json"
+				},
+
+				/* ODataListBinding#create: Test Case III */
+				"SalesOrderSet('205')" : {
+					source : "ODLB.create/TC3/SalesOrder('205').json"
+				},
+				"SalesOrderSet('205')/ToLineItems?$skip=0&$top=4&$inlinecount=allpages" : {
+					source : "ODLB.create/TC3/SalesOrder('205')_ToLineItems_0_4_count.json"
+				},
+				"SalesOrderSet('240')" : {
+					source : "ODLB.create/TC3/SalesOrderSet_240.json"
+				},
+				"SalesOrderSet('240')/ToLineItems?$skip=0&$top=4&$inlinecount=allpages" : {
+					message : { "d" : {"__count" : "0", "results" : []}}
+				},
+
+				/* ODataListBinding#create: Test Case IV */
+				"SalesOrderSet('245')" : {
+					source : "ODLB.create/TC4/SalesOrderSet('245').json"
+				},
+				"SalesOrderSet('245')/ToLineItems?$skip=0&$top=4&$inlinecount=allpages" : {
+					source : "ODLB.create/TC4/SalesOrderSet('245')_ToLineItems_0_4_count.json"
+				},
+				"POST SalesOrderSet('245')/ToLineItems" : {
+					code : 201,
+					source : "ODLB.create/TC4/SalesOrderLineItemSet(SalesOrderID='245',ItemPosition='020').json"
+				},
+				"SalesOrderSet('245')?$select=ChangedAt,GrossAmount,SalesOrderID" : {
+					source : "ODLB.create/TC4/SalesOrderSet('245')_after_save.json"
 				}
 			},
 			aRegExpFixture : [{

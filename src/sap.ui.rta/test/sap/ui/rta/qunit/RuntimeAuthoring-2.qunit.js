@@ -8,16 +8,19 @@ sap.ui.define([
 	"sap/m/Page",
 	"sap/ui/core/ComponentContainer",
 	"sap/ui/core/Core",
+	"sap/ui/model/json/JSONModel",
 	"sap/ui/dt/plugin/TabHandling",
 	"sap/ui/dt/util/ZIndexManager",
 	"sap/ui/dt/DesignTime",
 	"sap/ui/fl/apply/api/FlexRuntimeInfoAPI",
+	"sap/ui/fl/write/api/Version",
 	"sap/ui/fl/registry/Settings",
 	"sap/ui/fl/write/_internal/Versions",
 	"sap/ui/fl/write/api/ControlPersonalizationWriteAPI",
 	"sap/ui/fl/write/api/FeaturesAPI",
 	"sap/ui/fl/write/api/PersistenceWriteAPI",
 	"sap/ui/fl/write/api/ReloadInfoAPI",
+	"sap/ui/fl/write/api/TranslationAPI",
 	"sap/ui/fl/write/api/VersionsAPI",
 	"sap/ui/fl/Layer",
 	"sap/ui/fl/Utils",
@@ -36,17 +39,20 @@ sap.ui.define([
 	MessageToast,
 	Page,
 	ComponentContainer,
-	oCore,
+	Core,
+	JSONModel,
 	TabHandling,
 	ZIndexManager,
 	DesignTime,
 	FlexRuntimeInfoAPI,
+	Version,
 	Settings,
 	Versions,
 	ControlPersonalizationWriteAPI,
 	FeaturesAPI,
 	PersistenceWriteAPI,
 	ReloadInfoAPI,
+	TranslationAPI,
 	VersionsAPI,
 	Layer,
 	FlexUtils,
@@ -62,7 +68,7 @@ sap.ui.define([
 	"use strict";
 
 	var sandbox = sinon.createSandbox();
-	var oTextResources = oCore.getLibraryResourceBundle("sap.ui.rta");
+	var oTextResources = Core.getLibraryResourceBundle("sap.ui.rta");
 	var oComp = RtaQunitUtils.createAndStubAppComponent(sinon, "someId", {
 		"sap.app": {
 			id: "someId"
@@ -190,7 +196,7 @@ sap.ui.define([
 		beforeEach: function() {
 			this.fnFLPToExternalStub = sandbox.spy();
 			this.fnTriggerRealoadStub = sandbox.stub();
-			givenAnFLP(this.fnFLPToExternalStub, this.fnTriggerRealoadStub, {"sap-ui-fl-version": [sap.ui.fl.Versions.Draft.toString()]});
+			givenAnFLP(this.fnFLPToExternalStub, this.fnTriggerRealoadStub, {"sap-ui-fl-version": [Version.Number.Draft]});
 
 			this.oRta = new RuntimeAuthoring({
 				rootControl: oComp,
@@ -257,7 +263,8 @@ sap.ui.define([
 
 		QUnit.test("when draft changes already existed when entering and user exits RTA...", function(assert) {
 			var oReloadInfo = {
-				reloadMethod: this.oRta._RELOAD.VIA_HASH
+				reloadMethod: this.oRta._RELOAD.VIA_HASH,
+				hasVersionUrlParameter: true
 			};
 			sandbox.stub(this.oRta, "_handleReloadOnExit").resolves(oReloadInfo);
 			sandbox.stub(this.oRta, "_serializeToLrep").resolves();
@@ -335,7 +342,8 @@ sap.ui.define([
 
 			return this.oRta.stop().then(function() {
 				assert.equal(this.fnHandleParametersOnExitStub.callCount, 1, "then handleParametersOnExit was called");
-				assert.equal(this.fnTriggerCrossAppNavigationSpy.callCount, 1, "then crossAppNavigation was triggered");
+				assert.equal(this.fnTriggerRealoadStub.callCount, 1, "then reloadCurrentApp was triggered");
+				assert.equal(this.fnTriggerCrossAppNavigationSpy.callCount, 0, "then crossAppNavigation was not triggered");
 			}.bind(this));
 		});
 
@@ -351,11 +359,11 @@ sap.ui.define([
 			return this.oRta.stop().then(function() {
 				assert.equal(this.fnHandleParametersOnExitStub.callCount, 1, "then handleParametersOnExit was called");
 				assert.equal(this.fnTriggerRealoadStub.callCount, 1, "then reloadCurrentApp was trigger");
-				assert.equal(this.fnTriggerCrossAppNavigationSpy.callCount, 1, "then crossAppNavigation was triggered");
+				assert.equal(this.fnTriggerCrossAppNavigationSpy.callCount, 0, "then crossAppNavigation was not triggered");
 			}.bind(this));
 		});
 
-		QUnit.test("when all context is loaded without higher layer changes after entering RTA and user exits RTA...", function(assert) {
+		QUnit.test("when all context is loaded with higher layer changes after entering RTA and user exits RTA...", function(assert) {
 			var oReloadInfo = {
 				reloadMethod: this.oRta._RELOAD.VIA_HASH,
 				hasHigherLayerChanges: true,
@@ -385,6 +393,8 @@ sap.ui.define([
 			this.fnEnableRestartSpy = sandbox.spy(RuntimeAuthoring, "enableRestart");
 			this.fnTriggerCrossAppNavigationSpy = sandbox.stub(this.oRta, "_triggerCrossAppNavigation");
 			sandbox.spy(this.oRta, "_handleUrlParameterOnExit");
+
+			this.oRta._oToolbarControlsModel = new JSONModel({});
 
 			return this.oRta._initVersioning();
 		},
@@ -911,12 +921,13 @@ sap.ui.define([
 		});
 
 		QUnit.test("when Mode is changed from adaptation to navigation and back to adaptation", function(assert) {
-			var oTabhandlingPlugin = this.oRta.getPlugins()["tabHandling"];
-			var oTabHandlingRemoveSpy = sandbox.spy(oTabhandlingPlugin, "removeTabIndex");
-			var oTabHandlingRestoreSpy = sandbox.spy(oTabhandlingPlugin, "restoreTabIndex");
-			var oTabHandlingRemoveOverlaySpy = sandbox.spy(oTabhandlingPlugin, "removeOverlayTabIndex");
-			var oTabHandlingRestoreOverlaySpy = sandbox.spy(oTabhandlingPlugin, "restoreOverlayTabIndex");
+			var oTabHandlingPlugin = this.oRta.getPlugins()["tabHandling"];
+			var oTabHandlingRemoveSpy = sandbox.spy(oTabHandlingPlugin, "removeTabIndex");
+			var oTabHandlingRestoreSpy = sandbox.spy(oTabHandlingPlugin, "restoreTabIndex");
+			var oTabHandlingRemoveOverlaySpy = sandbox.spy(oTabHandlingPlugin, "removeOverlayTabIndex");
+			var oTabHandlingRestoreOverlaySpy = sandbox.spy(oTabHandlingPlugin, "restoreOverlayTabIndex");
 			var oFireModeChangedSpy = sandbox.stub(this.oRta, "fireModeChanged");
+			var oStopCutPasteStub = sandbox.stub(this.oRta.getPluginManager(), "handleStopCutPaste");
 
 			this.oRta.setMode("navigation");
 			assert.notOk(this.oRta._oDesignTime.getEnabled(), " in navigation mode the designTime property enabled is false");
@@ -924,6 +935,7 @@ sap.ui.define([
 			assert.equal(oTabHandlingRemoveOverlaySpy.callCount, 1, "removeOverlayTabIndex was called");
 			assert.equal(oFireModeChangedSpy.callCount, 1, "the event ModeChanged was fired");
 			assert.deepEqual(oFireModeChangedSpy.lastCall.args[0], {mode: "navigation"}, "the argument of the event is correct");
+			assert.strictEqual(oStopCutPasteStub.callCount, 1, "the cut paste was stopped");
 
 			// simulate mode change from toolbar
 			this.oRta.getToolbar().fireModeChange({item: { getKey: function() {return "adaptation";}}});
@@ -932,16 +944,18 @@ sap.ui.define([
 			assert.equal(oTabHandlingRestoreOverlaySpy.callCount, 1, "restoreOverlayTabIndex was called");
 			assert.equal(oFireModeChangedSpy.callCount, 2, "the event ModeChanged was fired again");
 			assert.deepEqual(oFireModeChangedSpy.lastCall.args[0], {mode: "adaptation"}, "the argument of the event is correct");
+			assert.strictEqual(oStopCutPasteStub.callCount, 1, "the cut paste was not stopped again");
 		});
 
 		QUnit.test("when Mode is changed from adaptation to visualization and back to adaptation", function(assert) {
 			oComp.getRootControl().addStyleClass("sapUiDtOverlayMovable");
-			var oTabhandlingPlugin = this.oRta.getPlugins()["tabHandling"];
-			var oTabHandlingRemoveSpy = sandbox.spy(oTabhandlingPlugin, "removeTabIndex");
-			var oTabHandlingRestoreSpy = sandbox.spy(oTabhandlingPlugin, "restoreTabIndex");
-			var oTabHandlingRemoveOverlaySpy = sandbox.spy(oTabhandlingPlugin, "removeOverlayTabIndex");
-			var oTabHandlingRestoreOverlaySpy = sandbox.spy(oTabhandlingPlugin, "restoreOverlayTabIndex");
+			var oTabHandlingPlugin = this.oRta.getPlugins()["tabHandling"];
+			var oTabHandlingRemoveSpy = sandbox.spy(oTabHandlingPlugin, "removeTabIndex");
+			var oTabHandlingRestoreSpy = sandbox.spy(oTabHandlingPlugin, "restoreTabIndex");
+			var oTabHandlingRemoveOverlaySpy = sandbox.spy(oTabHandlingPlugin, "removeOverlayTabIndex");
+			var oTabHandlingRestoreOverlaySpy = sandbox.spy(oTabHandlingPlugin, "restoreOverlayTabIndex");
 			var oFireModeChangedSpy = sandbox.stub(this.oRta, "fireModeChanged");
+			var oStopCutPasteStub = sandbox.stub(this.oRta.getPluginManager(), "handleStopCutPaste");
 
 			this.oRta.setMode("visualization");
 			assert.ok(this.oRta._oDesignTime.getEnabled(), "in visualization mode the designTime property enabled is true");
@@ -950,6 +964,7 @@ sap.ui.define([
 			assert.equal(oFireModeChangedSpy.callCount, 1, "the event ModeChanged was fired");
 			assert.deepEqual(oFireModeChangedSpy.lastCall.args[0], {mode: "visualization"}, "the argument of the event is correct");
 			assert.equal(jQuery(".sapUiDtOverlayMovable").css("cursor"), "default", "the movable overlays switched to the default cursor");
+			assert.strictEqual(oStopCutPasteStub.callCount, 1, "the cut paste was stopped");
 
 			// simulate mode change from toolbar
 			this.oRta.getToolbar().fireModeChange({item: { getKey: function() {return "adaptation";}}});
@@ -960,16 +975,17 @@ sap.ui.define([
 			assert.deepEqual(oFireModeChangedSpy.lastCall.args[0], {mode: "adaptation"}, "the argument of the event is correct");
 			assert.equal(jQuery(".sapUiDtOverlayMovable").css("cursor"), "move", "the movable overlays switched back to the move cursor");
 			oComp.getRootControl().removeStyleClass("sapUiDtOverlayMovable");
+			assert.strictEqual(oStopCutPasteStub.callCount, 1, "the cut paste was not stopped again");
 		});
 
-		QUnit.test("when Mode is changed from visualizaton to navigation and back to visualization", function(assert) {
+		QUnit.test("when Mode is changed from visualization to navigation and back to visualization", function(assert) {
 			oComp.getRootControl().addStyleClass("sapUiDtOverlayMovable");
 			this.oRta.setMode("visualization");
-			var oTabhandlingPlugin = this.oRta.getPlugins()["tabHandling"];
-			var oTabHandlingRemoveSpy = sandbox.spy(oTabhandlingPlugin, "removeTabIndex");
-			var oTabHandlingRestoreSpy = sandbox.spy(oTabhandlingPlugin, "restoreTabIndex");
-			var oTabHandlingRemoveOverlaySpy = sandbox.spy(oTabhandlingPlugin, "removeOverlayTabIndex");
-			var oTabHandlingRestoreOverlaySpy = sandbox.spy(oTabhandlingPlugin, "restoreOverlayTabIndex");
+			var oTabHandlingPlugin = this.oRta.getPlugins()["tabHandling"];
+			var oTabHandlingRemoveSpy = sandbox.spy(oTabHandlingPlugin, "removeTabIndex");
+			var oTabHandlingRestoreSpy = sandbox.spy(oTabHandlingPlugin, "restoreTabIndex");
+			var oTabHandlingRemoveOverlaySpy = sandbox.spy(oTabHandlingPlugin, "removeOverlayTabIndex");
+			var oTabHandlingRestoreOverlaySpy = sandbox.spy(oTabHandlingPlugin, "restoreOverlayTabIndex");
 			var oFireModeChangedSpy = sandbox.stub(this.oRta, "fireModeChanged");
 			assert.equal(jQuery(".sapUiDtOverlayMovable").css("cursor"), "default", "the movable overlays switched to the default cursor");
 
@@ -1031,23 +1047,23 @@ sap.ui.define([
 	}, function() {
 		QUnit.test("when RTA gets started", function(assert) {
 			return this.oRta.start().then(function() {
-				assert.strictEqual(jQuery(".sapUiRtaToolbar").length, 1, "then Toolbar is visible.");
+				assert.equal(jQuery(".sapUiRtaToolbar").length, 1, "then Toolbar is visible.");
 
-				assert.strictEqual(this.oRta._oToolbarControlsModel.getProperty("/appVariantsOverviewEnabled"), false, "then the 'AppVariant Overview' Menu Button is not enabled");
-				assert.strictEqual(this.oRta._oToolbarControlsModel.getProperty("/appVariantsOverviewVisible"), false, "then the 'AppVariant Overview' Menu Button is not visible");
-				assert.strictEqual(this.oRta._oToolbarControlsModel.getProperty("/manageAppsEnabled"), false, "then the 'AppVariant Overview' Icon Button is not enabled");
-				assert.strictEqual(this.oRta._oToolbarControlsModel.getProperty("/manageAppsVisible"), false, "then the 'AppVariant Overview' Icon Button is not visible");
-				assert.strictEqual(this.oRta._oToolbarControlsModel.getProperty("/saveAsEnabled"), false, "then the saveAs Button is not enabled");
-				assert.strictEqual(this.oRta._oToolbarControlsModel.getProperty("/saveAsVisible"), false, "then the saveAs Button is not visible");
-				assert.strictEqual(this.oRta._oToolbarControlsModel.getProperty("/modeSwitcher"), "adaptation", "then the mode is initially set to 'Adaptation'");
-				assert.strictEqual(this.oRta._oToolbarControlsModel.getProperty("/publishEnabled"), false, "then the Publish Button is disabled");
-				assert.strictEqual(this.oRta._oToolbarControlsModel.getProperty("/publishVisible"), false, "then the Publish Button is not visible");
-				assert.strictEqual(this.oRta._oToolbarControlsModel.getProperty("/redoEnabled"), false, "then the redo is disabled");
-				assert.strictEqual(this.oRta._oToolbarControlsModel.getProperty("/undoEnabled"), false, "then the undo is disabled");
-				assert.strictEqual(this.oRta._oToolbarControlsModel.getProperty("/restoreEnabled"), false, "then the restore is disabled");
-				assert.strictEqual(this.oRta._oToolbarControlsModel.getProperty("/translationEnabled"), false, "then the translation button is disabled");
-				assert.strictEqual(this.oRta._oToolbarControlsModel.getProperty("/translationVisible"), false, "then the translation button is not visible");
-				assert.strictEqual(this.oRta._oToolbarControlsModel.getProperty("/visualizationButtonVisible"), true, "then the visualization button is visible");
+				assert.equal(this.oRta._oToolbarControlsModel.getProperty("/appVariantsOverviewEnabled"), false, "then the 'AppVariant Overview' Menu Button is not enabled");
+				assert.equal(this.oRta._oToolbarControlsModel.getProperty("/appVariantsOverviewVisible"), false, "then the 'AppVariant Overview' Menu Button is not visible");
+				assert.equal(this.oRta._oToolbarControlsModel.getProperty("/manageAppsEnabled"), false, "then the 'AppVariant Overview' Icon Button is not enabled");
+				assert.equal(this.oRta._oToolbarControlsModel.getProperty("/manageAppsVisible"), false, "then the 'AppVariant Overview' Icon Button is not visible");
+				assert.equal(this.oRta._oToolbarControlsModel.getProperty("/saveAsEnabled"), false, "then the saveAs Button is not enabled");
+				assert.equal(this.oRta._oToolbarControlsModel.getProperty("/saveAsVisible"), false, "then the saveAs Button is not visible");
+				assert.equal(this.oRta._oToolbarControlsModel.getProperty("/modeSwitcher"), "adaptation", "then the mode is initially set to 'Adaptation'");
+				assert.equal(this.oRta._oToolbarControlsModel.getProperty("/publishEnabled"), false, "then the Publish Button is disabled");
+				assert.equal(this.oRta._oToolbarControlsModel.getProperty("/publishVisible"), false, "then the Publish Button is not visible");
+				assert.equal(this.oRta._oToolbarControlsModel.getProperty("/redoEnabled"), false, "then the redo is disabled");
+				assert.equal(this.oRta._oToolbarControlsModel.getProperty("/undoEnabled"), false, "then the undo is disabled");
+				assert.equal(this.oRta._oToolbarControlsModel.getProperty("/restoreEnabled"), false, "then the restore is disabled");
+				assert.equal(this.oRta._oToolbarControlsModel.getProperty("/translationEnabled"), false, "then the translation button is disabled");
+				assert.equal(this.oRta._oToolbarControlsModel.getProperty("/translationVisible"), false, "then the translation button is not visible");
+				assert.equal(this.oRta._oToolbarControlsModel.getProperty("/visualizationButtonVisible"), true, "then the visualization button is visible");
 
 				var oExpectedSettings = {
 					flexSettings: this.oFlexSettings,
@@ -1055,6 +1071,38 @@ sap.ui.define([
 					commandStack: this.oRta.getCommandStack()
 				};
 				assert.deepEqual(this.oRta.getToolbar().getRtaInformation(), oExpectedSettings, "the rta settings were passed to the toolbar");
+			}.bind(this));
+		});
+
+		QUnit.test("when RTA gets started with an enabled key user translation", function(assert) {
+			var oSettings = {
+				isKeyUserTranslationEnabled: true,
+				isKeyUser: true,
+				versioning: {}
+			};
+			var oSettingsInstance = new Settings(oSettings);
+			sandbox.stub(Settings, "getInstance").resolves(oSettingsInstance);
+			sandbox.stub(TranslationAPI, "getSourceLanguages").resolves([]);
+
+			return this.oRta.start().then(function() {
+				assert.equal(this.oRta._oToolbarControlsModel.getProperty("/translationVisible"), true, "then the Translate Button is visible");
+				assert.equal(this.oRta._oToolbarControlsModel.getProperty("/translationEnabled"), false, "then the Translate Button is disabled");
+			}.bind(this));
+		});
+
+		QUnit.test("when RTA gets started with an enabled key user translation and already translatable changes", function(assert) {
+			var oSettings = {
+				isKeyUserTranslationEnabled: true,
+				isKeyUser: true,
+				versioning: {}
+			};
+			var oSettingsInstance = new Settings(oSettings);
+			sandbox.stub(Settings, "getInstance").resolves(oSettingsInstance);
+			sandbox.stub(TranslationAPI, "getSourceLanguages").resolves(["en"]);
+
+			return this.oRta.start().then(function() {
+				assert.equal(this.oRta._oToolbarControlsModel.getProperty("/translationVisible"), true, "then the Translate Button is visible");
+				assert.equal(this.oRta._oToolbarControlsModel.getProperty("/translationEnabled"), true, "then the Translate Button is enabled");
 			}.bind(this));
 		});
 
@@ -1154,6 +1202,48 @@ sap.ui.define([
 				assert.strictEqual(this.oRta._oToolbarControlsModel.getProperty("/manageAppsVisible"), false, "then the 'AppVariant Overview' Icon Button is not visible");
 				assert.strictEqual(this.oRta._oToolbarControlsModel.getProperty("/saveAsEnabled"), false, "then the saveAs Button is not enabled");
 				assert.strictEqual(this.oRta._oToolbarControlsModel.getProperty("/saveAsVisible"), true, "then the saveAs Button is visible");
+			}.bind(this));
+		});
+
+		QUnit.test("when save is triggered via the toolbar with an appdescriptor change", function(assert) {
+			var fnResolve;
+			var oPromise = new Promise(function(resolve) {
+				fnResolve = resolve;
+			});
+			var oSerializeStub = sandbox.stub(this.oRta, "_serializeAndSave").resolves();
+			var oCallbackStub = sandbox.stub().callsFake(function() {
+				fnResolve();
+			});
+
+			return this.oRta.start().then(function() {
+				sandbox.stub(this.oRta._oSerializer, "needsReload").resolves(true);
+				this.oRta.getToolbar().fireSave({
+					callback: oCallbackStub
+				});
+				return oPromise;
+			}.bind(this))
+			.then(function() {
+				assert.ok(this.oRta._bReloadNeeded, "the flag was set");
+				assert.strictEqual(oSerializeStub.callCount, 1, "the serialize function was called once");
+				assert.strictEqual(oCallbackStub.callCount, 1, "the callback function was called once");
+			}.bind(this));
+		});
+
+		QUnit.test("when save is triggered via the toolbar with an translatable change", function(assert) {
+			return new Promise(function (resolve) {
+				this.oRta.start().then(function () {
+					assert.equal(this.oRta.bPersistedDataTranslatable, false, "no translation is present");
+
+					// simulate a translatable change was done
+					this.oRta._oToolbarControlsModel.setProperty("/translationEnabled", true);
+
+					this.oRta.getToolbar().fireSave({
+						callback: resolve
+					});
+				}.bind(this));
+			}.bind(this)).then(function () {
+				assert.equal(this.oRta._oToolbarControlsModel.getProperty("/translationEnabled"), true, "the translation button is still enabled");
+				assert.strictEqual(this.oRta.bPersistedDataTranslatable, true, "the serialize function was called once");
 			}.bind(this));
 		});
 	});
@@ -1291,7 +1381,7 @@ sap.ui.define([
 			this.oHandleParametersForStandalone.returns(document.location.search);
 			return this.oRta._determineReload().then(function() {
 				assert.equal(oHasMaxLayerParameterSpy.callCount, 1, "hasMaxLayerParameterWithValue is called");
-				assert.ok(oHasVersionParameterSpy.calledWith(sap.ui.fl.Versions.UrlParameter), "the version parameter was checked");
+				assert.ok(oHasVersionParameterSpy.calledWith("sap-ui-fl-version"), "the version parameter was checked");
 				assert.equal(this.oTriggerHardReloadStub.callCount, 1, "_triggerHardReload is called");
 			}.bind(this));
 		});
@@ -1300,7 +1390,7 @@ sap.ui.define([
 			sandbox.stub(FeaturesAPI, "isVersioningEnabled").returns(Promise.resolve(true));
 			sandbox.stub(VersionsAPI, "isDraftAvailable").returns(true);
 			sandbox.stub(ReloadInfoAPI, "hasMaxLayerParameterWithValue").returns(true);
-			sandbox.stub(FlexUtils, "getParameter").returns(sap.ui.fl.Versions.Draft.toString());
+			sandbox.stub(FlexUtils, "getParameter").returns(Version.Number.Draft);
 			var fnGetReloadMessageOnStartSpy = sandbox.spy(this.oRta, "_getReloadMessageOnStart");
 
 			this.oHandleParametersForStandalone.returns(document.location.search);

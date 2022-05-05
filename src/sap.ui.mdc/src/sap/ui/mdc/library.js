@@ -5,14 +5,29 @@
 /**
  * Initialization Code and shared classes of library sap.ui.mdc.
  */
-sap.ui.define([
+ sap.ui.define([
 	"sap/ui/core/Core", // provides sap.ui.getCore()
 	"sap/ui/core/library", // library dependency
 	"sap/m/library" // library dependency
 ], function () {
 	"use strict";
 
-	sap.ui.getCore().initLibrary({
+	/**
+	 * The SAPUI5 library that contains the metadata-driven controls and other entities.
+	 *
+	 * SAP Internal
+	 * This library is restricted to use by SAP internal projects only.
+	 *
+	 * @namespace
+	 * @alias sap.ui.mdc
+	 * @author SAP SE
+	 * @version ${version}
+	 * @since 1.80
+	 * @private
+	 * @ui5-restricted sap.fe
+	 * @experimental As of version 1.54 Disclaimer: Usage Restrictions: The components of this library are under development and documented as private. Their APIs are subject to change and should not be used in productive scenarios without further agreement. A general availability of sap.ui.mdc will be announced via the usual channels.
+	 */
+	 var thisLib = sap.ui.getCore().initLibrary({
 		version: "${version}",
 		name: "sap.ui.mdc",
 		dependencies: ["sap.ui.core", "sap.m"],
@@ -21,9 +36,9 @@ sap.ui.define([
 			"sap.ui.mdc.TableType",
 			"sap.ui.mdc.TableP13Mode",
 			"sap.ui.mdc.GrowingMode",
+			"sap.ui.mdc.RowAction",
 			"sap.ui.mdc.RowCountMode",
 			"sap.ui.mdc.SelectionMode",
-			"sap.ui.mdc.TableRowAction",
 			"sap.ui.mdc.FilterExpression",
 			"sap.ui.mdc.MultiSelectMode"
 			],
@@ -50,7 +65,6 @@ sap.ui.define([
 			"sap.ui.mdc.MultiValueField",
 			"sap.ui.mdc.link.Panel",
 			"sap.ui.mdc.link.ContactDetails",
-			"sap.ui.mdc.ui.Container",
 			"sap.ui.mdc.Chart",
 			"sap.ui.mdc.p13n.PersistenceProvider"
 			],
@@ -82,6 +96,7 @@ sap.ui.define([
 			"sap.ui.mdc.field.BoolFieldHelp",
 			"sap.ui.mdc.field.ConditionFieldHelp",
 			"sap.ui.mdc.filterbar.aligned.FilterItemLayout",
+			"sap.ui.mdc.Link",
 			"sap.ui.mdc.link.ContactDetailsAddressItem",
 			"sap.ui.mdc.link.ContactDetailsEmailItem",
 			"sap.ui.mdc.link.ContactDetailsItem",
@@ -93,7 +108,6 @@ sap.ui.define([
 			"sap.ui.mdc.link.SemanticObjectMappingItem",
 			"sap.ui.mdc.field.InParameter",
 			"sap.ui.mdc.field.OutParameter",
-			"sap.ui.mdc.ui.ContainerItem",
 			"sap.ui.mdc.field.MultiValueFieldItem",
 			"sap.ui.mdc.ValueHelp",
 			"sap.ui.mdc.valuehelp.Popover",
@@ -110,6 +124,7 @@ sap.ui.define([
 				"sap.ui.mdc.Chart": "sap/ui/mdc/flexibility/Chart",
 				"sap.ui.mdc.FilterBar": "sap/ui/mdc/flexibility/FilterBar",
 				"sap.ui.mdc.filterbar.p13n.AdaptationFilterBar": "sap/ui/mdc/flexibility/FilterBar",
+				"sap.ui.mdc.filterbar.vh.FilterBar": "sap/ui/mdc/flexibility/FilterBar",
 				"sap.ui.mdc.link.PanelItem": "sap/ui/mdc/flexibility/PanelItem",
 				"sap.ui.mdc.link.Panel": "sap/ui/mdc/flexibility/Panel",
 				"sap.ui.mdc.ActionToolbar": "sap/ui/mdc/flexibility/ActionToolbar",
@@ -120,29 +135,9 @@ sap.ui.define([
 		noLibraryCSS: false
 	});
 
-	/* eslint-disable no-undef */
-	/**
-	 * The SAPUI5 library that contains the metadata-driven controls and other entities.
-	 *
-	 * SAP Internal
-	 * This library is restricted to use by SAP internal projects only.
-	 *
-	 * @namespace
-	 * @alias sap.ui.mdc
-	 * @author SAP SE
-	 * @version ${version}
-	 * @since 1.80
-	 * @private
-	 * @ui5-restricted sap.fe
-	 * @experimental As of version 1.54 Disclaimer: Usage Restrictions: The components of this library are under development and documented as private. Their APIs are subject to change and should not be used in productive scenarios without further agreement. A general availability of sap.ui.mdc will be announced via the usual channels.
-	 */
-	 var thisLib = sap.ui.mdc;
-	 /* eslint-enable no-undef */
-
 	 /**
 	 *
 	 * Interface for valuehelp containers / contents supporting typeahead functionality
-	 *
 	 *
 	 * @since 1.95
 	 * @name sap.ui.mdc.valuehelp.ITypeaheadContent
@@ -266,7 +261,7 @@ sap.ui.define([
 	 * @param {sap.ui.base.Event} oControlEvent
 	 * @param {sap.ui.base.EventProvider} oControlEvent.getSource
 	 * @param {object} oControlEvent.getParameters
-	 * @param {boolean} oControlEvent.getParameters.bLeaveFocus Indicates that the source control should be focused again
+	 * @param {boolean} oControlEvent.getParameters.leaveFocus Indicates that the source control should be focused again
 	 * @param {object} oControlEvent.getParameters.condition Provides the target condition of the navigation
 	 * @param {string} oControlEvent.getParameters.value When no condition is given this can be used to create a default condition
 	 * @param {string} oControlEvent.getParameters.key When no condition is given this can be used to create a default condition
@@ -1160,9 +1155,11 @@ sap.ui.define([
 	};
 
 	/**
-	 * Enumeration of the <code>multiSelectMode>/code> in <code>ListBase</code>.
+	 * Enumeration of the <code>multiSelectMode</code> in <code>ListBase</code>.
 	 * @enum {string}
-	 * @public
+	 * @private
+	 * @ui5-restricted sap.ui.mdc
+	 * @ui5-metamodel This enumeration also will be described in the UI5 (legacy) designtime metamodel
 	 */
 	thisLib.MultiSelectMode = {
 		/**
@@ -1192,6 +1189,14 @@ sap.ui.define([
 	* @property {*} payload Delegate payload
 	* @private
 	*/
+
+	/**
+	 * @namespace
+	 * @name sap.ui.mdc.mixin
+	 * @private
+	 * @experimental As of version 1.82.0
+	 * @ui5-restricted sap.ui.mdc
+	 */
 
 	return thisLib;
 });

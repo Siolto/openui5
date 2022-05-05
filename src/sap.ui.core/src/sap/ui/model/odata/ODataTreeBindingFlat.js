@@ -10,11 +10,12 @@ sap.ui.define([
 	"sap/base/util/isEmptyObject",
 	"sap/base/util/uid",
 	"sap/ui/model/ChangeReason",
+	"sap/ui/model/Context",
 	"sap/ui/model/Filter",
 	"sap/ui/model/TreeBinding",
 	"sap/ui/model/TreeBindingUtils",
 	"sap/ui/model/odata/v2/ODataTreeBinding"
-], function(assert, Log, extend, isEmptyObject, uid, ChangeReason, Filter, TreeBinding,
+], function(assert, Log, extend, isEmptyObject, uid, ChangeReason, Context, Filter, TreeBinding,
 		TreeBindingUtils, ODataTreeBinding) {
 	"use strict";
 
@@ -3931,7 +3932,7 @@ sap.ui.define([
 
 			// check if we have a single context or an array of contexts
 			if (!Array.isArray(vContextHandles)) {
-				if (vContextHandles instanceof sap.ui.model.Context) {
+				if (vContextHandles instanceof Context) {
 					vContextHandles = [vContextHandles];
 				} else {
 					Log.warning("ODataTreeBinding.addContexts(): The child node argument is not of type sap.ui.model.Context.");
@@ -3959,7 +3960,7 @@ sap.ui.define([
 			for (var j = 0; j < vContextHandles.length; j++) {
 				oContext = vContextHandles[j];
 
-				if (!oContext || !(oContext instanceof sap.ui.model.Context)) {
+				if (!(oContext instanceof Context)) {
 					Log.warning("ODataTreeBindingFlat.addContexts(): no valid child context given!");
 					return;
 				}
@@ -4174,7 +4175,7 @@ sap.ui.define([
 	 * Gets the node info for the given row-index.
 	 *
 	 * @param {int} iRowIndex The row-index
-	 * @returns {{index:int}} Node info for the given row-index
+	 * @returns {{index: int}} Node info for the given row-index
 	 */
 	ODataTreeBindingFlat.prototype.getNodeInfoByRowIndex = function(iRowIndex) {
 		var iCPointer = 0, iEPointer = 0, oNode, bTypeCollapse, iValidCollapseIndex = -1;

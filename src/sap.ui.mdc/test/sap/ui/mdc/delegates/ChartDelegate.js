@@ -115,6 +115,7 @@ sap.ui.define([
     ChartDelegate.initializeInnerChart = function (oMDCChart) {
         return new Promise(function (resolve, reject) {
 
+
             this._loadChart().then(function (aModules) {
                 this._oInnerChart = new Chart({});
                 resolve(this._oInnerChart);
@@ -305,6 +306,10 @@ sap.ui.define([
     };
 
 
+    ChartDelegate.checkAndUpdateMDCItems = function(){
+        return Promise.resolve();
+    };
+
 
     ChartDelegate._getModel = function (oTable) {
         var oMetadataInfo = oTable.getDelegate().payload;
@@ -312,11 +317,15 @@ sap.ui.define([
     };
 
 
+    ChartDelegate.setNoDataText = function() {
+        //Nothing to do here in test delegate
+    };
+
     /**
-     * Initializes a new table property helper for V4 analytics with the property extensions merged into the property infos.
+     * Initializes a new chart property helper.
      *
-     * @param {sap.ui.mdc.Table} oTable Instance of the MDC table.
-     * @returns {Promise<sap.ui.mdc.table.V4AnalyticsPropertyHelper>} A promise that resolves with the property helper.
+     * @param {sap.ui.mdc.Chart} oMDCChart Instance of the MDC chart.
+     * @returns {Promise<sap.ui.mdc.odata.v4.ChartPropertyHelper>} A promise that resolves with the property helper.
      * @private
      * @ui5-restricted sap.ui.mdc
      */

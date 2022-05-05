@@ -47,13 +47,16 @@ sap.ui.define([
 				],
 				logo: new Avatar({
 					icon: "employee",
-					content: new Button({
+					image: new Button({
 						icon: "employee",
 						text: "Some text...",
 						click: function(oEvent) {
 							// console.log("Event click fired for Button with parameters: ", oEvent.getParameters());
 						}
-					})
+					}),
+					click: function(oEvent) {
+						// console.log("Event click fired for Avatar with parameters: ", oEvent.getParameters());
+					}
 				}),
 				menuItems: [
 					new CustomListItem({
@@ -98,13 +101,16 @@ sap.ui.define([
 				],
 				profile: new Avatar({
 					icon: "employee",
-					content: new Button({
+					image: new Button({
 						icon: "employee",
 						text: "Some text...",
 						click: function(oEvent) {
 							// console.log("Event click fired for Button with parameters: ", oEvent.getParameters());
 						}
-					})
+					}),
+					click: function(oEvent) {
+						// console.log("Event click fired for Avatar with parameters: ", oEvent.getParameters());
+					}
 				}),
 				searchField: new Input({
 					placeholder: "This is my placeholder value",
@@ -113,18 +119,21 @@ sap.ui.define([
 					valueStateMessage: "Value State Message",
 					icon: [
 						new Icon({
+							color: "blue",
 							name: "add",
 							click: function(oEvent) {
 								// console.log("Event click fired for Icon with parameters: ", oEvent.getParameters());
 							}
 						}),
 						new Icon({
+							color: "blue",
 							name: "add",
 							click: function(oEvent) {
 								// console.log("Event click fired for Icon with parameters: ", oEvent.getParameters());
 							}
 						}),
 						new Icon({
+							color: "blue",
 							name: "add",
 							click: function(oEvent) {
 								// console.log("Event click fired for Icon with parameters: ", oEvent.getParameters());

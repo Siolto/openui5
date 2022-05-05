@@ -18,7 +18,7 @@ sap.ui.require([
 
     var iChangeSelectedActions = function(oP13nDialog, aActions) {
         this.waitFor({
-			controlType: "sap.ui.mdc.p13n.panels.ListView",
+			controlType: "sap.m.p13n.SelectionPanel",
 			matchers: new Ancestor(oP13nDialog, false),
 			success: function(aListViews) {
 				var oListView = aListViews[0];
@@ -60,7 +60,7 @@ sap.ui.require([
             ],
             success: function(oP13nDialog) {
                 this.waitFor({
-                    controlType: "sap.ui.mdc.p13n.panels.ListView",
+                    controlType: "sap.m.p13n.SelectionPanel",
                     matchers: new Ancestor(oP13nDialog, false),
                     success: function(aListViews) {
                         var oListView = aListViews[0];
@@ -124,22 +124,6 @@ sap.ui.require([
                             Opa5.assert.ok(true, "the App is not busy anymore");
                         },
                         errorMessage: "The app is still busy.."
-                    });
-                },
-                iOpenContextMenuOfActionToolbar: function(sActionToolbarId) {
-                    return this.waitFor({
-                        controlType: "sap.ui.mdc.ActionToolbar",
-                        id: sActionToolbarId,
-                        success: function(oActionToolbar) {
-                            Opa5.assert.ok(oActionToolbar, "ActionToolbar found");
-                            this.waitFor({
-                                controlType: "sap.ui.dt.ElementOverlay",
-                                matchers: function(oElementOverlay) {
-                                    return oElementOverlay.getElementInstance().getId() === oActionToolbar.getId();
-                                },
-                                actions: new OpenContextMenu()
-                            });
-                        }
                     });
                 },
                 iSelectActions: function(aActions) {

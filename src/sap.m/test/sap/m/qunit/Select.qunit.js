@@ -477,25 +477,25 @@ sap.ui.define([
 			jQuery("html").removeClass("sapUiMedia-Std-Desktop")
 				.removeClass("sapUiMedia-Std-Tablet")
 				.addClass("sapUiMedia-Std-Phone");
-			sap.ui.Device.system.desktop = false;
-			sap.ui.Device.system.tablet = false;
-			sap.ui.Device.system.phone = true;
+			Device.system.desktop = false;
+			Device.system.tablet = false;
+			Device.system.phone = true;
 		};
 		var fnToDesktopMode = function () {
 			jQuery("html").removeClass("sapUiMedia-Std-Phone")
 				.removeClass("sapUiMedia-Std-Tablet")
 				.addClass("sapUiMedia-Std-Desktop");
-			sap.ui.Device.system.desktop = true;
-			sap.ui.Device.system.tablet = false;
-			sap.ui.Device.system.phone = false;
+			Device.system.desktop = true;
+			Device.system.tablet = false;
+			Device.system.phone = false;
 		};
 		var fnToTabletMode = function () {
 			$("html").removeClass("sapUiMedia-Std-Desktop")
 				.removeClass("sapUiMedia-Std-Phone")
 				.addClass("sapUiMedia-Std-Tablet");
-			sap.ui.Device.system.desktop = false;
-			sap.ui.Device.system.phone = false;
-			sap.ui.Device.system.tablet = true;
+			Device.system.desktop = false;
+			Device.system.phone = false;
+			Device.system.tablet = true;
 		};
 
 		QUnit.module("default values");
@@ -8733,6 +8733,59 @@ sap.ui.define([
 			assert.ok(oSpy.notCalled);
 		});
 
+		QUnit.test("it should fire liveChange event on ARROW Key navigation if a new item is selected", function (assert) {
+			//arrange
+			var fnFireSelectionChangeSpy = this.spy(this.oSelect, "fireEvent");
+
+			// act
+			qutils.triggerKeydown(this.oSelect.getDomRef(), KeyCodes.ARROW_DOWN);
+
+			// assert
+			assert.ok(fnFireSelectionChangeSpy.calledOnce, "liveChange fired once on successful item navigation");
+			assert.ok(fnFireSelectionChangeSpy.calledWithExactly("liveChange",
+				{selectedItem: this.oSelect.getItems()[1], id: this.oSelect.getId()}), "the correct item is passed with the event");
+		});
+
+		QUnit.test("it shouldn't fire liveChange event on ARROW Key navigation if no new item is selected", function (assert) {
+			//arrange
+			var fnFireSelectionChangeSpy = this.spy();
+			this.oSelect.attachLiveChange(fnFireSelectionChangeSpy);
+
+			// act
+			qutils.triggerKeydown(this.oSelect.getDomRef(), KeyCodes.ARROW_UP);
+
+			// assert
+			assert.strictEqual(fnFireSelectionChangeSpy.callCount, 0, "liveChange isn't fired on unsuccessful item navigation");
+		});
+
+		QUnit.test("it should fire liveChange event on Character Key press if a new item is selected", function (assert) {
+			//arrange
+			var fnFireSelectionChangeSpy = this.spy(this.oSelect, "fireEvent");
+
+			// act
+			qutils.triggerKeypress(this.oSelect.getDomRef(), "G");
+
+			// assert
+			assert.ok(fnFireSelectionChangeSpy.calledOnce, "liveChange fired once on successful item navigation");
+			assert.ok(fnFireSelectionChangeSpy.calledWithExactly("liveChange",
+				{selectedItem: this.oSelect.getItems()[1], id: this.oSelect.getId()}), "the correct item is passed with the event");
+		});
+
+		QUnit.test("it should fire liveChange event on revert selection", function (assert) {
+			//arrange
+			var fnFireSelectionChangeSpy;
+
+			// act
+			qutils.triggerKeypress(this.oSelect.getDomRef(), "G");
+			fnFireSelectionChangeSpy = this.spy(this.oSelect, "fireEvent");
+			this.oSelect._revertSelection();
+
+			// assert
+			assert.ok(fnFireSelectionChangeSpy.calledOnce, "liveChange fired once on revert item navigation");
+			assert.ok(fnFireSelectionChangeSpy.calledWithExactly("liveChange",
+				{selectedItem: this.oSelect.getItems()[0], id: this.oSelect.getId()}), "the correct item is passed with the event");
+		});
+
 		QUnit.module("onsapfocusleave");
 
 		QUnit.test("it should restore the focus to select if select list item gets the focus", function (assert) {
@@ -10420,6 +10473,65 @@ sap.ui.define([
 
 			// cleanup
 			oSelect.destroy();
+		});
+
+		QUnit.test("valueState change is postponed when the picker is closing", function (assert) {
+
+			// system under test,
+			var oItem,
+				oSelect = new Select({
+					items: [
+						new Item({
+							text: "lorem ipsum foo"
+						}),
+						oItem = new Item({
+							text: "lorem ipsum bar"
+						})
+					]
+				}),
+				oPicker = oSelect.getPicker(),
+				oPickerCloseSpy = this.spy(oSelect.getPicker(), "fireAfterClose"),
+				fnDone = assert.async(),
+				oFinishSettingValueStateStub = this.stub(oSelect, "_finishSettingValueState").callsFake(function() {
+					oFinishSettingValueStateStub.restore(); // avoid endless recursion
+					// assert
+					assert.ok(oPickerCloseSpy.calledOnce, "after close event is fired once");
+					assert.ok(true, "_finishSettingValueState is called after the picker closing animation is done");
+
+					// cleanup
+					oPickerCloseSpy.restore();
+					oSelect.destroy();
+					fnDone();
+				});
+
+			oSelect.attachEventOnce("change", function(oEvent) {
+				// act
+				// change value state on change / while closing picker
+				oSelect.setValueState(ValueState.Error);
+
+			}, this);
+
+			oPicker.attachEventOnce("afterOpen", function(oEvent) {
+				// act
+				// Close the Select's picker by mocking user click selection on a new item
+				oSelect.getList()._activateItem(oItem);
+
+			}, this);
+
+			oPicker.attachEventOnce("beforeClose", function(oEvent) {
+				// assert
+				assert.strictEqual(oFinishSettingValueStateStub.callCount, 0,
+					"_finishSettingValueState isn't called before the picker closing animation is finished.");
+			}, this);
+
+			// act
+			// Open the Select's picker
+			oSelect.placeAt("content");
+			Core.applyChanges();
+
+			// act
+			oSelect.open();
+			this.clock.tick(1000); // give some time for the picker to open
 		});
 
 		QUnit.module("Value State accessibility");

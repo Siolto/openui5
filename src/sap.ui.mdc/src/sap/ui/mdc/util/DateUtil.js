@@ -4,11 +4,13 @@
 sap.ui.define([
 		'sap/ui/core/library',
 		'sap/ui/core/date/UniversalDate',
+		'sap/ui/mdc/enum/BaseType',
 		'sap/base/util/merge'
 	],
 	function(
 			coreLibrary,
 			UniversalDate,
+			BaseType,
 			merge
 	) {
 		"use strict";
@@ -32,18 +34,29 @@ sap.ui.define([
 				 *
 				 * @param {any} vDate Date
 				 * @param {sap.ui.model.SimpleType} oType Data type
+				 * @param {sap.ui.mdc.enum.BaseType} [sBaseType] Basic type
 				 * @return {sap.ui.core.date.UniversalDate} UniversalDate
 				 * @private
 				 * @ui5-restricted sap.ui.mdc
 				 * @since 1.74.0
 				 */
-				typeToUniversalDate: function(vDate, oType) {
+				typeToUniversalDate: function(vDate, oType, sBaseType) {
 
-					var sDate = this.typeToString(vDate, oType, "yyyyMMdd");
+					var sPattern;
+					if (sBaseType && sBaseType === BaseType.DateTime) {
+						sPattern = "yyyyMMdd-HHmmssSSS";
+					} else {
+						sPattern = "yyyyMMdd";
+					}
+					var sDate = this.typeToString(vDate, oType, sPattern);
 					var iYear = parseInt(sDate.slice(0,4));
 					var iMonth = parseInt(sDate.slice(4,6)) - 1;
 					var iDate = parseInt(sDate.slice(6,8));
-					var oUniversalDate = new UniversalDate(UniversalDate.UTC(iYear, iMonth, iDate));
+					var iHour = sBaseType === BaseType.DateTime ? parseInt(sDate.slice(9,11)) : 0;
+					var iMinute = sBaseType === BaseType.DateTime ? parseInt(sDate.slice(11,13)) : 0;
+					var iSecond = sBaseType === BaseType.DateTime ? parseInt(sDate.slice(13,15)) : 0;
+					var iMillisecond = sBaseType === BaseType.DateTime ? parseInt(sDate.slice(15,18)) : 0;
+					var oUniversalDate = new UniversalDate(UniversalDate.UTC(iYear, iMonth, iDate, iHour, iMinute, iSecond, iMillisecond));
 
 					return oUniversalDate;
 
@@ -54,18 +67,30 @@ sap.ui.define([
 				 *
 				 * @param {sap.ui.core.date.UniversalDate} oDate UniversalDate
 				 * @param {sap.ui.model.SimpleType} oType Data type
+				 * @param {sap.ui.mdc.enum.BaseType} [sBaseType] Basic type
 				 * @return {any} type specific date
 				 * @private
 				 * @ui5-restricted sap.ui.mdc
 				 * @since 1.74.0
 				 */
-				universalDateToType: function(oDate, oType) {
+				universalDateToType: function(oDate, oType, sBaseType) {
 
 					var iYear = oDate.getUTCFullYear();
 					var iMonth = oDate.getUTCMonth() + 1;
 					var iDate = oDate.getUTCDate();
 					var sDate = iYear.toString() + ((iMonth < 10) ? "0" : "") + iMonth.toString() + ((iDate < 10) ? "0" : "") + iDate.toString();
-					var vDate = this.stringToType(sDate, oType, "yyyyMMdd");
+					var sPattern;
+					if (sBaseType && sBaseType === BaseType.DateTime) {
+						sPattern = "yyyyMMdd-HHmmssSSS";
+						var iHour = oDate.getUTCHours();
+						var iMinute = oDate.getUTCMinutes();
+						var iSecond = oDate.getUTCSeconds();
+						var iMillisecond = oDate.getUTCMilliseconds();
+						sDate = sDate + "-" + ((iHour < 10) ? "0" : "") + iHour.toString() + ((iMinute < 10) ? "0" : "") + iMinute.toString() + ((iSecond < 10) ? "0" : "") + iSecond.toString() + ((iMillisecond < 100) ? "0" : "") + ((iMillisecond < 10) ? "0" : "") + iMillisecond.toString();
+					} else {
+						sPattern = "yyyyMMdd";
+					}
+					var vDate = this.stringToType(sDate, oType, sPattern);
 
 					return vDate;
 
@@ -76,7 +101,7 @@ sap.ui.define([
 				 *
 				 * @param {sap.ui.model.SimpleType} oType Data type
 				 * @param {string} sPattern Pattern based on Unicode LDML Date Format notation. {@link http://unicode.org/reports/tr35/#Date_Field_Symbol_Table}
-				 * @return {sap.ui.model.SimpleType} nes data type
+				 * @return {sap.ui.model.SimpleType} new data type
 				 * @private
 				 * @ui5-restricted sap.ui.mdc
 				 * @since 1.74.0
@@ -93,7 +118,32 @@ sap.ui.define([
 					oFormatOptions.pattern = sPattern;
 					oFormatOptions.calendarType = CalendarType.Gregorian;
 
+					if (this.showTimezone(oType)) {
+						// for Date/Time part of binding hide timezone, a new binding with only TimeZone is added to TimeZone property of DateTimePicker
+						oFormatOptions.showTimezone = false;
+					}
+
 					return new Type(oFormatOptions, oConstraints);
+
+				},
+
+				/**
+				 * Checks if a DateTimeWithTimezone is used and the Timezone should be shown beside Date an time
+				 *
+				 * @param {sap.ui.model.SimpleType} oType Data type
+				 * @return {boolean} if set, timezine needs to be shown
+				 * @private
+				 * @ui5-restricted sap.ui.mdc
+				 * @since 1.101.0
+				 */
+				showTimezone: function(oType) {
+
+					var oFormatOptions = oType.getFormatOptions();
+					var fnCheckProperty = function(oFormatOptions, sProperty) {
+						return !oFormatOptions.hasOwnProperty(sProperty) || oFormatOptions[sProperty]; // if not set, showTimezone=true, showDate=true or showTime=true is default
+					};
+
+					return oType.isA("sap.ui.model.odata.type.DateTimeWithTimezone") && fnCheckProperty(oFormatOptions, "showTimezone") && (fnCheckProperty(oFormatOptions, "showDate") || fnCheckProperty(oFormatOptions, "showTime"));
 
 				},
 

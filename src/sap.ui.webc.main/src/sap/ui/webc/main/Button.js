@@ -6,9 +6,10 @@
 sap.ui.define([
 	"sap/ui/webc/common/WebComponent",
 	"./library",
+	"sap/ui/core/EnabledPropagator",
 	"sap/ui/core/library",
 	"./thirdparty/Button"
-], function(WebComponent, library, coreLibrary) {
+], function(WebComponent, library, EnabledPropagator, coreLibrary) {
 	"use strict";
 
 	var TextDirection = coreLibrary.TextDirection;
@@ -51,7 +52,7 @@ sap.ui.define([
 	 * @since 1.92.0
 	 * @experimental Since 1.92.0 This control is experimental and its API might change significantly.
 	 * @alias sap.ui.webc.main.Button
-	 * @implements sap.ui.webc.main.IButton
+	 * @implements sap.ui.webc.main.IButton, sap.ui.core.IFormContent
 	 * @ui5-metamodel This control/element also will be described in the UI5 (legacy) designtime metamodel
 	 */
 	var Button = WebComponent.extend("sap.ui.webc.main.Button", {
@@ -59,7 +60,8 @@ sap.ui.define([
 			library: "sap.ui.webc.main",
 			tag: "ui5-button-ui5",
 			interfaces: [
-				"sap.ui.webc.main.IButton"
+				"sap.ui.webc.main.IButton",
+				"sap.ui.core.IFormContent"
 			],
 			properties: {
 
@@ -74,7 +76,7 @@ sap.ui.define([
 				 *         <ul>
 				 *             <li><code>true</code></li>
 				 *             <li><code>false</code></li>
-				 *             <ul>
+				 *         </ul>
 				 *     </li>
 				 *     <li><code>hasPopup</code>: Indicates the availability and type of interactive popup element, such as menu or dialog, that can be triggered by the button. Accepts the following string values:
 				 *         <ul>
@@ -94,7 +96,7 @@ sap.ui.define([
 				},
 
 				/**
-				 * Sets the accessible aria name of the component.
+				 * Defines the accessible aria name of the component.
 				 */
 				accessibleName: {
 					type: "string"
@@ -123,11 +125,16 @@ sap.ui.define([
 				},
 
 				/**
-				 * Defines whether the component is disabled. A disabled component can't be pressed or focused, and it is not in the tab chain.
+				 * Defines whether the control is enabled. A disabled control can't be interacted with, and it is not in the tab chain.
 				 */
-				disabled: {
+				enabled: {
 					type: "boolean",
-					defaultValue: false
+					defaultValue: true,
+					mapping: {
+						type: "attribute",
+						to: "disabled",
+						formatter: "_mapEnabled"
+					}
 				},
 
 				/**
@@ -185,7 +192,6 @@ sap.ui.define([
 				 */
 				width: {
 					type: "sap.ui.core.CSSSize",
-					defaultValue: null,
 					mapping: "style"
 				}
 			},
@@ -214,9 +220,12 @@ sap.ui.define([
 				click: {
 					parameters: {}
 				}
-			}
+			},
+			designtime: "sap/ui/webc/main/designtime/Button.designtime"
 		}
 	});
+
+	EnabledPropagator.call(Button.prototype);
 
 	/* CUSTOM CODE START */
 	/* CUSTOM CODE END */

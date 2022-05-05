@@ -3,8 +3,8 @@
  */
 
 sap.ui.define([
-	"sap/ui/core/Core", "./TableTypeBase", "../library", "sap/m/Button", "sap/ui/Device", "sap/m/plugins/ColumnResizer"
-], function(Core, TableTypeBase, library, Button, Device, ColumnResizer) {
+	"sap/ui/core/Core", "./TableTypeBase", "../library", "sap/m/Button", "sap/ui/Device", "sap/m/plugins/ColumnResizer", "sap/m/SegmentedButton", "sap/m/SegmentedButtonItem"
+], function(Core, TableTypeBase, library, Button, Device, ColumnResizer, SegmentedButton, SegmentedButtonItem) {
 	"use strict";
 
 	var InnerTable, InnerColumn, InnerRow;
@@ -112,7 +112,6 @@ sap.ui.define([
 		// avoid execution of the if and else if block if bValue has not changed
 		if (bValue && !this._oShowDetailsButton) {
 			oTable.getHeaderToolbar().insertEnd(this._getShowDetailsButton(), 0);
-			this._renderShowDetailsButton();
 			oTable.attachEvent("popinChanged", this._onPopinChanged, this);
 			oTable.setHiddenInPopin(this._getImportanceToHide());
 		} else if (!bValue && this._oShowDetailsButton) {
@@ -187,23 +186,15 @@ sap.ui.define([
 			return;
 		}
 
-		var oRowActionsInfo = oRowSettings.getAllActions();
+		var vRowType, bVisibleBound, fnVisibleFormatter, oRowActionsInfo = oRowSettings.getAllActions();
+		// If templateInfo is given, the rowActions are bound
 		if ("templateInfo" in oRowActionsInfo) {
 			var oTemplateInfo = oRowActionsInfo.templateInfo;
 
-			if (oTemplateInfo.visible.formatter) {
-				// Wrap the formatter (which should return a boolean) value and determine the type based on the formatted value.
-				var fnFormatter = oTemplateInfo.visible.formatter;
-				oTemplateInfo.visible.formatter = function (sValue) {
-					var bVisible = fnFormatter(sValue);
-					return bVisible ? RowAction.Navigation : sType;
-				};
-			}
-			if (typeof oTemplateInfo.visible === "object") {
-				oTable._oTemplate.bindProperty("type", oTemplateInfo.visible);
-			} else {
-				oTable._oTemplate.setProperty("type", oTemplateInfo.visible);
-			}
+			fnVisibleFormatter = oTemplateInfo.visible.formatter;
+			// If visible property is of type object, we know for certain the property is bound (see RowSettings.getAllActions)
+			bVisibleBound = typeof oTemplateInfo.visible == "object";
+			vRowType = oTemplateInfo.visible;
 		} else if (oRowActionsInfo && oRowActionsInfo.items){
 			var _oRowActionItem;
 			if (oRowActionsInfo.items.length == 0) {
@@ -211,20 +202,40 @@ sap.ui.define([
 				return;
 			}
 
+			// Check if rowActions are of type Navigation. ResponsiveTable currently only supports RowActionItem<Navigation>
 			_oRowActionItem = oRowActionsInfo.items.find(function (oRowAction) {
 				return oRowAction.getType() == "Navigation";
 			});
-
-			// ResponsiveTable currently only supports RowActionItem<Navigation>
 			if (!_oRowActionItem && oRowActionsInfo.items.length > 0) {
 				throw new Error("No RowAction of type 'Navigation' found. sap.m.Table only accepts RowAction of type 'Navigation'.");
 			}
 
 			// Associate RowActionItem<Navigation> to template for reference
 			oTable._oTemplate.data("rowAction", _oRowActionItem);
+
+			// Check if visible property is bound
+			bVisibleBound = _oRowActionItem.isBound("visible");
+			// Based on whether visible property is bound, either get binding info or the actual property
+			vRowType = bVisibleBound ? _oRowActionItem.getBindingInfo("visible") : _oRowActionItem.getVisible();
+			fnVisibleFormatter = vRowType.formatter;
 		}
 
-		oTable._oTemplate.setType(RowAction.Navigation);
+		// If a custom formatter exists, apply it before converting it to row type, otherwise just convert
+		if (fnVisibleFormatter) {
+			vRowType.formatter = function (sValue) {
+				var bVisible = fnVisibleFormatter(sValue);
+				return bVisible ? RowAction.Navigation : sType;
+			};
+		} else {
+			vRowType = vRowType ? RowAction.Navigation : sType;
+		}
+
+		// Depending on whether the property is bound, either bind or set
+		if (bVisibleBound) {
+			oTable._oTemplate.bindProperty("type", vRowType);
+		} else {
+			oTable._oTemplate.setProperty("type", vRowType);
+		}
 	};
 
 	ResponsiveTableType.disableColumnResizer = function(oTable, oInnerTable) {
@@ -250,26 +261,18 @@ sap.ui.define([
 		}
 	};
 
-	ResponsiveTableType.startColumnResize = function(oInnerTable, oColumn) {
+	ResponsiveTableType.startColumnResize = function(oInnerTable, oColumn, oColumnMenu) {
 		var oColumnResizer = ColumnResizer.getPlugin(oInnerTable);
 
 		if (!oColumnResizer) {
 			return;
 		}
 
-		return oColumnResizer.getColumnResizeButton(oColumn);
-	};
-
-	/**
-	 * Renders the look and feel of the Show / Hide Details button
-	 *
-	 * @private
-	 */
-	ResponsiveTableType.prototype._renderShowDetailsButton = function() {
-		var oRb = Core.getLibraryResourceBundle("sap.ui.mdc"), sText;
-
-		sText = this.bHideDetails ? oRb.getText("table.SHOWDETAILS_TEXT") : oRb.getText("table.HIDEDETAILS_TEXT");
-		this._oShowDetailsButton.setText(sText);
+		if (oColumnMenu && oColumnMenu.isA("sap.m.table.columnmenu.Menu")) {
+			return oColumnResizer.getColumnResizeQuickAction(oColumn, oColumnMenu);
+		} else {
+			return oColumnResizer.getColumnResizeButton(oColumn);
+		}
 	};
 
 	/**
@@ -294,17 +297,37 @@ sap.ui.define([
 		} else {
 			oTable.setHiddenInPopin([]);
 		}
-		this._renderShowDetailsButton();
 	};
 
 	ResponsiveTableType.prototype._getShowDetailsButton = function() {
 		if (!this._oShowDetailsButton) {
+			var oRb = Core.getLibraryResourceBundle("sap.ui.mdc");
 			this.bHideDetails = true;
-			this._oShowDetailsButton = new Button(this.getId() + "-showHideDetails", {
+			this._oShowDetailsButton = new SegmentedButton(this.getId() + "-showHideDetails", {
 				visible: false,
-				press: [function() {
-					this._toggleShowDetails(!this.bHideDetails);
-				}, this]
+				selectedKey: "hideDetails",
+				items: [
+					new SegmentedButtonItem({
+						icon: "sap-icon://detail-more",
+						key: "showDetails",
+						tooltip: oRb.getText("table.SHOWDETAILS_TEXT"),
+						press: [
+							function() {
+								this._toggleShowDetails(false);
+							}, this
+						]
+					}),
+					new SegmentedButtonItem({
+						icon: "sap-icon://detail-less",
+						key: "hideDetails",
+						tooltip: oRb.getText("table.HIDEDETAILS_TEXT"),
+						press: [
+							function() {
+								this._toggleShowDetails(true);
+							}, this
+						]
+					})
+				]
 			});
 		}
 		return this._oShowDetailsButton;
@@ -318,15 +341,12 @@ sap.ui.define([
 	 */
 	ResponsiveTableType.prototype._getImportanceToHide = function() {
 		var aDetailsButtonSetting = this.getDetailsButtonSetting() || [];
-		var aImportanceToHide = [];
 
 		if (aDetailsButtonSetting.length) {
-			aImportanceToHide = aDetailsButtonSetting;
+			return aDetailsButtonSetting;
 		} else {
-			aImportanceToHide = Device.system.phone ? ["Low", "Medium"] : ["Low"];
+			return Device.system.phone ? ["Low", "Medium"] : ["Low"];
 		}
-
-		return aImportanceToHide;
 	};
 
 	/**

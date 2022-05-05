@@ -115,17 +115,17 @@ sap.ui.define([
 	};
 	var _oExpectedValues = {
 		"string1": {
-			"defalut": "String1 Value Content"
+			"default": "String1 Value Content"
 		},
 		"string3": {
-			"defalut": "String 3"
+			"default": "String 3"
 		},
 		"string4": {
-			"defalut": "String4 Value Translation",
+			"default": "String4 Value Translation",
 			"defaultOri_in_trans": "String4 Value Content"
 		},
 		"string5": {
-			"defalut": "String 5 English",
+			"default": "String 5 English",
 			"en": "String 5 English",
 			"en-US": "String 5 US English",
 			"fr-CA": "String 5 French CA",
@@ -168,17 +168,17 @@ sap.ui.define([
 	}, function () {
 		_aCheckedLanguages.forEach(function(oCoreLanguage) {
 			var sCoreLanguageKey = oCoreLanguage.key;
-			var sString1OriValue = _oExpectedValues["string1"][sCoreLanguageKey] || _oExpectedValues["string1"]["defalut"];
-			var sString3OriValue = _oExpectedValues["string3"][sCoreLanguageKey] || _oExpectedValues["string3"]["defalut"];
-			var sString5OriValue = _oExpectedValues["string5"][sCoreLanguageKey] || _oExpectedValues["string5"]["defalut"];
+			var sString1OriValue = _oExpectedValues["string1"][sCoreLanguageKey] || _oExpectedValues["string1"]["default"];
+			var sString3OriValue = _oExpectedValues["string3"][sCoreLanguageKey] || _oExpectedValues["string3"]["default"];
+			var sString5OriValue = _oExpectedValues["string5"][sCoreLanguageKey] || _oExpectedValues["string5"]["default"];
 			_aCheckedLanguages.forEach(function(oEditorLanguage) {
 				var sEditorLanguageKey = oEditorLanguage.key;
 				var sCaseTitle = "Core: " + sCoreLanguageKey + ", Editor: " + sEditorLanguageKey;
-				var sString1TransValue = _oExpectedValues["string1"][sEditorLanguageKey] || _oExpectedValues["string1"]["defalut"];
-				var sString3TransValue = _oExpectedValues["string3"][sEditorLanguageKey] || _oExpectedValues["string3"]["defalut"];
-				var sString4OriValue = sEditorLanguageKey === sCoreLanguageKey ? _oExpectedValues["string4"]["defalut"] : _oExpectedValues["string4"]["defaultOri_in_trans"];
-				var sString4TransValue = _oExpectedValues["string4"][sEditorLanguageKey] || _oExpectedValues["string4"]["defalut"];
-				var sString5TransValue = _oExpectedValues["string5"][sEditorLanguageKey] || _oExpectedValues["string5"]["defalut"];
+				var sString1TransValue = _oExpectedValues["string1"][sEditorLanguageKey] || _oExpectedValues["string1"]["default"];
+				var sString3TransValue = _oExpectedValues["string3"][sEditorLanguageKey] || _oExpectedValues["string3"]["default"];
+				var sString4OriValue = sEditorLanguageKey === sCoreLanguageKey ? _oExpectedValues["string4"]["default"] : _oExpectedValues["string4"]["defaultOri_in_trans"];
+				var sString4TransValue = _oExpectedValues["string4"][sEditorLanguageKey] || _oExpectedValues["string4"]["default"];
+				var sString5TransValue = _oExpectedValues["string5"][sEditorLanguageKey] || _oExpectedValues["string5"]["default"];
 				QUnit.test(sCaseTitle, function (assert) {
 					var that = this;
 					//Fallback language
@@ -288,7 +288,7 @@ sap.ui.define([
 						assert.ok(oField5.getAggregation("_field").getValue() === _oExpectedValues["string5"]["en"], "oField5: String5 Value");
 						assert.ok(oField5.getAggregation("_field").isA("sap.m.Input"), "oField5: Input control");
 
-						var oValueHelpIcon1 = oField1.getAggregation("_field").getAggregation("_endIcon")[0];
+						var oValueHelpIcon1 = oField1.getAggregation("_field")._oValueHelpIcon;
 						assert.ok(oValueHelpIcon1.isA("sap.ui.core.Icon"), "oField1: Input value help icon");
 						assert.ok(oValueHelpIcon1.getSrc() === "sap-icon://translate", "oField1: Input value help icon src");
 						oValueHelpIcon1.firePress();
@@ -308,7 +308,7 @@ sap.ui.define([
 							assert.ok(oLanguageItems1[0].getTitle() === that.oEditor._oResourceBundle.getText("EDITOR_FIELD_TRANSLATION_LIST_POPOVER_LISTITEM_GROUP_NOTUPDATED"), "oTranslationPopover1 Content: item 0");
 							for (var i = 1; i < oLanguageItems1.length; i++) {
 								var sLanguage = oLanguageItems1[i].getCustomData()[0].getKey();
-								var sExpectedValue = _oExpectedValues["string1"][sLanguage] || _oExpectedValues["string1"]["defalut"];
+								var sExpectedValue = _oExpectedValues["string1"][sLanguage] || _oExpectedValues["string1"]["default"];
 								var sCurrentValue = oLanguageItems1[i].getContent()[0].getItems()[1].getValue();
 								assert.ok(sCurrentValue === sExpectedValue, "oTranslationPopover1 Content: item " + i + " " + sLanguage + ", current: " + sCurrentValue + ", expected: " + sExpectedValue);
 							}
@@ -318,7 +318,7 @@ sap.ui.define([
 							var oValueHelpIcon2 = oField2.getAggregation("_field").getAggregation("_endIcon");
 							assert.ok(oValueHelpIcon2 === null, "oField2: No Input value help icon");
 
-							var oValueHelpIcon3 = oField3.getAggregation("_field").getAggregation("_endIcon")[0];
+							var oValueHelpIcon3 = oField3.getAggregation("_field")._oValueHelpIcon;
 							assert.ok(oValueHelpIcon3.isA("sap.ui.core.Icon"), "oField3: Input value help icon");
 							assert.ok(oValueHelpIcon3.getSrc() === "sap-icon://translate", "oField3: Input value help icon src");
 							oValueHelpIcon3.firePress();
@@ -334,14 +334,14 @@ sap.ui.define([
 								assert.ok(oLanguageItems3[0].getTitle() === that.oEditor._oResourceBundle.getText("EDITOR_FIELD_TRANSLATION_LIST_POPOVER_LISTITEM_GROUP_NOTUPDATED"), "oTranslationPopover3 Content: item 0");
 								for (var i = 1; i < oLanguageItems3.length; i++) {
 									var sLanguage = oLanguageItems3[i].getCustomData()[0].getKey();
-									var sExpectedValue = _oExpectedValues["string3"][sLanguage] || _oExpectedValues["string3"]["defalut"];
+									var sExpectedValue = _oExpectedValues["string3"][sLanguage] || _oExpectedValues["string3"]["default"];
 									var sCurrentValue = oLanguageItems3[i].getContent()[0].getItems()[1].getValue();
 									assert.ok(sCurrentValue === sExpectedValue, "oTranslationPopover3 Content: item " + i + " " + sLanguage + ", current: " + sCurrentValue + ", expected: " + sExpectedValue);
 								}
 								var oCancelButton3 = oTranslationPopover3.getFooter().getContent()[2];
 								oCancelButton3.firePress();
 
-								var oValueHelpIcon4 = oField4.getAggregation("_field").getAggregation("_endIcon")[0];
+								var oValueHelpIcon4 = oField4.getAggregation("_field")._oValueHelpIcon;
 								assert.ok(oValueHelpIcon4.isA("sap.ui.core.Icon"), "oField4: Input value help icon");
 								assert.ok(oValueHelpIcon4.getSrc() === "sap-icon://translate", "oField4: Input value help icon src");
 								oValueHelpIcon4.firePress();
@@ -364,7 +364,7 @@ sap.ui.define([
 									var oCancelButton4 = oTranslationPopover4.getFooter().getContent()[2];
 									oCancelButton4.firePress();
 
-									var oValueHelpIcon5 = oField5.getAggregation("_field").getAggregation("_endIcon")[0];
+									var oValueHelpIcon5 = oField5.getAggregation("_field")._oValueHelpIcon;
 									assert.ok(oValueHelpIcon5.isA("sap.ui.core.Icon"), "oField5: Input value help icon");
 									assert.ok(oValueHelpIcon5.getSrc() === "sap-icon://translate", "oField5: Input value help icon src");
 									oValueHelpIcon5.firePress();
@@ -372,7 +372,7 @@ sap.ui.define([
 									wait().then(function () {
 										var oTranslationPopover5 = oField5.getAggregation("_field")._oTranslationPopover;
 										var aHeaderItems5 = oTranslationPopover5.getCustomHeader().getItems();
-										assert.ok(aHeaderItems5[2].getItems()[1].getValue() === _oExpectedValues["string5"]["en"] || _oExpectedValues["string5"]["defalut"], "oTranslationPopover5 Header: String5 Value");
+										assert.ok(aHeaderItems5[2].getItems()[1].getValue() === _oExpectedValues["string5"]["en"] || _oExpectedValues["string5"]["default"], "oTranslationPopover5 Header: String5 Value");
 										assert.ok(aHeaderItems5[2].getItems()[1].getEditable() === false, "oTranslationPopover5 Header: Editable false");
 										assert.ok(oTranslationPopover5.getContent()[0].isA("sap.m.List"), "oTranslationPopover5 Content: List");
 										var oLanguageItems5 = oTranslationPopover5.getContent()[0].getItems();
@@ -380,7 +380,7 @@ sap.ui.define([
 										assert.ok(oLanguageItems5[0].getTitle() === that.oEditor._oResourceBundle.getText("EDITOR_FIELD_TRANSLATION_LIST_POPOVER_LISTITEM_GROUP_NOTUPDATED"), "oTranslationPopover5 Content: item 0");
 										for (var i = 1; i < oLanguageItems5.length; i++) {
 											var sLanguage = oLanguageItems5[i].getCustomData()[0].getKey();
-											var sExpectedValue = _oExpectedValues["string5"][sLanguage] || _oExpectedValues["string5"]["defalut"];
+											var sExpectedValue = _oExpectedValues["string5"][sLanguage] || _oExpectedValues["string5"]["default"];
 											var sCurrentValue = oLanguageItems5[i].getContent()[0].getItems()[1].getValue();
 											assert.ok(sCurrentValue === sExpectedValue, "oTranslationPopover5 Content: item " + i + " " + sLanguage + ", current: " + sCurrentValue + ", expected: " + sExpectedValue);
 										}
@@ -441,7 +441,7 @@ sap.ui.define([
 						assert.ok(oField5.getAggregation("_field").getValue() === _oExpectedValues["string5"]["en"], "oField5: String5 Value");
 						assert.ok(oField5.getAggregation("_field").isA("sap.m.Input"), "oField5: Input control");
 
-						var oValueHelpIcon1 = oField1.getAggregation("_field").getAggregation("_endIcon")[0];
+						var oValueHelpIcon1 = oField1.getAggregation("_field")._oValueHelpIcon;
 						assert.ok(oValueHelpIcon1.isA("sap.ui.core.Icon"), "oField1: Input value help icon");
 						assert.ok(oValueHelpIcon1.getSrc() === "sap-icon://translate", "oField1: Input value help icon src");
 						oValueHelpIcon1.firePress();
@@ -461,7 +461,7 @@ sap.ui.define([
 							assert.ok(oLanguageItems1[0].getTitle() === that.oEditor._oResourceBundle.getText("EDITOR_FIELD_TRANSLATION_LIST_POPOVER_LISTITEM_GROUP_NOTUPDATED"), "oTranslationPopover1 Content: item 0");
 							for (var i = 1; i < oLanguageItems1.length; i++) {
 								var sLanguage = oLanguageItems1[i].getCustomData()[0].getKey();
-								var sExpectedValue = _oExpectedValues["string1"][sLanguage] || _oExpectedValues["string1"]["defalut"];
+								var sExpectedValue = _oExpectedValues["string1"][sLanguage] || _oExpectedValues["string1"]["default"];
 								var sCurrentValue = oLanguageItems1[i].getContent()[0].getItems()[1].getValue();
 								assert.ok(sCurrentValue === sExpectedValue, "oTranslationPopover1 Content: item " + i + " " + sLanguage + ", current: " + sCurrentValue + ", expected: " + sExpectedValue);
 							}
@@ -471,7 +471,7 @@ sap.ui.define([
 							var oValueHelpIcon2 = oField2.getAggregation("_field").getAggregation("_endIcon");
 							assert.ok(oValueHelpIcon2 === null, "oField2: No Input value help icon");
 
-							var oValueHelpIcon3 = oField3.getAggregation("_field").getAggregation("_endIcon")[0];
+							var oValueHelpIcon3 = oField3.getAggregation("_field")._oValueHelpIcon;
 							assert.ok(oValueHelpIcon3.isA("sap.ui.core.Icon"), "oField3: Input value help icon");
 							assert.ok(oValueHelpIcon3.getSrc() === "sap-icon://translate", "oField3: Input value help icon src");
 							oValueHelpIcon3.firePress();
@@ -487,14 +487,14 @@ sap.ui.define([
 								assert.ok(oLanguageItems3[0].getTitle() === that.oEditor._oResourceBundle.getText("EDITOR_FIELD_TRANSLATION_LIST_POPOVER_LISTITEM_GROUP_NOTUPDATED"), "oTranslationPopover3 Content: item 0");
 								for (var i = 1; i < oLanguageItems3.length; i++) {
 									var sLanguage = oLanguageItems3[i].getCustomData()[0].getKey();
-									var sExpectedValue = _oExpectedValues["string3"][sLanguage] || _oExpectedValues["string3"]["defalut"];
+									var sExpectedValue = _oExpectedValues["string3"][sLanguage] || _oExpectedValues["string3"]["default"];
 									var sCurrentValue = oLanguageItems3[i].getContent()[0].getItems()[1].getValue();
 									assert.ok(sCurrentValue === sExpectedValue, "oTranslationPopover3 Content: item " + i + " " + sLanguage + ", current: " + sCurrentValue + ", expected: " + sExpectedValue);
 								}
 								var oCancelButton3 = oTranslationPopover3.getFooter().getContent()[2];
 								oCancelButton3.firePress();
 
-								var oValueHelpIcon4 = oField4.getAggregation("_field").getAggregation("_endIcon")[0];
+								var oValueHelpIcon4 = oField4.getAggregation("_field")._oValueHelpIcon;
 								assert.ok(oValueHelpIcon4.isA("sap.ui.core.Icon"), "oField4: Input value help icon");
 								assert.ok(oValueHelpIcon4.getSrc() === "sap-icon://translate", "oField4: Input value help icon src");
 								oValueHelpIcon4.firePress();
@@ -517,7 +517,7 @@ sap.ui.define([
 									var oCancelButton4 = oTranslationPopover4.getFooter().getContent()[2];
 									oCancelButton4.firePress();
 
-									var oValueHelpIcon5 = oField5.getAggregation("_field").getAggregation("_endIcon")[0];
+									var oValueHelpIcon5 = oField5.getAggregation("_field")._oValueHelpIcon;
 									assert.ok(oValueHelpIcon5.isA("sap.ui.core.Icon"), "oField5: Input value help icon");
 									assert.ok(oValueHelpIcon5.getSrc() === "sap-icon://translate", "oField5: Input value help icon src");
 									oValueHelpIcon5.firePress();
@@ -525,7 +525,7 @@ sap.ui.define([
 									wait().then(function () {
 										var oTranslationPopover5 = oField5.getAggregation("_field")._oTranslationPopover;
 										var aHeaderItems5 = oTranslationPopover5.getCustomHeader().getItems();
-										assert.ok(aHeaderItems5[2].getItems()[1].getValue() === _oExpectedValues["string5"]["en-GB"] || _oExpectedValues["string5"]["defalut"], "oTranslationPopover5 Header: String5 Value");
+										assert.ok(aHeaderItems5[2].getItems()[1].getValue() === _oExpectedValues["string5"]["en-GB"] || _oExpectedValues["string5"]["default"], "oTranslationPopover5 Header: String5 Value");
 										assert.ok(aHeaderItems5[2].getItems()[1].getEditable() === false, "oTranslationPopover5 Header: Editable false");
 										assert.ok(oTranslationPopover5.getContent()[0].isA("sap.m.List"), "oTranslationPopover5 Content: List");
 										var oLanguageItems5 = oTranslationPopover5.getContent()[0].getItems();
@@ -533,7 +533,7 @@ sap.ui.define([
 										assert.ok(oLanguageItems5[0].getTitle() === that.oEditor._oResourceBundle.getText("EDITOR_FIELD_TRANSLATION_LIST_POPOVER_LISTITEM_GROUP_NOTUPDATED"), "oTranslationPopover5 Content: item 0");
 										for (var i = 1; i < oLanguageItems5.length; i++) {
 											var sLanguage = oLanguageItems5[i].getCustomData()[0].getKey();
-											var sExpectedValue = _oExpectedValues["string5"][sLanguage] || _oExpectedValues["string5"]["defalut"];
+											var sExpectedValue = _oExpectedValues["string5"][sLanguage] || _oExpectedValues["string5"]["default"];
 											var sCurrentValue = oLanguageItems5[i].getContent()[0].getItems()[1].getValue();
 											assert.ok(sCurrentValue === sExpectedValue, "oTranslationPopover5 Content: item " + i + " " + sLanguage + ", current: " + sCurrentValue + ", expected: " + sExpectedValue);
 										}
@@ -594,7 +594,7 @@ sap.ui.define([
 						assert.ok(oField5.getAggregation("_field").getValue() === _oExpectedValues["string5"]["fr"], "oField5: String5 Value");
 						assert.ok(oField5.getAggregation("_field").isA("sap.m.Input"), "oField5: Input control");
 
-						var oValueHelpIcon1 = oField1.getAggregation("_field").getAggregation("_endIcon")[0];
+						var oValueHelpIcon1 = oField1.getAggregation("_field")._oValueHelpIcon;
 						assert.ok(oValueHelpIcon1.isA("sap.ui.core.Icon"), "oField1: Input value help icon");
 						assert.ok(oValueHelpIcon1.getSrc() === "sap-icon://translate", "oField1: Input value help icon src");
 						oValueHelpIcon1.firePress();
@@ -614,7 +614,7 @@ sap.ui.define([
 							assert.ok(oLanguageItems1[0].getTitle() === that.oEditor._oResourceBundle.getText("EDITOR_FIELD_TRANSLATION_LIST_POPOVER_LISTITEM_GROUP_NOTUPDATED"), "oTranslationPopover1 Content: item 0");
 							for (var i = 1; i < oLanguageItems1.length; i++) {
 								var sLanguage = oLanguageItems1[i].getCustomData()[0].getKey();
-								var sExpectedValue = _oExpectedValues["string1"][sLanguage] || _oExpectedValues["string1"]["defalut"];
+								var sExpectedValue = _oExpectedValues["string1"][sLanguage] || _oExpectedValues["string1"]["default"];
 								var sCurrentValue = oLanguageItems1[i].getContent()[0].getItems()[1].getValue();
 								assert.ok(sCurrentValue === sExpectedValue, "oTranslationPopover1 Content: item " + i + " " + sLanguage + ", current: " + sCurrentValue + ", expected: " + sExpectedValue);
 							}
@@ -624,7 +624,7 @@ sap.ui.define([
 							var oValueHelpIcon2 = oField2.getAggregation("_field").getAggregation("_endIcon");
 							assert.ok(oValueHelpIcon2 === null, "oField2: No Input value help icon");
 
-							var oValueHelpIcon3 = oField3.getAggregation("_field").getAggregation("_endIcon")[0];
+							var oValueHelpIcon3 = oField3.getAggregation("_field")._oValueHelpIcon;
 							assert.ok(oValueHelpIcon3.isA("sap.ui.core.Icon"), "oField3: Input value help icon");
 							assert.ok(oValueHelpIcon3.getSrc() === "sap-icon://translate", "oField3: Input value help icon src");
 							oValueHelpIcon3.firePress();
@@ -640,14 +640,14 @@ sap.ui.define([
 								assert.ok(oLanguageItems3[0].getTitle() === that.oEditor._oResourceBundle.getText("EDITOR_FIELD_TRANSLATION_LIST_POPOVER_LISTITEM_GROUP_NOTUPDATED"), "oTranslationPopover3 Content: item 0");
 								for (var i = 1; i < oLanguageItems3.length; i++) {
 									var sLanguage = oLanguageItems3[i].getCustomData()[0].getKey();
-									var sExpectedValue = _oExpectedValues["string3"][sLanguage] || _oExpectedValues["string3"]["defalut"];
+									var sExpectedValue = _oExpectedValues["string3"][sLanguage] || _oExpectedValues["string3"]["default"];
 									var sCurrentValue = oLanguageItems3[i].getContent()[0].getItems()[1].getValue();
 									assert.ok(sCurrentValue === sExpectedValue, "oTranslationPopover3 Content: item " + i + " " + sLanguage + ", current: " + sCurrentValue + ", expected: " + sExpectedValue);
 								}
 								var oCancelButton3 = oTranslationPopover3.getFooter().getContent()[2];
 								oCancelButton3.firePress();
 
-								var oValueHelpIcon4 = oField4.getAggregation("_field").getAggregation("_endIcon")[0];
+								var oValueHelpIcon4 = oField4.getAggregation("_field")._oValueHelpIcon;
 								assert.ok(oValueHelpIcon4.isA("sap.ui.core.Icon"), "oField4: Input value help icon");
 								assert.ok(oValueHelpIcon4.getSrc() === "sap-icon://translate", "oField4: Input value help icon src");
 								oValueHelpIcon4.firePress();
@@ -670,7 +670,7 @@ sap.ui.define([
 									var oCancelButton4 = oTranslationPopover4.getFooter().getContent()[2];
 									oCancelButton4.firePress();
 
-									var oValueHelpIcon5 = oField5.getAggregation("_field").getAggregation("_endIcon")[0];
+									var oValueHelpIcon5 = oField5.getAggregation("_field")._oValueHelpIcon;
 									assert.ok(oValueHelpIcon5.isA("sap.ui.core.Icon"), "oField5: Input value help icon");
 									assert.ok(oValueHelpIcon5.getSrc() === "sap-icon://translate", "oField5: Input value help icon src");
 									oValueHelpIcon5.firePress();
@@ -678,7 +678,7 @@ sap.ui.define([
 									wait().then(function () {
 										var oTranslationPopover5 = oField5.getAggregation("_field")._oTranslationPopover;
 										var aHeaderItems5 = oTranslationPopover5.getCustomHeader().getItems();
-										assert.ok(aHeaderItems5[2].getItems()[1].getValue() === _oExpectedValues["string5"]["fr"] || _oExpectedValues["string5"]["defalut"], "oTranslationPopover5 Header: String5 Value");
+										assert.ok(aHeaderItems5[2].getItems()[1].getValue() === _oExpectedValues["string5"]["fr"] || _oExpectedValues["string5"]["default"], "oTranslationPopover5 Header: String5 Value");
 										assert.ok(aHeaderItems5[2].getItems()[1].getEditable() === false, "oTranslationPopover5 Header: Editable false");
 										assert.ok(oTranslationPopover5.getContent()[0].isA("sap.m.List"), "oTranslationPopover5 Content: List");
 										var oLanguageItems5 = oTranslationPopover5.getContent()[0].getItems();
@@ -686,7 +686,7 @@ sap.ui.define([
 										assert.ok(oLanguageItems5[0].getTitle() === that.oEditor._oResourceBundle.getText("EDITOR_FIELD_TRANSLATION_LIST_POPOVER_LISTITEM_GROUP_NOTUPDATED"), "oTranslationPopover5 Content: item 0");
 										for (var i = 1; i < oLanguageItems5.length; i++) {
 											var sLanguage = oLanguageItems5[i].getCustomData()[0].getKey();
-											var sExpectedValue = _oExpectedValues["string5"][sLanguage] || _oExpectedValues["string5"]["defalut"];
+											var sExpectedValue = _oExpectedValues["string5"][sLanguage] || _oExpectedValues["string5"]["default"];
 											var sCurrentValue = oLanguageItems5[i].getContent()[0].getItems()[1].getValue();
 											assert.ok(sCurrentValue === sExpectedValue, "oTranslationPopover5 Content: item " + i + " " + sLanguage + ", current: " + sCurrentValue + ", expected: " + sExpectedValue);
 										}
@@ -747,7 +747,7 @@ sap.ui.define([
 						assert.ok(oField5.getAggregation("_field").getValue() === _oExpectedValues["string5"]["en"], "oField5: String5 Value");
 						assert.ok(oField5.getAggregation("_field").isA("sap.m.Input"), "oField5: Input control");
 
-						var oValueHelpIcon1 = oField1.getAggregation("_field").getAggregation("_endIcon")[0];
+						var oValueHelpIcon1 = oField1.getAggregation("_field")._oValueHelpIcon;
 						assert.ok(oValueHelpIcon1.isA("sap.ui.core.Icon"), "oField1: Input value help icon");
 						assert.ok(oValueHelpIcon1.getSrc() === "sap-icon://translate", "oField1: Input value help icon src");
 						oValueHelpIcon1.firePress();
@@ -767,7 +767,7 @@ sap.ui.define([
 							assert.ok(oLanguageItems1[0].getTitle() === that.oEditor._oResourceBundle.getText("EDITOR_FIELD_TRANSLATION_LIST_POPOVER_LISTITEM_GROUP_NOTUPDATED"), "oTranslationPopover1 Content: item 0");
 							for (var i = 1; i < oLanguageItems1.length; i++) {
 								var sLanguage = oLanguageItems1[i].getCustomData()[0].getKey();
-								var sExpectedValue = _oExpectedValues["string1"][sLanguage] || _oExpectedValues["string1"]["defalut"];
+								var sExpectedValue = _oExpectedValues["string1"][sLanguage] || _oExpectedValues["string1"]["default"];
 								var sCurrentValue = oLanguageItems1[i].getContent()[0].getItems()[1].getValue();
 								assert.ok(sCurrentValue === sExpectedValue, "oTranslationPopover1 Content: item " + i + " " + sLanguage + ", current: " + sCurrentValue + ", expected: " + sExpectedValue);
 							}
@@ -777,7 +777,7 @@ sap.ui.define([
 							var oValueHelpIcon2 = oField2.getAggregation("_field").getAggregation("_endIcon");
 							assert.ok(oValueHelpIcon2 === null, "oField2: No Input value help icon");
 
-							var oValueHelpIcon3 = oField3.getAggregation("_field").getAggregation("_endIcon")[0];
+							var oValueHelpIcon3 = oField3.getAggregation("_field")._oValueHelpIcon;
 							assert.ok(oValueHelpIcon3.isA("sap.ui.core.Icon"), "oField3: Input value help icon");
 							assert.ok(oValueHelpIcon3.getSrc() === "sap-icon://translate", "oField3: Input value help icon src");
 							oValueHelpIcon3.firePress();
@@ -793,14 +793,14 @@ sap.ui.define([
 								assert.ok(oLanguageItems3[0].getTitle() === that.oEditor._oResourceBundle.getText("EDITOR_FIELD_TRANSLATION_LIST_POPOVER_LISTITEM_GROUP_NOTUPDATED"), "oTranslationPopover3 Content: item 0");
 								for (var i = 1; i < oLanguageItems3.length; i++) {
 									var sLanguage = oLanguageItems3[i].getCustomData()[0].getKey();
-									var sExpectedValue = _oExpectedValues["string3"][sLanguage] || _oExpectedValues["string3"]["defalut"];
+									var sExpectedValue = _oExpectedValues["string3"][sLanguage] || _oExpectedValues["string3"]["default"];
 									var sCurrentValue = oLanguageItems3[i].getContent()[0].getItems()[1].getValue();
 									assert.ok(sCurrentValue === sExpectedValue, "oTranslationPopover3 Content: item " + i + " " + sLanguage + ", current: " + sCurrentValue + ", expected: " + sExpectedValue);
 								}
 								var oCancelButton3 = oTranslationPopover3.getFooter().getContent()[2];
 								oCancelButton3.firePress();
 
-								var oValueHelpIcon4 = oField4.getAggregation("_field").getAggregation("_endIcon")[0];
+								var oValueHelpIcon4 = oField4.getAggregation("_field")._oValueHelpIcon;
 								assert.ok(oValueHelpIcon4.isA("sap.ui.core.Icon"), "oField4: Input value help icon");
 								assert.ok(oValueHelpIcon4.getSrc() === "sap-icon://translate", "oField4: Input value help icon src");
 								oValueHelpIcon4.firePress();
@@ -823,7 +823,7 @@ sap.ui.define([
 									var oCancelButton4 = oTranslationPopover4.getFooter().getContent()[2];
 									oCancelButton4.firePress();
 
-									var oValueHelpIcon5 = oField5.getAggregation("_field").getAggregation("_endIcon")[0];
+									var oValueHelpIcon5 = oField5.getAggregation("_field")._oValueHelpIcon;
 									assert.ok(oValueHelpIcon5.isA("sap.ui.core.Icon"), "oField5: Input value help icon");
 									assert.ok(oValueHelpIcon5.getSrc() === "sap-icon://translate", "oField5: Input value help icon src");
 									oValueHelpIcon5.firePress();
@@ -831,7 +831,7 @@ sap.ui.define([
 									wait().then(function () {
 										var oTranslationPopover5 = oField5.getAggregation("_field")._oTranslationPopover;
 										var aHeaderItems5 = oTranslationPopover5.getCustomHeader().getItems();
-										assert.ok(aHeaderItems5[2].getItems()[1].getValue() === _oExpectedValues["string5"]["ru"] || _oExpectedValues["string5"]["defalut"], "oTranslationPopover5 Header: String5 Value");
+										assert.ok(aHeaderItems5[2].getItems()[1].getValue() === _oExpectedValues["string5"]["ru"] || _oExpectedValues["string5"]["default"], "oTranslationPopover5 Header: String5 Value");
 										assert.ok(aHeaderItems5[2].getItems()[1].getEditable() === false, "oTranslationPopover5 Header: Editable false");
 										assert.ok(oTranslationPopover5.getContent()[0].isA("sap.m.List"), "oTranslationPopover5 Content: List");
 										var oLanguageItems5 = oTranslationPopover5.getContent()[0].getItems();
@@ -839,7 +839,7 @@ sap.ui.define([
 										assert.ok(oLanguageItems5[0].getTitle() === that.oEditor._oResourceBundle.getText("EDITOR_FIELD_TRANSLATION_LIST_POPOVER_LISTITEM_GROUP_NOTUPDATED"), "oTranslationPopover5 Content: item 0");
 										for (var i = 1; i < oLanguageItems5.length; i++) {
 											var sLanguage = oLanguageItems5[i].getCustomData()[0].getKey();
-											var sExpectedValue = _oExpectedValues["string5"][sLanguage] || _oExpectedValues["string5"]["defalut"];
+											var sExpectedValue = _oExpectedValues["string5"][sLanguage] || _oExpectedValues["string5"]["default"];
 											var sCurrentValue = oLanguageItems5[i].getContent()[0].getItems()[1].getValue();
 											assert.ok(sCurrentValue === sExpectedValue, "oTranslationPopover5 Content: item " + i + " " + sLanguage + ", current: " + sCurrentValue + ", expected: " + sExpectedValue);
 										}
@@ -900,7 +900,7 @@ sap.ui.define([
 						assert.ok(oField5.getAggregation("_field").getValue() === _oExpectedValues["string5"]["en"], "oField5: String5 Value");
 						assert.ok(oField5.getAggregation("_field").isA("sap.m.Input"), "oField5: Input control");
 
-						var oValueHelpIcon1 = oField1.getAggregation("_field").getAggregation("_endIcon")[0];
+						var oValueHelpIcon1 = oField1.getAggregation("_field")._oValueHelpIcon;
 						assert.ok(oValueHelpIcon1.isA("sap.ui.core.Icon"), "oField1: Input value help icon");
 						assert.ok(oValueHelpIcon1.getSrc() === "sap-icon://translate", "oField1: Input value help icon src");
 						oValueHelpIcon1.firePress();
@@ -920,7 +920,7 @@ sap.ui.define([
 							assert.ok(oLanguageItems1[0].getTitle() === that.oEditor._oResourceBundle.getText("EDITOR_FIELD_TRANSLATION_LIST_POPOVER_LISTITEM_GROUP_NOTUPDATED"), "oTranslationPopover1 Content: item 0");
 							for (var i = 1; i < oLanguageItems1.length; i++) {
 								var sLanguage = oLanguageItems1[i].getCustomData()[0].getKey();
-								var sExpectedValue = _oExpectedValues["string1"][sLanguage] || _oExpectedValues["string1"]["defalut"];
+								var sExpectedValue = _oExpectedValues["string1"][sLanguage] || _oExpectedValues["string1"]["default"];
 								var sCurrentValue = oLanguageItems1[i].getContent()[0].getItems()[1].getValue();
 								assert.ok(sCurrentValue === sExpectedValue, "oTranslationPopover1 Content: item " + i + " " + sLanguage + ", current: " + sCurrentValue + ", expected: " + sExpectedValue);
 							}
@@ -930,7 +930,7 @@ sap.ui.define([
 							var oValueHelpIcon2 = oField2.getAggregation("_field").getAggregation("_endIcon");
 							assert.ok(oValueHelpIcon2 === null, "oField2: No Input value help icon");
 
-							var oValueHelpIcon3 = oField3.getAggregation("_field").getAggregation("_endIcon")[0];
+							var oValueHelpIcon3 = oField3.getAggregation("_field")._oValueHelpIcon;
 							assert.ok(oValueHelpIcon3.isA("sap.ui.core.Icon"), "oField3: Input value help icon");
 							assert.ok(oValueHelpIcon3.getSrc() === "sap-icon://translate", "oField3: Input value help icon src");
 							oValueHelpIcon3.firePress();
@@ -946,14 +946,14 @@ sap.ui.define([
 								assert.ok(oLanguageItems3[0].getTitle() === that.oEditor._oResourceBundle.getText("EDITOR_FIELD_TRANSLATION_LIST_POPOVER_LISTITEM_GROUP_NOTUPDATED"), "oTranslationPopover3 Content: item 0");
 								for (var i = 1; i < oLanguageItems3.length; i++) {
 									var sLanguage = oLanguageItems3[i].getCustomData()[0].getKey();
-									var sExpectedValue = _oExpectedValues["string3"][sLanguage] || _oExpectedValues["string3"]["defalut"];
+									var sExpectedValue = _oExpectedValues["string3"][sLanguage] || _oExpectedValues["string3"]["default"];
 									var sCurrentValue = oLanguageItems3[i].getContent()[0].getItems()[1].getValue();
 									assert.ok(sCurrentValue === sExpectedValue, "oTranslationPopover3 Content: item " + i + " " + sLanguage + ", current: " + sCurrentValue + ", expected: " + sExpectedValue);
 								}
 								var oCancelButton3 = oTranslationPopover3.getFooter().getContent()[2];
 								oCancelButton3.firePress();
 
-								var oValueHelpIcon4 = oField4.getAggregation("_field").getAggregation("_endIcon")[0];
+								var oValueHelpIcon4 = oField4.getAggregation("_field")._oValueHelpIcon;
 								assert.ok(oValueHelpIcon4.isA("sap.ui.core.Icon"), "oField4: Input value help icon");
 								assert.ok(oValueHelpIcon4.getSrc() === "sap-icon://translate", "oField4: Input value help icon src");
 								oValueHelpIcon4.firePress();
@@ -976,7 +976,7 @@ sap.ui.define([
 									var oCancelButton4 = oTranslationPopover4.getFooter().getContent()[2];
 									oCancelButton4.firePress();
 
-									var oValueHelpIcon5 = oField5.getAggregation("_field").getAggregation("_endIcon")[0];
+									var oValueHelpIcon5 = oField5.getAggregation("_field")._oValueHelpIcon;
 									assert.ok(oValueHelpIcon5.isA("sap.ui.core.Icon"), "oField5: Input value help icon");
 									assert.ok(oValueHelpIcon5.getSrc() === "sap-icon://translate", "oField5: Input value help icon src");
 									oValueHelpIcon5.firePress();
@@ -984,7 +984,7 @@ sap.ui.define([
 									wait().then(function () {
 										var oTranslationPopover5 = oField5.getAggregation("_field")._oTranslationPopover;
 										var aHeaderItems5 = oTranslationPopover5.getCustomHeader().getItems();
-										assert.ok(aHeaderItems5[2].getItems()[1].getValue() === _oExpectedValues["string5"]["ru"] || _oExpectedValues["string5"]["defalut"], "oTranslationPopover5 Header: String5 Value");
+										assert.ok(aHeaderItems5[2].getItems()[1].getValue() === _oExpectedValues["string5"]["ru"] || _oExpectedValues["string5"]["default"], "oTranslationPopover5 Header: String5 Value");
 										assert.ok(aHeaderItems5[2].getItems()[1].getEditable() === false, "oTranslationPopover5 Header: Editable false");
 										assert.ok(oTranslationPopover5.getContent()[0].isA("sap.m.List"), "oTranslationPopover5 Content: List");
 										var oLanguageItems5 = oTranslationPopover5.getContent()[0].getItems();
@@ -992,7 +992,7 @@ sap.ui.define([
 										assert.ok(oLanguageItems5[0].getTitle() === that.oEditor._oResourceBundle.getText("EDITOR_FIELD_TRANSLATION_LIST_POPOVER_LISTITEM_GROUP_NOTUPDATED"), "oTranslationPopover5 Content: item 0");
 										for (var i = 1; i < oLanguageItems5.length; i++) {
 											var sLanguage = oLanguageItems5[i].getCustomData()[0].getKey();
-											var sExpectedValue = _oExpectedValues["string5"][sLanguage] || _oExpectedValues["string5"]["defalut"];
+											var sExpectedValue = _oExpectedValues["string5"][sLanguage] || _oExpectedValues["string5"]["default"];
 											var sCurrentValue = oLanguageItems5[i].getContent()[0].getItems()[1].getValue();
 											assert.ok(sCurrentValue === sExpectedValue, "oTranslationPopover5 Content: item " + i + " " + sLanguage + ", current: " + sCurrentValue + ", expected: " + sExpectedValue);
 										}

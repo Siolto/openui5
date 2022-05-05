@@ -9,7 +9,11 @@ sap.ui.define([
 	"sap/ui/integration/editor/Merger",
 	"sap/ui/model/json/JSONModel",
 	"sap/base/util/merge",
-	"sap/ui/model/resource/ResourceModel"
+	"sap/ui/model/resource/ResourceModel",
+	"sap/ui/integration/editor/EditorResourceBundles",
+	"sap/base/util/LoaderExtensions",
+	"sap/ui/core/theming/Parameters",
+	"sap/ui/dom/includeStylesheet"
 ], function (
 	Editor,
 	Core,
@@ -17,7 +21,11 @@ sap.ui.define([
 	Merger,
 	JSONModel,
 	merge,
-	ResourceModel
+	ResourceModel,
+	EditorResourceBundles,
+	LoaderExtensions,
+	Parameters,
+	includeStylesheet
 ) {
 	"use strict";
 
@@ -31,7 +39,7 @@ sap.ui.define([
 	 * @class
 	 * A control allows to edit manifest settings for a card based on a configuration from a designtime module.
 	 *
-	 * @extends sap.ui.core.Control
+	 * @extends sap.ui.integration.editor.Editor
 	 *
 	 * @author SAP SE
 	 * @version ${version}
@@ -79,6 +87,16 @@ sap.ui.define([
 			return false;
 		}
 		return true;
+	};
+
+	/**
+	 * updates the card preview
+	 */
+	 CardEditor.prototype._updatePreview = function () {
+		var oPreview = this.getAggregation("_preview");
+		if (oPreview && oPreview.update && oPreview._getCurrentMode() !== "None") {
+			oPreview.update();
+		}
 	};
 
 	/**
@@ -152,17 +170,23 @@ sap.ui.define([
 		this._manifestModel = new JSONModel(oManifestJson);
 		this._isManifestReady = true;
 		this.fireManifestReady();
+		var vI18n = this._oEditorManifest.get("/sap.app/i18n");
+		var sResourceBundleURL = this.getBaseUrl() + vI18n;
+		if (vI18n && EditorResourceBundles.getResourceBundleURL() !== sResourceBundleURL) {
+			EditorResourceBundles.setResourceBundleURL(sResourceBundleURL);
+		}
 		//add a context model
 		this._createContextModel();
-		if (this._oEditorManifest.getResourceBundle()) {
+		if (this._oEditorManifest && this._oEditorManifest.getResourceBundle()) {
 			var oResourceBundle = this._oEditorManifest.getResourceBundle();
 			var oResourceModel = new ResourceModel({
 				bundle: oResourceBundle
 			});
 			this.setModel(oResourceModel, "i18n");
-			this._oResourceBundle = oResourceBundle;
-		} else {
-			this._loadDefaultTranslations();
+			if (this._oResourceBundle) {
+				oResourceModel.enhance(this._oResourceBundle);
+			}
+			this._oResourceBundle = oResourceModel.getResourceBundle();
 		}
 
 		return this._loadExtension().then(function() {
@@ -251,6 +275,62 @@ sap.ui.define([
 			}
 		}
 	};
+
+	//map of language strings in their actual language representation, initialized in CardEditor.init
+	CardEditor._languages = {};
+
+	//theming from parameters to css valiables if css variables are not turned on
+	//find out if css vars are turned on
+	CardEditor._appendThemeVars = function () {
+		var aVars = [
+			"sapUiButtonHoverBackground",
+			"sapUiBaseBG",
+			"sapUiContentLabelColor",
+			"sapUiTileSeparatorColor",
+			"sapUiHighlight",
+			"sapUiListSelectionBackgroundColor",
+			"sapUiNegativeText",
+			"sapUiCriticalText",
+			"sapUiPositiveText",
+			"sapUiChartScrollbarBorderColor"
+		];
+		var mParams = Parameters.get({
+			name: aVars,
+			callback: function (_params) {
+			   // this will only be called if params weren’t available synchronously
+			}
+		});
+		if (mParams) {
+			for (var n in mParams) {
+				document.body.style.setProperty("--" + n, mParams[n]);
+			}
+		}
+	};
+
+	//initializes global settings
+	CardEditor.init = function () {
+		this.init = function () { }; //replace self
+
+		//add theming variables if css vars are not turned on
+		//if (!window.getComputedStyle(document.documentElement).getPropertyValue('--sapBackgroundColor')) {
+		CardEditor._appendThemeVars();
+		Core.attachThemeChanged(function () {
+			CardEditor._appendThemeVars();
+		});
+		//}
+
+		var sCssURL = sap.ui.require.toUrl("sap.ui.integration.editor.css.Editor".replace(/\./g, "/") + ".css");
+		includeStylesheet(sCssURL);
+		LoaderExtensions.loadResource("sap/ui/integration/editor/languages.json", {
+			dataType: "json",
+			failOnError: false,
+			async: true
+		}).then(function (o) {
+			CardEditor._languages = o;
+		});
+	};
+
+	CardEditor.init();
 
 	return CardEditor;
 });

@@ -7,7 +7,8 @@ sap.ui.define([
 	"sap/m/DynamicDateUtil",
 	"sap/ui/unified/DateRange",
 	"sap/ui/core/format/DateFormat",
-	"sap/ui/core/Icon"
+	"sap/ui/core/Icon",
+	"sap/m/Label"
 ], function(
 	DynamicDateRange,
 	CustomDynamicDateOption,
@@ -16,7 +17,8 @@ sap.ui.define([
 	DynamicDateUtil,
 	DateRange,
 	DateFormat,
-	Icon
+	Icon,
+	Label
 ) {
 	"use strict";
 
@@ -104,6 +106,25 @@ sap.ui.define([
 
 		// assert
 		assert.strictEqual(this.ddr._oInput.shouldSuggetionsPopoverOpenOnMobile(oCustomEvent), false, "the suggestions popover is not opened on mobile when the icon is clicked");
+	});
+
+	QUnit.test("value help popover should be closed when focus is moved to the control input field", function(assert) {
+		// arrange
+		this.ddr._createPopup();
+		this.stub(this.ddr._oPopup, "isOpen").returns(true);
+		var oPopupCloseSpy = this.spy(this.ddr._oPopup, "close");
+		this.ddr._oNavContainer = {
+			to: function() {},
+			getPages: function() {
+				return [];
+			}
+		};
+
+		// act
+		this.ddr._oInput.onfocusin();
+
+		// assert
+		assert.ok(oPopupCloseSpy.calledOnce, "The value help popover is closed");
 	});
 
 	QUnit.test("Setting value", function(assert) {
@@ -269,6 +290,10 @@ sap.ui.define([
 		oOption.destroy();
 	});
 
+	QUnit.test("This month parsing is working correctly" , function(assert) {
+		assert.strictEqual(this.ddr._parseValue("This Month").operator, "THISMONTH","The parsing is correct");
+	});
+
 	QUnit.test("no toDates", function(assert) {
 		var oOption = new CustomDynamicDateOption({ key: "KEY" });
 
@@ -427,14 +452,12 @@ sap.ui.define([
 		assert.strictEqual(aControls.length, 4, "created controls");
 		assert.ok(aControls[0].isA("sap.m.Label"), "created the correct control");
 		assert.ok(aControls[1].isA("sap.m.StepInput"), "created the correct control");
+		assert.strictEqual(aControls[1].getMin(), 1, "The step input has correct min value");
+		assert.strictEqual(aControls[1].getMax(), 6000, "The step input has correct max value");
 		assert.ok(aControls[2].isA("sap.m.Label"), "created the correct control");
 		assert.ok(aControls[3].isA("sap.m.RadioButtonGroup"), "created the correct control");
 
-		assert.strictEqual(aControls[0].getText(), "Value for X:", "label text is correct");
-		assert.strictEqual(aControls[2].getText(), "Time Periods:", "label text is correct");
 		assert.strictEqual(aControls[3].getButtons().length, 2, "two radio buttons are created");
-		assert.strictEqual(aControls[3].getButtons()[0].getText(), "Days", "two radio buttons are created");
-		assert.strictEqual(aControls[3].getButtons()[1].getText(), "Months", "two radio buttons are created");
 
 		oOptionLast.destroy();
 	});
@@ -559,6 +582,25 @@ sap.ui.define([
 	QUnit.test("Last/Next 1 days values", function(assert) {
 		// arrange
 		this.ddr.setOptions(["LASTDAYS", "NEXTDAYS"]);
+
+		// act
+		this.ddr.setValue({ operator: "LASTDAYS", values:[1] });
+
+		// assert
+		assert.deepEqual(this.ddr.getValue(), { operator: "LASTDAYS", values: [1] }, "the value is correctly substituted");
+		assert.equal(this.ddr._oInput.getValue().indexOf("Yesterday"), -1, "the formatted value is correct");
+
+		// act
+		this.ddr.setValue({ operator: "NEXTDAYS", values:[1] });
+
+		// assert
+		assert.deepEqual(this.ddr.getValue(), { operator: "NEXTDAYS", values: [1] }, "the value is correctly substituted");
+		assert.equal(this.ddr._oInput.getValue().indexOf("Tomorrow"), -1, "the formatted value is correct");
+	});
+
+	QUnit.test("Last/Next 1 days values when tomorrow and yesterday are included", function(assert) {
+		// arrange
+		this.ddr.setOptions(["LASTDAYS", "NEXTDAYS", "TOMORROW", "YESTERDAY"]);
 
 		// act
 		this.ddr.setValue({ operator: "LASTDAYS", values:[1] });
@@ -898,6 +940,46 @@ sap.ui.define([
 
 		// assert
 		assert.ok(aValueHelpUITypes1[0].isDestroyed(), "the UI types are destroyed with the option");
+	});
+
+	QUnit.test("labels are redirected to the inner input", function (assert) {
+		// Prepare
+		var oDynamicDateRange = new DynamicDateRange(),
+			oLabel = new Label({
+				labelFor: oDynamicDateRange.getId(),
+				text: "Label text",
+				required: true
+			}),
+			oDynamicDateRangeInput;
+
+
+		oLabel.placeAt("qunit-fixture");
+		oDynamicDateRange.placeAt("qunit-fixture");
+		oCore.applyChanges();
+
+		oDynamicDateRangeInput = oDynamicDateRange.getDomRef().querySelector("input");
+
+		// Assert
+		assert.strictEqual(
+			oLabel.getDomRef().getAttribute("for"),
+			oDynamicDateRangeInput.getAttribute("id"),
+			"External label is referenced to the innter input field");
+
+		assert.strictEqual(
+			oDynamicDateRangeInput.getAttribute("aria-labelledby"),
+			oLabel.getId(),
+			"Internal input has reference to the external label"
+		);
+
+		assert.strictEqual(
+			oDynamicDateRangeInput.getAttribute("aria-required"),
+			"true",
+			"Internal input has aria-required attribute set"
+		);
+
+		// Cleanup
+		oLabel.destroy();
+		oDynamicDateRange.destroy();
 	});
 
 });

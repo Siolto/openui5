@@ -16,7 +16,7 @@
 			"content": {
 				"data": {
 					"request": {
-						"url": "./cardsdemo/cardcontent/listContent/tasks.json"
+						"url": "./cardcontent/listContent/tasks.json"
 					},
 					"path": "/"
 				},
@@ -223,6 +223,7 @@
 						"value": "{infoState}",
 						"state": "{infoState}"
 					},
+					"highlight": "{infoState}",
 					"attributesLayoutType": "{attributesLayoutType}",
 					"attributes": [
 						{
@@ -251,6 +252,22 @@
 						}
 					],
 					"actionsStrip": [
+						{
+							"type": "Link",
+							"text": "Link to Meal",
+							"icon": "sap-icon://action",
+							"actions": [
+								{
+									"type": "Navigation",
+									"parameters": {
+										"url": "http://sap.com"
+									}
+								}
+							]
+						},
+						{
+							"type": "ToolbarSpacer"
+						},
 						{
 							"text": "Add",
 							"actions": [
@@ -574,7 +591,7 @@
 		"sap.card": {
 			"data": {
 				"request": {
-					"url": "./cardsdemo/cardcontent/someitems.json"
+					"url": "./cardcontent/someitems.json"
 				}
 			},
 			"type": "List",

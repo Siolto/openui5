@@ -4,6 +4,7 @@
 sap.ui.define([
 	"sap/base/Log",
 	"sap/ui/core/sample/common/Helper",
+	"sap/ui/model/odata/v4/lib/_Requestor",
 	"sap/ui/qunit/QUnitUtils",
 	"sap/ui/support/RuleAnalyzer",
 	"sap/ui/test/actions/Press",
@@ -11,7 +12,8 @@ sap.ui.define([
 	"sap/ui/test/Opa5",
 	"sap/ui/test/TestUtils",
 	"sap/ui/test/matchers/Properties"
-], function (Log, Helper, QUnitUtils, RuleAnalyzer, Press, Opa, Opa5, TestUtils, Properties) {
+], function (Log, Helper, _Requestor, QUnitUtils, RuleAnalyzer, Press, Opa, Opa5, TestUtils,
+		Properties) {
 	"use strict";
 
 	/*
@@ -92,9 +94,9 @@ sap.ui.define([
 	 */
 	function getConfig(bSupportAssistant) {
 		return {
-			appParams : {'sap-ui-support' : bSupportAssistant ? 'true,silent' : 'false'},
+			appParams : {"sap-ui-support" : bSupportAssistant ? "true,silent" : "false"},
 			autoWait : true,
-			extensions : bSupportAssistant ? ['sap/ui/core/support/RuleEngineOpaExtension'] : [],
+			extensions : bSupportAssistant ? ["sap/ui/core/support/RuleEngineOpaExtension"] : [],
 			timeout : TestUtils.isRealOData() ? 30 : undefined
 		};
 	}
@@ -107,10 +109,68 @@ sap.ui.define([
 		 */
 		onAnyPage : {
 			actions : {
+				applyOptimisticBatchObserver : function (mParameter) {
+					this.waitFor({
+						success : function () {
+							var oOpaContext = Opa.getContext();
+
+							oOpaContext.mParameter = mParameter;
+							oOpaContext.fnProcessSecurityTokenHandlersSpy
+								= sinon.spy(_Requestor.prototype, "processSecurityTokenHandlers");
+
+							/*
+								Gets the current oRequestor instance from the productive code by
+								spying _Requestor#processSecurityTokenHandlers.
+								Depending on given parameter enablerResult and isFirstAppStart,
+								the sequence of _Requestor#request and _Requestor#sendRequest are
+								expected via spies and remembered in Opa context to be verified in
+								#checkOptimisticBatch below.
+							 */
+							function createSpies() {
+								var mParam = oOpaContext.mParameter;
+
+								oOpaContext.oRequestor
+									= oOpaContext.fnProcessSecurityTokenHandlersSpy.thisValues[0];
+
+								oOpaContext.fnProcessBatch = oOpaContext.fnFirst
+									= sinon.spy(oOpaContext.oRequestor, "processBatch");
+								oOpaContext.fnSendRequest = oOpaContext.fnSecond
+									= sinon.spy(oOpaContext.oRequestor, "sendRequest");
+
+								// enabled and n+1 App-tart
+								if (mParam.enablerResult === true && !mParam.isFirstAppStart) {
+									oOpaContext.fnFirst = oOpaContext.fnSendRequest;
+									oOpaContext.fnSecond = oOpaContext.fnProcessBatch;
+								}
+
+								return undefined; // default securityTokenHandler processing
+							}
+
+							Opa5.assert.ok(true, "Test: " + mParameter.title);
+							if (mParameter.deleteCache) { // game starts here
+								sap.ui.getCore().getConfiguration()
+									.setSecurityTokenHandlers([function () {
+										oOpaContext.iExpectedSpies = 0;
+										createSpies();
+										sap.ui.getCore().getConfiguration()
+											.setSecurityTokenHandlers([createSpies]);
+										return undefined; // default securityToken handling
+									}]);
+							}
+							oOpaContext.iExpectedSpiesCalls += 1;
+							if (mParameter.enablerResult !== undefined) {
+								TestUtils.setData("optimisticBatch", mParameter.enablerResult);
+							}
+							if (mParameter.appChanged) {
+								TestUtils.setData("addSorter", true);
+							}
+						}
+					});
+				},
 				applySupportAssistant : function () {
 					// we use support assistant only on-demand and only with mock data
-					Opa.getContext().bSupportAssistant =
-						TestUtils.isSupportAssistant() && !TestUtils.isRealOData();
+					Opa.getContext().bSupportAssistant
+						= TestUtils.isSupportAssistant() && !TestUtils.isRealOData();
 					Opa5.extendConfig(getConfig(Opa.getContext().bSupportAssistant));
 				},
 				// deletes all entities remembered in Opa.getContext().aCreatedEntityPaths
@@ -158,6 +218,35 @@ sap.ui.define([
 						}
 					});
 				},
+				checkOptimisticBatch : function (bCleanUp) {
+					this.waitFor({
+						success : function () {
+							var oOpaContext = Opa.getContext(),
+								mParameter = oOpaContext.mParameter;
+
+							Opa5.assert.strictEqual(oOpaContext.fnProcessBatch.callCount, 1,
+								"#processBatch callCount");
+							Opa5.assert.strictEqual(oOpaContext.fnSendRequest.callCount,
+								mParameter.sendRequestCallCount || 1, "#sendRequest callCount");
+							Opa5.assert.ok(
+								oOpaContext.fnFirst.firstCall.calledBefore(
+									oOpaContext.fnSecond.firstCall),
+								oOpaContext.fnFirst.displayName + " - called before - "
+									+ oOpaContext.fnSecond.displayName);
+							Opa5.assert.ok(oOpaContext.fnProcessBatch.alwaysCalledOn(
+								oOpaContext.oRequestor), "#processBatch alwaysCalledOn");
+							Opa5.assert.ok(oOpaContext.fnSendRequest.alwaysCalledOn(
+								oOpaContext.oRequestor), "#sendRequest alwaysCalledOn");
+
+							oOpaContext.fnFirst.restore();
+							oOpaContext.fnSecond.restore();
+							oOpaContext.fnProcessSecurityTokenHandlersSpy.restore();
+							if (bCleanUp) {
+								sap.ui.getCore().getConfiguration().setSecurityTokenHandlers([]);
+							}
+						}
+					});
+				},
 				analyzeSupportAssistant : function () {
 					this.waitFor({
 						success : function () {
@@ -168,7 +257,7 @@ sap.ui.define([
 							// extension via Opa5 configuration
 							function analyse() {
 								Opa5.assert.ok(true, "Support assistant analysis started");
-								return RuleAnalyzer.analyze({type : 'global'}).then(function () {
+								return RuleAnalyzer.analyze({type : "global"}).then(function () {
 									var oIssues = RuleAnalyzer.getLastAnalysisHistory().issues
 											|| [];
 
@@ -213,7 +302,7 @@ sap.ui.define([
 		 */
 		onTheMessagePopover : {
 			actions : {
-				back : function (sMessage) {
+				back : function () {
 					this.waitFor({
 						controlType : "sap.m.Page",
 						id : /-messageView-detailsPage/,
@@ -231,6 +320,7 @@ sap.ui.define([
 						controlType : "sap.m.MessagePopover",
 						success : function (aControls) {
 							var oPopover = aControls[0];
+
 							if (oPopover && oPopover.isOpen()) {
 								oPopover.close();
 								Opa5.assert.ok(true, "Message Popover closed");
@@ -241,7 +331,7 @@ sap.ui.define([
 				selectMessage : function (sMessage) {
 					this.waitFor({
 						controlType : "sap.m.MessagePopover",
-						success : function (aMessagePopover) {
+						success : function () {
 							this.waitFor({
 								controlType : "sap.m.StandardListItem",
 								matchers : new Properties({title : sMessage}),
@@ -291,8 +381,8 @@ sap.ui.define([
 											// check not possible when document lost focus
 											bDocumentHasFocus = document.hasFocus();
 											return !bDocumentHasFocus
-												|| sTargetId ===
-													sap.ui.getCore().getCurrentFocusedControlId();
+												|| sTargetId === sap.ui.getCore()
+													.getCurrentFocusedControlId();
 										},
 										id : sTargetId,
 										success : function () {
@@ -332,7 +422,7 @@ sap.ui.define([
 						}
 					});
 				},
-				checkMessageDetails : function (sMessage, sExpectedDetails) {
+				checkMessageDetails : function (_sMessage, sExpectedDetails) {
 					this.waitFor({
 						id : /-messageViewMarkupDescription/,
 						success : function (aDetailsHtml) {
@@ -380,6 +470,7 @@ sap.ui.define([
 						matchers : new Properties({icon : "sap-icon://sys-enter-2"}),
 						success : function (aControls) {
 							var sText = aControls[0].getContent()[0].getText();
+
 							Opa5.assert.ok(rMessage.test(sText),
 								"Message text '" + sText + "' matches " + rMessage);
 						}

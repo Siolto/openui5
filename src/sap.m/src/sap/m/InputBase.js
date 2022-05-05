@@ -436,9 +436,9 @@ function(
 			this._oValueStateMessage.destroy();
 		}
 
-		if (this.oInvisibleMessage) {
-			this.oInvisibleMessage.destroy();
-			this.oInvisibleMessage = null;
+		if (this._oInvisibleMessage) {
+			this._oInvisibleMessage.destroy();
+			this._oInvisibleMessage = null;
 		}
 
 		this._oValueStateMessage = null;
@@ -925,7 +925,7 @@ function(
 	 * @param {boolean} bPrefer True, if the user interaction is prefered
 	 *
 	 * @private
-	 * @restricted sap.ui.mdc
+	 * @ui5-restricted sap.ui.mdc, sap.ui.comp.smartfield.SmartField
 	 */
 	InputBase.prototype._setPreferUserInteraction = function(bPrefer) {
 		this._bPreferUserInteraction = bPrefer;

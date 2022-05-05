@@ -15,7 +15,10 @@
 		{
 			"files": [
 				"src/sap/ui/model/odata/v4/**/*.js",
-				"test/sap/ui/core/qunit/odata/v4/**/*.js"
+				"test/sap/ui/core/qunit/odata/v4/**/*.js",
+				"test/sap/ui/core/demokit/sample/common/**/*.js",
+				"test/sap/ui/core/demokit/sample/odata/v4/**/*.js",
+				"test/sap/ui/core/demokit/sample/ViewTemplate/types/**/*.js"
 			],
 			"rules": {
 				"consistent-return": "off", // override "warn"
@@ -40,6 +43,7 @@
 				"jsx-quotes": "error", // let's see...
 				"key-spacing": ["error", {"beforeColon": true}],
 				"lines-between-class-members": "error",
+				"no-else-return" : "error",
 				"no-lonely-if": "error", // override "warn"
 				"no-multiple-empty-lines": ["error", {"max": 1}],
 				"no-multi-spaces": "error",
@@ -89,7 +93,10 @@
 		},
 		{
 			"files": [
-				"test/sap/ui/core/qunit/odata/v4/**/*.js"
+				"test/sap/ui/core/qunit/odata/v4/**/*.js",
+				"test/sap/ui/core/demokit/sample/common/**/*.js",
+				"test/sap/ui/core/demokit/sample/odata/v4/**/*.js",
+				"test/sap/ui/core/demokit/sample/ViewTemplate/types/**/*.js"
 			],
 			"globals": {
 				"QUnit": "readonly",
@@ -104,9 +111,6 @@
 		},
 		{
 			"files": [
-				"test/sap/ui/core/demokit/sample/common/**/*.js",
-				"test/sap/ui/core/demokit/sample/odata/v4/**/*.js",
-				"test/sap/ui/core/demokit/sample/ViewTemplate/types/**/*.js",
 				"test/sap/ui/core/demokit/tutorial/odatav4/**/*.js"
 			],
 			"rules": {
@@ -124,6 +128,24 @@
 				"space-before-function-paren": ["error", {"named": "never"}],
 				"space-in-parens": "error",
 				"switch-colon-spacing": "error"
+			}
+		},
+		{
+			"files": [
+				"test/sap/ui/core/demokit/sample/odata/v4/**/Opa*.qunit.js",
+				"test/sap/ui/core/demokit/sample/ViewTemplate/types/Opa.qunit.js"
+			],
+			"rules": {
+				// Opa does not work without these imports
+				"no-unused-vars": ["error", {"argsIgnorePattern": "Any|Main", "args": "all"}]
+			}
+		},
+		{
+			"files": [
+				"test/sap/ui/core/demokit/sample/odata/v4/**/SandboxModel.js"
+			],
+			"rules": {
+				"max-len": "off"
 			}
 		},
 		{

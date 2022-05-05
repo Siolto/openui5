@@ -565,9 +565,20 @@ sap.ui.define([
 					 */
 					requestHeaders : {type : "object[]"}
 				}
-			}
+			},
+			/**
+			 * Fired before select file dialog opens.
+			 * @since 1.102.0
+			 */
+			beforeDialogOpen : {},
+
+			 /**
+			 * Fired after select file dialog closes.
+			 * @since 1.102.0
+			 */
+			afterDialogClose : {}
 		}
-	}});
+	}, renderer: FileUploaderRenderer});
 
 
 	/**
@@ -701,6 +712,7 @@ sap.ui.define([
 			// Reattach files to the input field if already selected
 			/*eslint strict: [2, "never"]*/
 			this.oFileUpload.files = aFiles;
+			this._cacheDOMEls();
 		}
 	};
 
@@ -964,7 +976,7 @@ sap.ui.define([
 	 * @returns {Element} The DOM element that should be focused
 	 */
 	FileUploader.prototype.getFocusDomRef = function() {
-		return this.$("fu").get(0);
+		return this.oBrowse.getDomRef();
 	};
 
 	FileUploader.prototype._resizeDomElements = function() {
@@ -1410,6 +1422,15 @@ sap.ui.define([
 		//refocus the Button, except bSupressFocus is set
 		if (this.oBrowse.getDomRef() && (Device.browser.safari || containsOrEquals(this.getDomRef(), document.activeElement))) {
 			this.oBrowse.focus();
+		}
+
+		if (oEvent.target.getAttribute("type") === "file") {
+			this.fireBeforeDialogOpen();
+
+			document.body.onfocus = function () {
+				this.fireAfterDialogClose();
+				document.body.onfocus = null;
+			}.bind(this);
 		}
 	};
 
@@ -1980,8 +2001,9 @@ sap.ui.define([
 		if (this.oBrowse &&  this.oBrowse.$().length) {
 			$browse = this.oBrowse.$();
 			$browse.attr("type', 'button"); // The default type of button is submit that's why on click of label there are submit of the form. This way we are avoiding the submit of form.
-			$browse.off("click").on("click", function(e) {
-				e.preventDefault();
+			$browse.off("click").on("click", function(oEvent) {
+				oEvent.preventDefault();
+				oEvent.stopPropagation();
 				this.FUEl.click(); // The default behaviour on click on label is to open "open file" dialog. The only way to attach click event that is transferred from the label to the button is this way. AttachPress and attachTap don't work in this case.
 			}.bind(this));
 		}

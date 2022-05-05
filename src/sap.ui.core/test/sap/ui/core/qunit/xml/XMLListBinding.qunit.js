@@ -1,13 +1,21 @@
-/*global QUnit */
+/*!
+ * ${copyright}
+ */
 sap.ui.define([
-	"sap/ui/model/xml/XMLModel",
+	"sap/base/Log",
+	"sap/ui/Device",
 	"sap/ui/model/ChangeReason",
+	"sap/ui/model/ClientListBinding",
 	"sap/ui/model/Filter",
 	"sap/ui/model/FilterOperator",
 	"sap/ui/model/Sorter",
-	"sap/ui/Device",
+	"sap/ui/model/xml/XMLListBinding",
+	"sap/ui/model/xml/XMLModel",
+	"sap/ui/test/TestUtils",
 	"sap/ui/thirdparty/jquery"
-], function(XMLModel, ChangeReason, Filter, FilterOperator, Sorter, Device, jQuery) {
+], function(Log, Device, ChangeReason, ClientListBinding, Filter, FilterOperator, Sorter,
+		XMLListBinding, XMLModel, TestUtils, jQuery) {
+	/*global QUnit */
 	"use strict";
 
 	var testData =
@@ -61,13 +69,15 @@ sap.ui.define([
 
 	QUnit.module("sap.ui.model.xml.XMLListBinding", {
 		beforeEach: function() {
+			this.oLogMock = this.mock(Log);
+			this.oLogMock.expects("error").never();
+			this.oLogMock.expects("warning").never();
 			this.oModel = new XMLModel();
 			this.oModel.setXML(testData);
-			sap.ui.getCore().setModel(this.oModel);
 		},
 		afterEach: function() {
-			sap.ui.getCore().setModel(null);
 			this.oModel.destroy();
+			return TestUtils.awaitRendering();
 		},
 		createListBinding: function(sPath, oContext){
 			// create binding
@@ -133,45 +143,65 @@ sap.ui.define([
 	});
 
 	QUnit.test("ListBinding refresh", function(assert) {
-		assert.expect(3);
-		var oBinding = this.oModel.bindList("/teamMembers/member");
+		var oBinding = this.oModel.bindList("/teamMembers/member"),
+			iChangeCount = 0,
+			oDoc;
+
 		oBinding.initialize();
-		assert.equal(oBinding.getLength(), 7, "ListBinding returns correct length");
+		assert.strictEqual(oBinding.getLength(), 7, "ListBinding returns correct length");
 		oBinding.attachChange(function() {
-			assert.ok(true, "ListBinding fires change event when changed");
+			iChangeCount += 1;
 		});
-		var oDoc = this.oModel.getData();
+		oDoc = this.oModel.getData();
 		oDoc.firstChild.childNodes[1].appendChild(oDoc.createElement("member"));
+
+		// code under test
 		oBinding.refresh();
-		assert.equal(oBinding.getLength(), 8, "ListBinding returns changed length");
+
+		assert.strictEqual(iChangeCount, 1, "ListBinding fires change event when changed");
+		assert.strictEqual(oBinding.getLength(), 8, "ListBinding returns changed length");
 	});
 
 	QUnit.test("ListBinding refresh with getContexts", function(assert) {
-		assert.expect(1);
-		var oBinding = this.oModel.bindList("/teamMembers/member");
+		var oBinding = this.oModel.bindList("/teamMembers/member"),
+			iChangeCount = 0,
+			aContexts, oDoc;
+
 		oBinding.initialize();
-		var aContexts = oBinding.getContexts(0,5);
-		assert.equal(aContexts.length, 5, "ListBinding returns correct amount of contexts");
+		aContexts = oBinding.getContexts(0,5);
+		assert.strictEqual(aContexts.length, 5, "ListBinding returns correct amount of contexts");
 		oBinding.attachChange(function() {
-			assert.ok(false, "ListBinding fires no change event, as changed data is outside visible range");
+			iChangeCount += 1;
+			assert.ok(false, "No change event, as changed data is outside visible range");
 		});
-		var oDoc = this.oModel.getData();
+		oDoc = this.oModel.getData();
 		oDoc.firstChild.childNodes[1].childNodes[6].setAttribute("firstName", "Jonas");
+
+		// code under test
 		oBinding.refresh();
+
+		assert.strictEqual(iChangeCount, 0, "ListBinding fires change event when changed");
 	});
 
 	QUnit.test("ListBinding refresh with getContexts and length change", function(assert) {
-		assert.expect(3);
-		var oBinding = this.oModel.bindList("/teamMembers/member");
-		var aContexts = oBinding.getContexts(0,5);
-		assert.equal(aContexts.length, 5, "ListBinding returns correct amount of contexts");
+		var oBinding = this.oModel.bindList("/teamMembers/member"),
+			iChangeCount = 0,
+			aContexts = oBinding.getContexts(0,5),
+			oDoc;
+
+		assert.strictEqual(aContexts.length, 5, "ListBinding returns correct amount of contexts");
 		oBinding.attachChange(function() {
 			assert.ok(true, "ListBinding fires change event, as length has changed");
+			iChangeCount += 1;
 		});
-		var oDoc = this.oModel.getData();
+		oDoc = this.oModel.getData();
 		oDoc.firstChild.childNodes[1].appendChild(oDoc.createElement("member"));
+
+		// code under test
 		oBinding.refresh();
-		assert.equal(oBinding.getLength(), 8, "ListBinding returns changed length");
+
+		assert.strictEqual(oBinding.getLength(), 8, "ListBinding returns changed length");
+		assert.strictEqual(iChangeCount, 1, "ListBinding fires change event when changed");
 	});
 
 	QUnit.test("ListBinding getContexts with wrong path", function(assert) {
@@ -282,7 +312,6 @@ sap.ui.define([
 		var listBinding = this.createListBinding("/unknown");
 
 		listBinding.sort();
-		assert.expect(0);
 	});
 
 	// test for locale dependent sort order
@@ -582,7 +611,6 @@ sap.ui.define([
 		var listBinding = this.createListBinding("/unknown");
 
 		listBinding.filter([]);
-		assert.expect(0);
 	});
 
 	QUnit.test("ListBinding filter (without array)", function(assert) {
@@ -862,4 +890,15 @@ sap.ui.define([
 		this.oModel.setProperty("/changingArray", [1, 2, 3, 4]);
 	});
 
+	//**********************************************************************************************
+	QUnit.test("getContexts: implemented in ClientListBinding", function (assert) {
+		assert.strictEqual(XMLListBinding.prototype.getContexts,
+			ClientListBinding.prototype.getContexts);
+	});
+
+	//**********************************************************************************************
+	QUnit.test("getCurrentContexts: implemented in ClientListBinding", function (assert) {
+		assert.strictEqual(XMLListBinding.prototype.getCurrentContexts,
+			ClientListBinding.prototype.getCurrentContexts);
+	});
 });

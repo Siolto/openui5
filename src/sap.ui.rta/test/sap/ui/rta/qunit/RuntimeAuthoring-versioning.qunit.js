@@ -4,9 +4,12 @@ sap.ui.define([
 	"qunit/RtaQunitUtils",
 	"sap/m/MessageBox",
 	"sap/ui/base/Event",
+	"sap/ui/fl/write/api/PersistenceWriteAPI",
 	"sap/ui/fl/write/api/ReloadInfoAPI",
+	"sap/ui/fl/write/api/Version",
 	"sap/ui/fl/write/api/VersionsAPI",
 	"sap/ui/fl/Utils",
+	"sap/ui/model/json/JSONModel",
 	"sap/ui/rta/RuntimeAuthoring",
 	"sap/ui/rta/Utils",
 	"sap/ui/thirdparty/sinon-4"
@@ -14,9 +17,12 @@ sap.ui.define([
 	RtaQunitUtils,
 	MessageBox,
 	Event,
+	PersistenceWriteAPI,
 	ReloadInfoAPI,
+	Version,
 	VersionsAPI,
 	FlexUtils,
+	JSONModel,
 	RuntimeAuthoring,
 	Utils,
 	sinon
@@ -252,7 +258,7 @@ sap.ui.define([
 			sandbox.stub(VersionsAPI, "isDraftAvailable").returns(true);
 			var mInitialParsedHash = {
 				params: {
-					"sap-ui-fl-version": [sap.ui.fl.Versions.Draft]
+					"sap-ui-fl-version": [Version.Number.Draft]
 				}
 			};
 			var oReloadCurrentAppStub = sandbox.stub(this.oRta._getUShellService("AppLifeCycle"), "reloadCurrentApp").returns(true);
@@ -281,6 +287,17 @@ sap.ui.define([
 					assert.equal(oShowMessageBoxStub.calledOnce, true, "A Popup was shown");
 					assert.equal(oReloadInfo.reloadMethod, "CROSS_APP_NAVIGATION", "then a cross app is triggered");
 					assert.equal(oReloadInfo.isDraftAvailable, true, "Reload reason for isDraftAvailable is true");
+				});
+		});
+
+		QUnit.test("and active version is not selected", function(assert) {
+			this.oRta._oVersionsModel.setProperty("/draftAvailable", true);
+			this.oRta._oVersionsModel.setProperty("/activeVersion", "2");
+			var oShowMessageBoxStub = whenUserConfirmsMessage.call(this, "MSG_RELOAD_WITHOUT_DRAFT", assert);
+			return this.oRta._handleReloadOnExit()
+				.then(function(oReloadInfo) {
+					assert.equal(oShowMessageBoxStub.calledOnce, true, "A Popup was shown");
+					assert.equal(oReloadInfo.activeVersionNotSelected, true, "the active version is not selected");
 				});
 		});
 
@@ -349,7 +366,7 @@ sap.ui.define([
 				assert.equal(this.oEnableRestartStub.callCount, 1, "then a restart is enabled");
 				assert.equal(oLoadVersionStub.callCount, 1, "a reload for versions as triggered");
 				var oLoadVersionArguments = oLoadVersionStub.getCall(0).args[0];
-				assert.equal(oLoadVersionArguments.selector, oComp, "with the selector");
+				assert.equal(oLoadVersionArguments.control, oComp, "with the control");
 				assert.equal(oLoadVersionArguments.version, "1", ", the version number");
 				assert.equal(oLoadVersionArguments.layer, this.oRta.getLayer(), "and the layer");
 				assert.equal(oCrossAppNavigationStub.callCount, 1, "a cross app navigation was triggered");
@@ -363,15 +380,15 @@ sap.ui.define([
 			"the 'Original App' version, create a draft and switch to 'Original Version' again)", function(assert) {
 			var fnDone = assert.async();
 			var oEvent = new Event("someEventId", undefined, {
-				version: sap.ui.fl.Versions.Original
+				version: Version.Number.Original
 			});
 
 			var oLoadVersionStub = sandbox.stub(VersionsAPI, "loadVersionForApplication");
 			var mParsedUrlHash = {
 				params: {}
 			};
-			this.oRta._oVersionsModel.setProperty("/displayedVersion", sap.ui.fl.Versions.Draft);
-			mParsedUrlHash.params[sap.ui.fl.Versions.UrlParameter] = [sap.ui.fl.Versions.Original.toString()];
+			this.oRta._oVersionsModel.setProperty("/displayedVersion", Version.Number.Draft);
+			mParsedUrlHash.params["sap-ui-fl-version"] = [Version.Number.Original.toString()];
 			sandbox.stub(FlexUtils, "getParsedURLHash").returns(mParsedUrlHash);
 
 			this.oSwitchVersionStub.callsFake(function() {
@@ -379,8 +396,8 @@ sap.ui.define([
 				assert.equal(this.oEnableRestartStub.callCount, 1, "then a restart is mentioned");
 				assert.equal(oLoadVersionStub.callCount, 1, "a reload for versions as triggered");
 				var oLoadVersionArguments = oLoadVersionStub.getCall(0).args[0];
-				assert.equal(oLoadVersionArguments.selector, oComp, "with the selector");
-				assert.equal(oLoadVersionArguments.version, sap.ui.fl.Versions.Original, ", the version number");
+				assert.equal(oLoadVersionArguments.control, oComp, "with the control");
+				assert.equal(oLoadVersionArguments.version, Version.Number.Original, ", the version number");
 				assert.equal(oLoadVersionArguments.layer, this.oRta.getLayer(), "and the layer");
 				assert.equal(this.oRestartFlpStub.callCount, 1, "a app restart was triggered");
 				fnDone();
@@ -461,7 +478,7 @@ sap.ui.define([
 		});
 	});
 
-	QUnit.module("Given that RuntimeAuthoring is started", {
+	QUnit.module("Given that RuntimeAuthoring is started with a draft", {
 		beforeEach: function() {
 			givenAnFLP();
 			this.oRta = new RuntimeAuthoring({
@@ -470,7 +487,7 @@ sap.ui.define([
 
 			sandbox.stub(this.oRta, "_setVersionsModel").callsFake(function(oModel) {
 				oModel.setProperty("/versions", [{
-					version: sap.ui.fl.Versions.Draft,
+					version: Version.Number.Draft,
 					type: "draft"
 				}]);
 				oModel.setProperty("/backendDraft", true);
@@ -506,7 +523,7 @@ sap.ui.define([
 				.then(function() {
 					assert.equal(oActivateStub.callCount, 1, "then the activate() method is called once");
 					var oActivationCallPropertyBag = oActivateStub.getCall(0).args[0];
-					assert.equal(oActivationCallPropertyBag.selector, this.oRta.getRootControlInstance(), "with the correct selector");
+					assert.equal(oActivationCallPropertyBag.control, this.oRta.getRootControlInstance(), "with the correct control");
 					assert.equal(oActivationCallPropertyBag.layer, this.oRta.getLayer(), "and layer");
 					assert.equal(oActivationCallPropertyBag.title, sVersionTitle, "and version title");
 					assert.equal(this.oRta.bInitialResetEnabled, true, "and the initialRestEnabled is true");
@@ -516,8 +533,6 @@ sap.ui.define([
 		});
 
 		QUnit.test("when _onActivate is called on an older version with backend draft", function(assert) {
-			var oActivateStub;
-			var oShowMessageToastStub;
 			var sVersionTitle = "aVersionTitle";
 			var oEvent = {
 				getParameter: function() {
@@ -527,18 +542,21 @@ sap.ui.define([
 
 			sandbox.stub(this.oRta, "_isOldVersionDisplayed").returns(true);
 			sandbox.stub(this.oRta, "_isDraftAvailable").returns(true);
-			var oShowMessageBoxStub = sandbox.stub(Utils, "showMessageBox").resolves("MessageBox.Action.CANCEL");
+			sandbox.stub(PersistenceWriteAPI, "save").resolves();
+			var oShowMessageBoxStub = sandbox.stub(Utils, "showMessageBox").resolves(MessageBox.Action.CANCEL);
+			var oSerializeAndSaveSpy = sandbox.spy(this.oRta, "_serializeAndSave");
+			var oActivateStub = sandbox.stub(VersionsAPI, "activate").resolves(true);
+			var oShowMessageToastStub = sandbox.stub(this.oRta, "_showMessageToast");
 
 			return this.oRta
 				.start()
 				.then(function() {
-					oActivateStub = sandbox.stub(VersionsAPI, "activate").resolves(true);
-					oShowMessageToastStub = sandbox.stub(this.oRta, "_showMessageToast");
 					return this.oRta._onActivate(oEvent);
 				}.bind(this))
 				.then(function() {
 					assert.equal(oShowMessageBoxStub.callCount, 1, "then the message box was shown and click on CANCEL");
 					assert.equal(oShowMessageBoxStub.lastCall.args[1], "MSG_DRAFT_DISCARD_ON_REACTIVATE_DIALOG", "the message text is correct");
+					assert.equal(oSerializeAndSaveSpy.callCount, 0, "serializeAndSave was not called");
 					assert.equal(oActivateStub.callCount, 0, "activate() method was not called");
 
 					oShowMessageBoxStub.reset();
@@ -547,9 +565,11 @@ sap.ui.define([
 				}.bind(this))
 				.then(function() {
 					assert.equal(oShowMessageBoxStub.callCount, 1, "then the message box was shown and click on OK");
+					assert.equal(oSerializeAndSaveSpy.callCount, 1, "serializeAndSave is called once");
 					assert.equal(oActivateStub.callCount, 1, "activate() method is called once");
+					assert.equal(oSerializeAndSaveSpy.calledBefore(oActivateStub), true, "serialize was called before activating the verison");
 					var oActivationCallPropertyBag = oActivateStub.getCall(0).args[0];
-					assert.equal(oActivationCallPropertyBag.selector, this.oRta.getRootControlInstance(), "with the correct selector");
+					assert.equal(oActivationCallPropertyBag.control, this.oRta.getRootControlInstance(), "with the correct control");
 					assert.equal(oActivationCallPropertyBag.layer, this.oRta.getLayer(), "and layer");
 					assert.equal(oActivationCallPropertyBag.title, sVersionTitle, "and version title");
 					assert.equal(this.oRta.bInitialResetEnabled, true, "and the initialRestEnabled is true");
@@ -586,7 +606,7 @@ sap.ui.define([
 			var oCrossAppNavigationStub = sandbox.stub(this.oRta, "_triggerCrossAppNavigation").resolves();
 			var mParsedHash = {
 				params: {
-					"sap-ui-fl-version": [sap.ui.fl.Versions.Draft]
+					"sap-ui-fl-version": [Version.Number.Draft]
 				}
 			};
 			sandbox.stub(this.oRta, "_isDraftAvailable").returns(true);
@@ -612,11 +632,30 @@ sap.ui.define([
 					assert.equal(oRemoveVersionParameterStub.callCount, 1, "then _removeVersionParameterForFLP was called");
 					assert.equal(oRemoveVersionParameterStub.getCall(0).args[1], mParsedHash, "then _removeVersionParameterForFLP was called with the correct parameters");
 					var oDiscardCallPropertyBag = oDiscardDraftStub.getCall(0).args[0];
-					assert.equal(oDiscardCallPropertyBag.selector, this.oRta.getRootControlInstance(), "with the correct selector");
+					assert.equal(oDiscardCallPropertyBag.control, this.oRta.getRootControlInstance(), "with the correct control");
 					assert.equal(oDiscardCallPropertyBag.layer, this.oRta.getLayer(), "and layer");
 					assert.equal(oStopStub.callCount, 1, "then stop was called");
 					assert.equal(oCrossAppNavigationStub.callCount, 1, "a restart was triggered");
 				}.bind(this));
+		});
+
+		QUnit.test("when save is called and layer is not customer", function(assert) {
+			var oSaveStub = sandbox.stub().resolves();
+			this.oRta._oSerializer = {
+				saveCommands: oSaveStub
+			};
+			this.oRta.setFlexSettings({layer: "OTHER_LAYER"});
+			this.oRta._oToolbarControlsModel = new JSONModel({
+				translationEnabled: false
+			});
+			this.oRta._oVersionsModel = new JSONModel({
+				versioningEnabled: true
+			});
+
+			return this.oRta._serializeAndSave().then(function() {
+				assert.strictEqual(oSaveStub.callCount, 1, "save was triggered");
+				assert.strictEqual(oSaveStub.lastCall.args[0], false, "the draft flag is set to false");
+			});
 		});
 	});
 
@@ -699,7 +738,7 @@ sap.ui.define([
 		[{
 			testName: "when the stack was modified and a new draft is created, an old draft exists and the user has not yet confirmed the discarding of the old draft",
 			input: {
-				versionDisplayed: sap.ui.fl.Versions.Original,
+				versionDisplayed: Version.Number.Original,
 				backendDraft: true,
 				canUndo: true,
 				userConfirmedDiscard: false
@@ -710,7 +749,7 @@ sap.ui.define([
 		}, {
 			testName: "when the stack was modified and a new draft is created, an old draft exists and the user has already confirmed the discarding of the old draft",
 			input: {
-				versionDisplayed: sap.ui.fl.Versions.Original,
+				versionDisplayed: Version.Number.Original,
 				backendDraft: true,
 				canUndo: true,
 				userConfirmedDiscard: true
@@ -721,7 +760,7 @@ sap.ui.define([
 		}, {
 			testName: "when the stack was modified in the current draft",
 			input: {
-				versionDisplayed: sap.ui.fl.Versions.Draft,
+				versionDisplayed: Version.Number.Draft,
 				backendDraft: true,
 				canUndo: true,
 				userConfirmedDiscard: false
@@ -732,7 +771,7 @@ sap.ui.define([
 		}, {
 			testName: "when the stack was modified but nothing can be undone",
 			input: {
-				versionDisplayed: sap.ui.fl.Versions.Original,
+				versionDisplayed: Version.Number.Original,
 				backendDraft: true,
 				canUndo: false,
 				userConfirmedDiscard: false
@@ -743,7 +782,7 @@ sap.ui.define([
 		}, {
 			testName: "when the stack was modified and a new draft is created, an old draft does not exist",
 			input: {
-				versionDisplayed: sap.ui.fl.Versions.Original,
+				versionDisplayed: Version.Number.Original,
 				backendDraft: false,
 				canUndo: true,
 				userConfirmedDiscard: false
@@ -782,7 +821,7 @@ sap.ui.define([
 			return this.oRta.start()
 				.then(function() {
 					this.oRta._oVersionsModel.setProperty("/versioningEnabled", true);
-					this.oRta._oVersionsModel.setProperty("/displayedVersion", sap.ui.fl.Versions.Original);
+					this.oRta._oVersionsModel.setProperty("/displayedVersion", Version.Number.Original);
 					this.oRta._oVersionsModel.setProperty("/backendDraft", true);
 					sandbox.stub(this.oRta.getCommandStack(), "canUndo").returns(true);
 				}.bind(this));

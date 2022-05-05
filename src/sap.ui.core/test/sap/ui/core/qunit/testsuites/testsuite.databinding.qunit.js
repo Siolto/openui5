@@ -39,6 +39,12 @@ sap.ui.define(function() {
 					language: "en-US"
 				}
 			},
+			ClientListBinding : {
+				title: "sap.ui.model.ClientListBinding - QUnit Tests",
+				module: [
+					"test-resources/sap/ui/core/qunit/model/ClientListBinding.qunit"
+				]
+			},
 			ClientModel: {
 				title: "sap.ui.model.ClientModel - QUnit Tests",
 				ui5: {
@@ -250,11 +256,26 @@ sap.ui.define(function() {
 				},
 				title: "sap.ui.model.analytics.odata4analytics - QUnit Tests"
 			},
+			"analytics/ODataModelAdapter": {
+				title: "sap.ui.model.analytics.ODataModelAdapter",
+				module: [
+					"test-resources/sap/ui/core/qunit/analytics/ODataModelAdapter.qunit"
+				]
+			},
+			"model/_Helper": {
+				title: "sap.ui.model._Helper"
+			},
+			"model/Binding": {
+				title: "sap.ui.model.Binding"
+			},
 			"model/Context": {
 				title: "sap.ui.model.Context"
 			},
 			"model/ContextBinding": {
 				title: "sap.ui.model.ContextBinding"
+			},
+			"model/ListBinding": {
+				title: "sap.ui.model.ListBinding"
 			},
 			"model/Model": {
 				title: "sap.ui.model.Model"

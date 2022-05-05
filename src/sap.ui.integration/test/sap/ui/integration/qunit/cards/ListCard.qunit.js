@@ -231,6 +231,43 @@ sap.ui.define([
 		}
 	};
 
+	var oManifest_ListCard_maxItems_Parameters_Binding = {
+		"sap.app": {
+			"id": "test.cards.list.card4"
+		},
+		"sap.card": {
+			"configuration": {
+				"parameters": {
+					"max": {
+						"value": 2
+					}
+				}
+			},
+			"type": "List",
+			"header": {
+				"title": "L3 Request list content Card"
+			},
+			"content": {
+				"data": {
+					"json": [{
+						"Name": "Notebook Basic 15"
+					},
+						{
+							"Name": "Notebook Basic 17"
+						},
+						{
+							"Name": "Notebook Basic 18"
+						}
+					]
+				},
+				"maxItems": "{parameters>/max/value}",
+				"item": {
+					"title": "{Name}"
+				}
+			}
+		}
+	};
+
 	var oManifest_ListCard_BulletMicrochart = {
 		"sap.app": {
 			"id": "oManifest_ListCard_BulletMicrochart"
@@ -524,6 +561,65 @@ sap.ui.define([
 		}
 	};
 
+	var oManifest_ListCard_ActionsStrip = {
+		"sap.app": {
+			"id": "oManifest_ListCard_Actions_Strip"
+		},
+		"sap.card": {
+			"type": "List",
+			"header": {
+				"title": "Notebooks"
+			},
+			"content": {
+				"data": {
+					"json": [{
+						"Name": "Comfort Easy",
+						"Description": "32 GB Digital Assistant with high-resolution color screen",
+						"Highlight": "Error",
+						"IsFavorite": true
+					},
+						{
+							"Name": "ITelO Vault",
+							"Description": "Digital Organizer with State-of-the-Art Storage Encryption",
+							"Highlight": "Warning",
+							"IsFavorite": true
+						},
+						{
+							"Name": "Notebook Professional 15",
+							"Description": "Notebook Professional 15 with 2,80 GHz quad core, 15\" Multitouch LCD, 8 GB DDR3 RAM, 500 GB SSD - DVD-Writer (DVD-R/+R/-RW/-RAM),Windows 8 Pro",
+							"Highlight": "Success",
+							"IsFavorite": false
+						},
+						{
+							"Name": "Ergo Screen E-I",
+							"Description": "Optimum Hi-Resolution max. 1920 x 1080 @ 85Hz, Dot Pitch: 0.27mm",
+							"Highlight": "Information",
+							"IsFavorite": false
+						},
+						{
+							"Name": "Laser Professional Eco",
+							"Description": "Print 2400 dpi image quality color documents at speeds of up to 32 ppm (color) or 36 ppm (monochrome), letter/A4. Powerful 500 MHz processor, 512MB of memory",
+							"Highlight": "None",
+							"IsFavorite": true
+						}
+					]
+				},
+				"maxItems": 5,
+				"item": {
+					"title": "{Name}",
+					"description": "{Description}",
+					"highlight": "{Highlight}",
+					"actionsStrip": [
+						{
+							"text": "Add to Favorites {Name}",
+							"visible": "{= !${IsFavorite}}"
+						}
+					]
+				}
+			}
+		}
+	};
+
 	QUnit.module("List Card", {
 		beforeEach: function () {
 			this.oCard = new Card({
@@ -653,6 +749,23 @@ sap.ui.define([
 		this.oCard.placeAt(DOM_RENDER_LOCATION);
 	});
 
+	QUnit.test("List Card - ActionsStrip", function (assert) {
+		// Arrange
+		var done = assert.async();
+
+		this.oCard.attachEvent("_ready", function () {
+			Core.applyChanges();
+
+			// Assert
+			assert.ok(this.oCard.getCardContent().isA("sap.ui.integration.cards.ListContent"), "list content is displayed");
+			done();
+		}.bind(this));
+
+		// Act
+		this.oCard.setManifest(oManifest_ListCard_ActionsStrip);
+		this.oCard.placeAt(DOM_RENDER_LOCATION);
+	});
+
 	QUnit.test("Using maxItems manifest property", function (assert) {
 
 		// Arrange
@@ -689,6 +802,24 @@ sap.ui.define([
 
 		// Act
 		this.oCard.setManifest(oManifest_ListCard_maxItems_Parameters);
+	});
+
+	QUnit.test("Using maxItems set through binding", function (assert) {
+
+		// Arrange
+		var done = assert.async();
+
+		this.oCard.attachEvent("_ready", function () {
+			Core.applyChanges();
+
+			var iNumberOfItems = this.oCard.getCardContent().getAggregation("_content").getItems().length;
+			assert.ok(iNumberOfItems === 2, "After Manifest is processed maxItems should be a number");
+
+			done();
+		}.bind(this));
+
+		// Act
+		this.oCard.setManifest(oManifest_ListCard_maxItems_Parameters_Binding);
 	});
 
 	QUnit.test("Icon properties", function (assert) {

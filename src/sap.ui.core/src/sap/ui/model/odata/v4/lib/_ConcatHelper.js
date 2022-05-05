@@ -64,19 +64,10 @@ sap.ui.define([
 			};
 
 			/**
-			 * Handles a GET response wich contains additional rows.
-			 *
-			 * @param {number} iStart
-			 *   The index of the first element to request ($skip)
-			 * @param {number} iEnd
-			 *   The index after the last element to request ($skip + $top)
-			 * @param {object} oResult
-			 *   The result of the GET request
-			 * @param {object} mTypeForMetaPath
-			 *   A map from meta path to the entity type (as delivered by {@link #fetchTypes})
+			 * @override
+			 * @see sap.ui.model.odata.v4.lib._CollectionCache#handleResponse
 			 */
-			// @override sap.ui.model.odata.v4.lib._CollectionCache#handleResponse
-			oCache.handleResponse = function (iStart, iEnd, oResult, mTypeForMetaPath) {
+			oCache.handleResponse = function (oResult) {
 				aAdditionalRowHandlers.forEach(function (fnHandler) {
 					var oAdditionalRow;
 
@@ -91,7 +82,8 @@ sap.ui.define([
 
 				// revert to prototype and call it
 				delete this.handleResponse;
-				this.handleResponse(iStart, iEnd, oResult, mTypeForMetaPath);
+
+				return this.handleResponse.apply(this, arguments);
 			};
 		}
 	};

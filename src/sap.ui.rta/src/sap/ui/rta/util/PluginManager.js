@@ -28,7 +28,8 @@ sap.ui.define([
 	"sap/ui/rta/plugin/Settings",
 	"sap/ui/rta/plugin/Split",
 	"sap/ui/rta/plugin/Stretch",
-	"sap/ui/rta/plugin/LocalReset"
+	"sap/ui/rta/plugin/LocalReset",
+	"sap/ui/rta/plugin/Resize"
 ], function(
 	isEmptyObject,
 	values,
@@ -56,7 +57,8 @@ sap.ui.define([
 	SettingsPlugin,
 	SplitPlugin,
 	StretchPlugin,
-	LocalResetPlugin
+	LocalResetPlugin,
+	ResizePlugin
 ) {
 	"use strict";
 
@@ -179,6 +181,10 @@ sap.ui.define([
 				commandFactory: this._oCommandFactory
 			});
 
+			this._mDefaultPlugins["resize"] = new ResizePlugin({
+				commandFactory: this._oCommandFactory
+			});
+
 			this._mDefaultPlugins["contextMenu"] = new ContextMenuPlugin();
 
 			this._mDefaultPlugins["tabHandling"] = new TabHandlingPlugin();
@@ -205,7 +211,7 @@ sap.ui.define([
 			if (
 				oFlexSettings.layer === Layer.CUSTOMER
 				&& oSettings
-				&& !oSettings.isVersioningEnabled(oFlexSettings.layer)
+				&& oSettings.isPublicLayerAvailable()
 			) {
 				this._mDefaultPlugins["localReset"] = new LocalResetPlugin({
 					commandFactory: this._oCommandFactory

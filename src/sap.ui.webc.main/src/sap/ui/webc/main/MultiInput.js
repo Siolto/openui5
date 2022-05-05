@@ -6,9 +6,13 @@
 sap.ui.define([
 	"sap/ui/webc/common/WebComponent",
 	"./library",
+	"sap/ui/core/EnabledPropagator",
+	"sap/ui/base/ManagedObjectObserver",
 	"sap/ui/core/library",
-	"./thirdparty/MultiInput"
-], function(WebComponent, library, coreLibrary) {
+	"./thirdparty/MultiInput",
+	"./thirdparty/features/InputElementsFormSupport",
+	"./thirdparty/features/InputSuggestions"
+], function(WebComponent, library, EnabledPropagator, ManagedObjectObserver, coreLibrary) {
 	"use strict";
 
 	var ValueState = coreLibrary.ValueState;
@@ -39,29 +43,37 @@ sap.ui.define([
 	 * @since 1.92.0
 	 * @experimental Since 1.92.0 This control is experimental and its API might change significantly.
 	 * @alias sap.ui.webc.main.MultiInput
+	 * @implements sap.ui.core.IFormContent, sap.ui.core.ISemanticFormContent
 	 * @ui5-metamodel This control/element also will be described in the UI5 (legacy) designtime metamodel
 	 */
 	var MultiInput = WebComponent.extend("sap.ui.webc.main.MultiInput", {
 		metadata: {
 			library: "sap.ui.webc.main",
 			tag: "ui5-multi-input-ui5",
+			interfaces: [
+				"sap.ui.core.IFormContent",
+				"sap.ui.core.ISemanticFormContent"
+			],
 			properties: {
 
 				/**
-				 * Sets the accessible aria name of the component.
+				 * Defines the accessible aria name of the component.
 				 */
 				accessibleName: {
 					type: "string"
 				},
 
 				/**
-				 * Defines whether the component is in disabled state. <br>
-				 * <br>
-				 * <b>Note:</b> A disabled component is completely noninteractive.
+				 * Defines whether the control is enabled. A disabled control can't be interacted with, and it is not in the tab chain.
 				 */
-				disabled: {
+				enabled: {
 					type: "boolean",
-					defaultValue: false
+					defaultValue: true,
+					mapping: {
+						type: "attribute",
+						to: "disabled",
+						formatter: "_mapEnabled"
+					}
 				},
 
 				/**
@@ -199,8 +211,17 @@ sap.ui.define([
 				 */
 				width: {
 					type: "sap.ui.core.CSSSize",
-					defaultValue: null,
 					mapping: "style"
+				},
+
+				/**
+				 * The value for sap.ui.core.ISemanticFormContent interface.
+				 * @private
+				 */
+				_semanticFormValue: {
+					type: "string",
+					defaultValue: "",
+					visibility: "hidden"
 				}
 			},
 			defaultAggregation: "suggestionItems",
@@ -319,10 +340,18 @@ sap.ui.define([
 					parameters: {}
 				}
 			},
+			methods: ["openPicker"],
 			getters: ["previewItem"],
 			designtime: "sap/ui/webc/main/designtime/MultiInput.designtime"
 		}
 	});
+
+	/**
+	 * Manually opens the suggestions popover, assuming suggestions are enabled. Items must be preloaded for it to open.
+	 * @public
+	 * @name sap.ui.webc.main.MultiInput#openPicker
+	 * @function
+	 */
 
 	/**
 	 * Returns the the suggestion item on preview.
@@ -331,7 +360,58 @@ sap.ui.define([
 	 * @function
 	 */
 
+	EnabledPropagator.call(MultiInput.prototype);
+
 	/* CUSTOM CODE START */
+
+	MultiInput.prototype.init = function() {
+		/* Aggregation forwarding does not invalidate outer control, but we need to have that invalidation */
+		this._oTokenizerObserver = new ManagedObjectObserver(function(oChange) {
+			this.updateFormValueProperty();
+		}.bind(this));
+
+		this._oTokenizerObserver.observe(this, {
+			aggregations: ["tokens"]
+		});
+	};
+
+	/**
+	 * Gets formatted form value.
+	 *
+	 * In the context of the MultiInput, this is the merged value of all the Tokens in the control.
+	 * @returns {string} The semantic form value
+	 * @since 1.100
+	 * @experimental
+	 */
+	MultiInput.prototype.getFormFormattedValue = function() {
+		return this.getTokens()
+			.map(function(oToken) {
+				return oToken.getText();
+			})
+			.join(", ");
+	};
+
+	/**
+	 * The property which triggers form display invalidation when changed
+	 *
+	 * @returns {string} The property, containing the semantic form value
+	 * @since 1.100
+	 * @experimental
+	 */
+	MultiInput.prototype.getFormValueProperty = function() {
+		return "_semanticFormValue";
+	};
+
+	/**
+	 * ISemanticFormContent interface works only with properties. The state of MultiInput is kept as Tokens.
+	 * Update _semanticFormValue property so it'd match MultiInput's state, but as a string which could be reused.
+	 *
+	 * @private
+	 */
+	MultiInput.prototype.updateFormValueProperty = function() {
+		this.setProperty("_semanticFormValue", this.getFormFormattedValue(), true);
+	};
+
 	/* CUSTOM CODE END */
 
 	return MultiInput;

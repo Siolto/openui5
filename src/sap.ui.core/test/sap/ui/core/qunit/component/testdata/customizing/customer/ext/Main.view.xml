@@ -15,10 +15,12 @@
 	<Button id="button0"></Button>
 
 	<Panel id="Panel">
+		<!-- Nested level EP -->
 		<core:ExtensionPoint name="EP1" />
 		<Button id="button1"></Button>
 		<Button id="button2"></Button>
 		<Button id="button3"></Button>
+		<!-- Nested level EP -->
 		<core:ExtensionPoint name="EP2">
 			<core:Fragment id="defaultFragment" fragmentName="testdata.customizing.customer.ext.Default" type="XML" />
 		</core:ExtensionPoint>
@@ -68,6 +70,7 @@
 		</columns>
 	</Table>
 
+	<!-- Top Level EP -->
 	<core:ExtensionPoint name="EPTable">
 		<ColumnListItem id="myListItem">
 			<cells>
@@ -79,10 +82,12 @@
 	<!-- EP contains EP -->
 	<core:ExtensionPoint name="EPinEPRoot">
 		<Button id="ButtonInRootEP"></Button>
+		<!-- Nested level EP -->
 		<core:ExtensionPoint name="EPinEPChild">
 			<Button id="EPinEPButton"></Button>
 			<Button id="EPinEPButton2"></Button>
 			<Button id="EPinEPButton3"></Button>
+			<!-- Nested level EP -->
 			<core:ExtensionPoint name="EPinEPChild3">
 				<Button id="EPinEPButtonDeepNesting"></Button>
 				<Button id="EPinEPButtonDeepNesting2"></Button>
@@ -90,13 +95,14 @@
 		</core:ExtensionPoint>
 		<Button id="ButtonInRootEP2"></Button>
 		<Button id="ButtonInRootEP3"></Button>
+		<!-- Nested level EP -->
 		<core:ExtensionPoint name="EPinEPChild2">
 			<Button id="EPinEPButton4"></Button>
 		</core:ExtensionPoint>
 		<Button id="ButtonInRootEP4"></Button>
 	</core:ExtensionPoint>
 
-	<!-- Fragment contains an ExtensionPoint as root node in EP -->
+	<!-- Top Level EP: Fragment contains an ExtensionPoint as root node in EP -->
 	<core:ExtensionPoint name="EPinRootFragment">
 		<core:Fragment id="EPinEPRootFragment" fragmentName="testdata.customizing.customer.ext.EPRoot" type="XML" />
 	</core:ExtensionPoint>
@@ -109,4 +115,17 @@
 
 	<!-- Fragment with EP in binding template-->
 	<core:Fragment id="EPinBinding" fragmentName="testdata.customizing.customer.ext.EPinBinding" type="XML" />
+
+	<!-- nested View containing EPs in binding template -->
+	<!-- IMPORTANT: The nested view should be async for this test, since the async state of the outer view
+					is only propagated to Fragments and not views (because of compatibility).
+					Nested sync views might lead to memory leaks, when an async EP provider is used!
+					The provider based tests are partly async by default, meaning the EPs are resolved
+					async too and thus their controls cannot be contained in the views content synchronously.
+					This leads to the situation that the controls from the EP might not yet added to the
+					content aggregation of the nested view when the test destroys the Component!
+					The solution for this is either to set the nested views to "async=true" or to implement
+					the "sap.ui.core.IAsyncContentCreation" interface on the Component.
+	-->
+	<mvc:XMLView id="EPinBinding_in_nestedView" async="true" viewName="testdata.customizing.customer.ext.EPinBinding" />
 </mvc:View>

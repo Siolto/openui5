@@ -10,7 +10,6 @@ sap.ui.define([
 	"./ScrollBarRenderer",
 	"sap/ui/performance/trace/Interaction",
 	"sap/base/Log",
-	"sap/ui/dom/containsOrEquals",
 	"sap/ui/events/jquery/EventSimulation",
 	"sap/ui/thirdparty/jquery"
 ],
@@ -21,7 +20,6 @@ sap.ui.define([
 		ScrollBarRenderer,
 		Interaction,
 		Log,
-		containsOrEquals,
 		EventSimulation,
 		jQuery
 	) {
@@ -125,6 +123,14 @@ sap.ui.define([
 	 */
 	ScrollBar.prototype.init = function(){
 
+		// Set scope of event handlers to this
+		this.ontouchstart = this.ontouchstart.bind(this);
+		this.ontouchmove = this.ontouchmove.bind(this);
+		this.ontouchend = this.ontouchend.bind(this);
+		this.ontouchcancel = this.ontouchcancel.bind(this);
+		this.onmousewheel = this.onmousewheel.bind(this);
+		this.onscroll = this.onscroll.bind(this);
+
 		// jQuery Object - Dom reference of the scroll bar
 		this._$ScrollDomRef = null;
 
@@ -158,7 +164,7 @@ sap.ui.define([
 			// number of unneeded rendering is reduced.
 			this._bSkipTouchHandling = false;
 
-			this._oTouchScroller = new window.Scroller(jQuery.proxy(this._handleTouchScroll,this), {
+			this._oTouchScroller = new window.Scroller(this._handleTouchScroll.bind(this), {
 				bouncing:false
 			});
 		}
@@ -269,7 +275,7 @@ sap.ui.define([
 
 		this.setCheckedScrollPosition(this.getScrollPosition() ? this.getScrollPosition() : 0, true);
 
-		this._$ScrollDomRef.on("scroll", jQuery.proxy(this.onscroll, this));
+		this._$ScrollDomRef.on("scroll", this.onscroll);
 
 		if (EventSimulation.touchEventMode === "ON") {
 			this._bSkipTouchHandling = true;
@@ -313,7 +319,7 @@ sap.ui.define([
 			// find out if the user is scrolling up= back or down= forward.
 			var bForward = wheelData > 0 ? true : false;
 
-			if (containsOrEquals(this._$ScrollDomRef[0], oEvent.target)) {
+			if (this._$ScrollDomRef[0] && this._$ScrollDomRef[0].contains(oEvent.target)) {
 				this._doScroll(ScrollBarAction.MouseWheel, bForward);
 			} else {
 
@@ -525,10 +531,10 @@ sap.ui.define([
 			}
 
 			if (EventSimulation.touchEventMode === "ON") {
-				this._$OwnerDomRef.off(this._getTouchEventType("touchstart"), jQuery.proxy(this.ontouchstart, this));
-				this._$OwnerDomRef.off(this._getTouchEventType("touchmove"), jQuery.proxy(this.ontouchmove, this));
-				this._$OwnerDomRef.off(this._getTouchEventType("touchend"), jQuery.proxy(this.ontouchend, this));
-				this._$OwnerDomRef.off(this._getTouchEventType("touchcancel"), jQuery.proxy(this.ontouchcancel, this));
+				this._$OwnerDomRef.off(this._getTouchEventType("touchstart"), this.ontouchstart);
+				this._$OwnerDomRef.off(this._getTouchEventType("touchmove"), this.ontouchmove);
+				this._$OwnerDomRef.off(this._getTouchEventType("touchend"), this.ontouchend);
+				this._$OwnerDomRef.off(this._getTouchEventType("touchcancel"), this.ontouchcancel);
 			}
 		}
 	};
@@ -545,14 +551,14 @@ sap.ui.define([
 		if (oOwnerDomRef) {
 			this._$OwnerDomRef = jQuery(oOwnerDomRef);
 			if (this.getVertical()) {
-				this._$OwnerDomRef.on(Device.browser.firefox ? "DOMMouseScroll" : "mousewheel", jQuery.proxy(this.onmousewheel, this));
+				this._$OwnerDomRef.on(Device.browser.firefox ? "DOMMouseScroll" : "mousewheel", this.onmousewheel);
 			}
 
 			if (EventSimulation.touchEventMode === "ON") {
-				this._$OwnerDomRef.on(this._getTouchEventType("touchstart"), jQuery.proxy(this.ontouchstart, this));
-				this._$OwnerDomRef.on(this._getTouchEventType("touchmove"), jQuery.proxy(this.ontouchmove, this));
-				this._$OwnerDomRef.on(this._getTouchEventType("touchend"), jQuery.proxy(this.ontouchend, this));
-				this._$OwnerDomRef.on(this._getTouchEventType("touchcancel"), jQuery.proxy(this.ontouchcancel, this));
+				this._$OwnerDomRef.on(this._getTouchEventType("touchstart"), this.ontouchstart);
+				this._$OwnerDomRef.on(this._getTouchEventType("touchmove"), this.ontouchmove);
+				this._$OwnerDomRef.on(this._getTouchEventType("touchend"), this.ontouchend);
+				this._$OwnerDomRef.on(this._getTouchEventType("touchcancel"), this.ontouchcancel);
 			}
 		}
 	};

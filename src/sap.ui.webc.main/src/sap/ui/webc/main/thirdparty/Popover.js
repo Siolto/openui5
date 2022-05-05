@@ -1,12 +1,11 @@
-sap.ui.define(['sap/ui/webc/common/thirdparty/base/types/Integer', 'sap/ui/webc/common/thirdparty/base/Device', 'sap/ui/webc/common/thirdparty/base/delegate/ResizeHandler', 'sap/ui/webc/common/thirdparty/base/util/PopupUtils', 'sap/ui/webc/common/thirdparty/base/util/clamp', './Popup', './types/PopoverPlacementType', './types/PopoverVerticalAlign', './types/PopoverHorizontalAlign', './popup-utils/PopoverRegistry', './generated/templates/PopoverTemplate.lit', './generated/themes/BrowserScrollbar.css', './generated/themes/PopupsCommon.css', './generated/themes/Popover.css'], function (Integer, Device, ResizeHandler, PopupUtils, clamp, Popup, PopoverPlacementType, PopoverVerticalAlign, PopoverHorizontalAlign, PopoverRegistry, PopoverTemplate_lit, BrowserScrollbar_css, PopupsCommon_css, Popover_css) { 'use strict';
+sap.ui.define(['sap/ui/webc/common/thirdparty/base/types/Integer', 'sap/ui/webc/common/thirdparty/base/Device', 'sap/ui/webc/common/thirdparty/base/util/PopupUtils', 'sap/ui/webc/common/thirdparty/base/util/clamp', './Popup', './types/PopoverPlacementType', './types/PopoverVerticalAlign', './types/PopoverHorizontalAlign', './popup-utils/PopoverRegistry', './generated/templates/PopoverTemplate.lit', './generated/themes/BrowserScrollbar.css', './generated/themes/PopupsCommon.css', './generated/themes/Popover.css'], function (Integer, Device, PopupUtils, clamp, Popup, PopoverPlacementType, PopoverVerticalAlign, PopoverHorizontalAlign, PopoverRegistry, PopoverTemplate_lit, BrowserScrollbar_css, PopupsCommon_css, Popover_css) { 'use strict';
 
 	function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e['default'] : e; }
 
 	var Integer__default = /*#__PURE__*/_interopDefaultLegacy(Integer);
-	var ResizeHandler__default = /*#__PURE__*/_interopDefaultLegacy(ResizeHandler);
 	var clamp__default = /*#__PURE__*/_interopDefaultLegacy(clamp);
 
-	const arrowSize = 8;
+	const ARROW_SIZE = 8;
 	const metadata = {
 		tag: "ui5-popover",
 		properties:  {
@@ -36,6 +35,9 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/types/Integer', 'sap/ui/webc/
 			},
 			allowTargetOverlap: {
 				type: Boolean,
+			},
+			opener: {
+				type: String,
 			},
 			disableScrolling: {
 				type: Boolean,
@@ -78,7 +80,6 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/types/Integer', 'sap/ui/webc/
 	class Popover extends Popup {
 		constructor() {
 			super();
-			this._handleResize = this.handleResize.bind(this);
 		}
 		static get metadata() {
 			return metadata;
@@ -92,14 +93,17 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/types/Integer', 'sap/ui/webc/
 		static get VIEWPORT_MARGIN() {
 			return 10;
 		}
-		static get ARROW_MARGIN() {
-			return 6;
-		}
-		onEnterDOM() {
-			ResizeHandler__default.register(this, this._handleResize);
-		}
-		onExitDOM() {
-			ResizeHandler__default.deregister(this, this._handleResize);
+		onAfterRendering() {
+			if (!this.isOpen() && this.open) {
+				const opener = document.getElementById(this.opener);
+				if (!opener) {
+					console.warn("Valid opener id is required.");
+					return;
+				}
+				this.showAt(opener);
+			} else if (this.isOpen() && !this.open) {
+				this.close();
+			}
 		}
 		isOpenerClicked(event) {
 			const target = event.target;
@@ -143,7 +147,14 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/types/Integer', 'sap/ui/webc/
 				&& openerRect.left === 0
 				&& openerRect.right === 0;
 		}
-		handleResize() {
+		isOpenerOutsideViewport(openerRect) {
+			return openerRect.bottom < 0
+				|| openerRect.top > window.innerHeight
+				|| openerRect.right < 0
+				|| openerRect.left > window.innerWidth;
+		}
+		_resize() {
+			super._resize();
 			if (this.opened) {
 				this.reposition();
 			}
@@ -166,7 +177,7 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/types/Integer', 'sap/ui/webc/
 				placement = this.calcPlacement(this._openerRect, popoverSize);
 			}
 			const stretching = this.horizontalAlign === PopoverHorizontalAlign.Stretch;
-			if (this._preventRepositionAndClose) {
+			if (this._preventRepositionAndClose || this.isOpenerOutsideViewport(this._openerRect)) {
 				return this.close();
 			}
 			this._oldPlacement = placement;
@@ -187,11 +198,8 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/types/Integer', 'sap/ui/webc/
 			if (this.actualPlacementType === PopoverPlacementType.Bottom) {
 				top = Math.max(top, this._top);
 			}
-			const isVertical = this.actualPlacementType === PopoverPlacementType.Top || this.actualPlacementType === PopoverPlacementType.Bottom;
-			const borderRadius = Number.parseInt(window.getComputedStyle(this).getPropertyValue("border-radius"));
-			const arrow = this._clampArrowPlacement(placement.arrow, isVertical, this._top, this._left, popoverSize, borderRadius);
-			this.arrowTranslateX = arrow.x;
-			this.arrowTranslateY = arrow.y;
+			this.arrowTranslateX = placement.arrow.x;
+			this.arrowTranslateY = placement.arrow.y;
 			top = this._adjustForIOSKeyboard(top);
 			Object.assign(this.style, {
 				top: `${top}px`,
@@ -201,35 +209,6 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/types/Integer', 'sap/ui/webc/
 			if (stretching && this._width) {
 				this.style.width = this._width;
 			}
-		}
-		_clampArrowPlacement({ x, y }, isVertical, top, left, { width, height }, borderRadius) {
-			const maxY = this._getArrowRange(height, borderRadius);
-			const maxX = this._getArrowRange(width, borderRadius);
-			if (isVertical) {
-				const popoverOnLeftBorderOffset = Popover.VIEWPORT_MARGIN - left;
-				const popoverOnRightBorderOffset = left + width + Popover.VIEWPORT_MARGIN - document.documentElement.clientWidth;
-				if (popoverOnLeftBorderOffset > 0) {
-					x = Math.max(x - popoverOnLeftBorderOffset, -maxX);
-				} else if (popoverOnRightBorderOffset > 0) {
-					x = Math.min(x + popoverOnRightBorderOffset, maxX);
-				}
-			}
-			if (!isVertical) {
-				const popoverOnTopBorderOffset = Popover.VIEWPORT_MARGIN - top;
-				const popoverOnBottomBorderOffset = top + height + Popover.VIEWPORT_MARGIN - document.documentElement.clientHeight;
-				if (popoverOnTopBorderOffset > 0) {
-					y = Math.max(y - popoverOnTopBorderOffset, -maxY);
-				} else if (popoverOnBottomBorderOffset > 0) {
-					y = Math.min(y + popoverOnBottomBorderOffset, maxY);
-				}
-			}
-			return {
-				x: Math.round(x),
-				y: Math.round(y),
-			};
-		}
-		_getArrowRange(dimension, borderRadius) {
-			return Math.floor((dimension / 2) - (borderRadius + Popover.ARROW_MARGIN));
 		}
 		_adjustForIOSKeyboard(top) {
 			if (!Device.isIOS()) {
@@ -250,9 +229,6 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/types/Integer', 'sap/ui/webc/
 				width = rect.width,
 				height = rect.height;
 			return { width, height };
-		}
-		get contentDOM() {
-			return this.shadowRoot.querySelector(".ui5-popup-content");
 		}
 		get arrowDOM() {
 			return this.shadowRoot.querySelector(".ui5-popover-arrow");
@@ -275,7 +251,7 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/types/Integer', 'sap/ui/webc/
 			} else if (this.verticalAlign === PopoverVerticalAlign.Stretch && !isVertical) {
 				popoverSize.height = targetRect.height;
 			}
-			const arrowOffset = this.hideArrow ? 0 : arrowSize;
+			const arrowOffset = this.hideArrow ? 0 : ARROW_SIZE;
 			switch (placementType) {
 			case PopoverPlacementType.Top:
 				left = this.getVerticalLeft(targetRect, popoverSize);
@@ -331,7 +307,8 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/types/Integer', 'sap/ui/webc/
 			if (this._top === undefined || Math.abs(this._top - top) > 1.5) {
 				this._top = Math.round(top);
 			}
-			const arrowPos = this.getArrowPosition(targetRect, popoverSize, left, top, isVertical);
+			const borderRadius = Number.parseInt(window.getComputedStyle(this).getPropertyValue("border-radius"));
+			const arrowPos = this.getArrowPosition(targetRect, popoverSize, left, top, isVertical, borderRadius);
 			return {
 				arrow: arrowPos,
 				top: this._top,
@@ -339,22 +316,34 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/types/Integer', 'sap/ui/webc/
 				placementType,
 			};
 		}
-		getArrowPosition(targetRect, popoverSize, left, top, isVertical) {
+		getArrowPosition(targetRect, { width, height }, left, top, isVertical, borderRadius) {
 			let arrowXCentered = this.horizontalAlign === PopoverHorizontalAlign.Center || this.horizontalAlign === PopoverHorizontalAlign.Stretch;
 			if (this.horizontalAlign === PopoverHorizontalAlign.Right && left <= targetRect.left) {
 				arrowXCentered = true;
 			}
-			if (this.horizontalAlign === PopoverHorizontalAlign.Left && left + popoverSize.width >= targetRect.left + targetRect.width) {
+			if (this.horizontalAlign === PopoverHorizontalAlign.Left && left + width >= targetRect.left + targetRect.width) {
 				arrowXCentered = true;
 			}
 			let arrowTranslateX = 0;
 			if (isVertical && arrowXCentered) {
-				arrowTranslateX = targetRect.left + targetRect.width / 2 - left - popoverSize.width / 2;
+				arrowTranslateX = targetRect.left + targetRect.width / 2 - left - width / 2;
 			}
 			let arrowTranslateY = 0;
 			if (!isVertical) {
-				arrowTranslateY = targetRect.top + targetRect.height / 2 - top - popoverSize.height / 2;
+				arrowTranslateY = targetRect.top + targetRect.height / 2 - top - height / 2;
 			}
+			const safeRangeForArrowY = height / 2 - borderRadius - ARROW_SIZE / 2;
+			arrowTranslateY = clamp__default(
+				arrowTranslateY,
+				-safeRangeForArrowY,
+				safeRangeForArrowY,
+			);
+			const safeRangeForArrowX = width / 2 - borderRadius - ARROW_SIZE / 2;
+			arrowTranslateX = clamp__default(
+				arrowTranslateX,
+				-safeRangeForArrowX,
+				safeRangeForArrowX,
+			);
 			return {
 				x: Math.round(arrowTranslateX),
 				y: Math.round(arrowTranslateY),

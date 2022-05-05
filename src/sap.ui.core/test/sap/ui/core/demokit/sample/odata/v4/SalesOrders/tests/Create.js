@@ -95,9 +95,7 @@ sap.ui.define([
 			When.onTheSuccessInfo.confirm();
 			if (bRealOData) {
 				Then.onTheMainPage.checkButtonEnabled("confirmSalesOrder");
-				// TODO: TestUtils may support to provide JSON response/or generated keys...
 				Then.onTheMainPage.checkDifferentID(0, "");
-				// TODO: TestUtils does not support PATCH at all
 				When.onTheMainPage.changeNoteInSalesOrders(0, sModifiedNote + "_3");
 				When.onTheMainPage.pressSaveSalesOrdersButton();
 			}
@@ -212,7 +210,6 @@ sap.ui.define([
 				Then.onTheMainPage.checkSalesOrderItemInRow(0);
 				// reset filter again (Note: resets also filter ItemPosition gt '0000000000')
 				When.onTheMainPage.filterSOItemsByProductIdWithChangeParameters(undefined);
-
 
 				// Sort
 				When.onTheMainPage.sortBySalesOrderIDviaController(); // sort by sales order ID asc.

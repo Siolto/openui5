@@ -116,7 +116,7 @@ sap.ui.define([
 		},
 
 		showUIColumns: function(oControl, oSource) {
-			oControl.getEngine().uimanager.show(oControl, oControl.getP13nMode(), oSource);
+			oControl.getEngine().uimanager.show(oControl, oControl.getActiveP13nModes(), oSource);
 		},
 
 		showUIFilter: function(oControl, oSource) {
@@ -128,31 +128,19 @@ sap.ui.define([
 		 *
 		 * @param {object} oControl The control for which the sorting is used
 		 * @param {string} sProperty The property for which the sorting is used
-		 * @param {boolean} bDescending Whether to sort in descending or ascending order
+		 * @param {sap.ui.core.SortOrder} sSortOrder Whether to sort in descending or ascending order
 		 * @param {boolean} [bRemoveAllExisting=true] Set to remove the previous sorters
 		 */
-		createSort: function(oControl, sProperty, bDescending, bRemoveAllExisting) {
-
-			var oSorter = {
-				selected: true,
-				name: sProperty,
-				descending: bDescending,
-				sorted: true
-			};
-
-			//check to revert sorting in case the sorter and its type already exists
-			oControl.getCurrentState().sorters.forEach(function(oProp) {
-				if (oProp.name == sProperty && oProp.descending === bDescending) {
-					oSorter.sorted = false;
-				}
-			});
-
-			var aItems = [oSorter];
-
+		createSort: function(oControl, sProperty, sSortOrder, bRemoveAllExisting) {
 			oControl.getEngine().createChanges({
 				control: oControl,
 				key: "Sort",
-				state: aItems,
+				state: [{
+					selected: true,
+					name: sProperty,
+					descending: sSortOrder === CoreLibrary.SortOrder.Descending,
+					sorted: sSortOrder !== CoreLibrary.SortOrder.None
+				}],
 				applyAbsolute: bRemoveAllExisting
 			});
 
@@ -174,7 +162,7 @@ sap.ui.define([
 				control: oControl,
 				key: "Group",
 				state: aGroup,
-				applyAbsolute: false
+				applyAbsolute: oControl._bMobileTable
 			});
 		},
 

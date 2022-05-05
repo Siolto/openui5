@@ -34,15 +34,14 @@ sap.ui.define([
 	"sap/m/RatingIndicator",
 	"sap/m/Image",
 	"sap/m/Toolbar",
-	"sap/m/Menu",
-	"sap/m/MenuItem",
 	"sap/m/library",
 	"sap/ui/unified/Menu",
 	"sap/ui/unified/MenuItem",
 	"sap/base/Log",
 	"sap/ui/thirdparty/jquery",
 	"sap/ui/core/Core",
-	"sap/ui/core/message/Message"
+	"sap/ui/core/message/Message",
+	"sap/m/IllustratedMessage"
 ], function(
 	TableQUnitUtils,
 	qutils,
@@ -77,15 +76,14 @@ sap.ui.define([
 	RatingIndicator,
 	Image,
 	Toolbar,
-	MenuM,
-	MenuItemM,
 	MLibrary,
 	Menu,
 	MenuItem,
 	Log,
 	jQuery,
 	oCore,
-	Message
+	Message,
+	IllustratedMessage
 ) {
 	"use strict";
 
@@ -1018,8 +1016,8 @@ sap.ui.define([
 		oColumn = oTable.getColumns()[6];
 		oMenu = oColumn.getMenu();
 		oMenu.open();
-		assert.ok(oRemoveAggregationSpy.withArgs("items", oTable._oColumnVisibilityMenuItem, true).calledOnce,
-			"The items aggregation is being removed before updating the visibility submenu");
+		assert.ok(oRemoveAggregationSpy.withArgs("items", oTable._oColumnVisibilityMenuItem, true).notCalled,
+			"The items aggregation is not removed, the visibility submenu is only updated");
 		oMenu.close();
 	});
 
@@ -1421,55 +1419,50 @@ sap.ui.define([
 	});
 
 	QUnit.test("#focus", function(assert) {
-		oTable.focus();
-		checkFocus(getColumnHeader(0, null, null, oTable), assert);
-
-		oTable.focus({
+		var fnFocusSpy = sinon.spy(oTable, "focus");
+		var oFocusInfo = {
 			targetInfo: new Message({
 				message: "Error thrown",
 				type: "Error"
 			})
-		});
+		};
+		oTable.focus();
+		assert.ok(fnFocusSpy.calledWith(), "Focus event called without any parameter");
+		checkFocus(getColumnHeader(0, null, null, oTable), assert);
+
+		oTable.focus(oFocusInfo);
+		assert.ok(fnFocusSpy.calledWith(oFocusInfo), "Focus event called with core:Message parameter");
 		checkFocus(getColumnHeader(0, null, null, oTable), assert);
 
 		oTable.setColumnHeaderVisible(false);
 		oCore.applyChanges();
 		oTable.focus();
+		assert.ok(fnFocusSpy.calledWith(), "Focus event called without any parameter");
 		checkFocus(getCell(0, 0, null, null, oTable), assert);
 
-		oTable.focus({
-			targetInfo: new Message({
-				message: "Error thrown",
-				type: "Error"
-			})
-		});
+		oTable.focus(oFocusInfo);
+		assert.ok(fnFocusSpy.calledWith(oFocusInfo), "Focus event called with core:Message parameter");
 		checkFocus(getCell(0, 0, null, null, oTable), assert);
 
 		oTable.unbindRows();
 		oTable.focus();
+		assert.ok(fnFocusSpy.calledWith(), "Focus event called without any parameter");
 		checkFocus(oTable.getDomRef("noDataCnt"), assert);
 
 		oTable.setShowOverlay(true);
 		oTable.focus();
+		assert.ok(fnFocusSpy.calledWith(), "Focus event called without any parameter");
 		checkFocus(oTable.getDomRef("overlay"), assert);
 
-		oTable.focus({
-			targetInfo: new Message({
-				message: "Error thrown",
-				type: "Error"
-			})
-		});
+		oTable.focus(oFocusInfo);
+		assert.ok(fnFocusSpy.calledWith(oFocusInfo), "Focus event called with core:Message parameter");
 		checkFocus(oTable.getDomRef("overlay"), assert);
 
 		oTable.setShowOverlay(false);
 		oTable.removeAllColumns();
 		oCore.applyChanges();
-		oTable.focus({
-			targetInfo: new Message({
-				message: "Error thrown",
-				type: "Error"
-			})
-		});
+		oTable.focus(oFocusInfo);
+		assert.ok(fnFocusSpy.calledWith(oFocusInfo), "Focus event called with core:Message parameter");
 		checkFocus(oTable.getDomRef("noDataCnt"), assert);
 	});
 
@@ -5862,6 +5855,22 @@ sap.ui.define([
 		}).then(this.oTable.qunit.whenRenderingFinished).then(function() {
 			TableQUnitUtils.assertNoDataVisible(assert, that.oTable, false, "Bind");
 		});
+	});
+
+	QUnit.test("IllustratedMessage", function(assert) {
+		var oTable = this.oTable;
+
+		oTable.setNoData(new IllustratedMessage({
+			illustrationType: MLibrary.IllustratedMessageType.NoSearchResults,
+			title: "TABLE_NO_DATA_TITLE",
+			description: "TABLE_NO_DATA_DESCRIPTION"
+		}));
+
+		oTable.unbindRows();
+		oCore.applyChanges();
+		assert.ok(oTable.getDomRef("noDataCnt").firstChild.classList.contains("sapMIllustratedMessage"));
+		assert.equal(oTable.getDomRef("noDataCnt").querySelector("figure > svg > use").getAttribute("href"), "#sapIllus-Scene-NoSearchResults");
+		assert.equal(oTable.getDomRef("noDataCnt").innerText, "TABLE_NO_DATA_TITLE\nTABLE_NO_DATA_DESCRIPTION");
 	});
 
 	QUnit.module("Hierarchy modes", {

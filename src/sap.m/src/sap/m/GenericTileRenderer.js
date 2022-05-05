@@ -97,16 +97,24 @@ sap.ui.define(["sap/m/library", "sap/base/security/encodeCSS"],
 		}
 		if (oControl._isIconMode()) {
 			oRm.class("sapMGTIconMode");
+			if (this._isThemeHighContrast()) {
+				oRm.class("HighContrastTile");
+			}
 		}
-		if (!bIsArticleMode && !bIsActionMode && frameType === frameTypes.OneByOne && oControl.getSystemInfo() || oControl.getAppShortcut()) {
+		if (!bIsArticleMode && !bIsActionMode && frameType !== frameTypes.OneByHalf && (oControl.getSystemInfo() || oControl.getAppShortcut())) {
 			oRm.class("tileWithAppInfo");
 		}
 		//Set respective Class/ BackgroundColor for IconMode
 		if (oControl._isIconMode()) {
 			if (frameType === frameTypes.TwoByHalf) {
 				oRm.class("sapMGTTwoByHalf");
-			} else {
-				oRm.style("background-color", oControl.getBackgroundColor());
+			} else if (frameType === frameTypes.OneByOne) {
+				if (!this._isThemeHighContrast()) {
+					oRm.style("background-color", oControl.getBackgroundColor());
+				} else {
+					oRm.style("border-color", oControl.getBackgroundColor());
+					oRm.style("box-shadow", "0 0 0 1px" + oControl.getBackgroundColor());
+				}
 			}
 		}
 
@@ -207,16 +215,9 @@ sap.ui.define(["sap/m/library", "sap/base/security/encodeCSS"],
 					.openEnd()
 					.close("div");
 				if (!isHalfFrame) {
-					oRm.openStart("div")
-						.class("sapMGTContentShimmerPlaceholderItemBox")
-						.class("sapMGTLoadingShimmer")
-						.openEnd()
-						.close("div");
-					oRm.openStart("div")
-						.class("sapMGTContentShimmerPlaceholderItemTextFooter")
-						.class("sapMGTLoadingShimmer")
-						.openEnd()
-						.close("div");
+					for (var i = 0; i < iLength; i++) {
+						oRm.renderControl(aTileContent[i]);
+					}
 				}
 				oRm.close("div");
 				oRm.close("div");
@@ -236,7 +237,13 @@ sap.ui.define(["sap/m/library", "sap/base/security/encodeCSS"],
 					oRm.class("sapMGTOneByOneIcon");
 				} else {
 					oRm.class("sapMGTTwoByHalfIcon");
-					oRm.style("background-color", oControl.getBackgroundColor());
+					if (!this._isThemeHighContrast()) {
+						oRm.style("background-color", oControl.getBackgroundColor());
+					} else {
+						oRm.class("HighContrastTile");
+						oRm.style("border-color", oControl.getBackgroundColor());
+						oRm.style("box-shadow", "0 0 0 1px" + oControl.getBackgroundColor());
+					}
 				}
 				oRm.openEnd();
 				if (oControl.getTileIcon()) {
@@ -246,6 +253,12 @@ sap.ui.define(["sap/m/library", "sap/base/security/encodeCSS"],
 					}
 				}
 				oRm.close("div");
+			}
+
+			//Wrapper div for adjusting to Info Container
+			if (this._shouldRenderInfoContainer(oControl) && frameType === frameTypes.TwoByHalf) {
+				oRm.openStart("div", oControl.getId() + "-wrapper").class("sapMGTWrapper").openEnd();
+				oRm.openStart("div", oControl.getId() + "-wrapper-content").class("sapMGTWrapperCnt").openEnd();
 			}
 
 			oRm.openStart("div");
@@ -277,9 +290,10 @@ sap.ui.define(["sap/m/library", "sap/base/security/encodeCSS"],
 
 			this._renderHeader(oRm, oControl);
 			for (var i = 0; i < iLength; i++) {
-				isFooterPresent = oControl._checkFooter(aTileContent[i], oControl) && aTileContent[i].getFooter();
-				if (aTileContent[i].getAggregation("content") !== null){
-					if (frameType === frameTypes.OneByHalf && aTileContent[i].getAggregation("content").getMetadata()._sClassName === "sap.m.ImageContent") {
+				isFooterPresent = oControl._checkFooter(aTileContent[i], oControl) && (aTileContent[i].getFooter() ||  aTileContent[i].getUnit());
+				var oAggregationContent = aTileContent[i].getContent();
+				if (oAggregationContent) {
+					if (frameType === frameTypes.OneByHalf && oAggregationContent.getMetadata().getElementName() === "sap.m.ImageContent") {
 						isContentPresent = false;
 					} else {
 						isContentPresent = true;
@@ -302,42 +316,37 @@ sap.ui.define(["sap/m/library", "sap/base/security/encodeCSS"],
 			if ( !oControl._isIconMode() ) { //Restrict creation of Footer for IconMode
 				oRm.openStart("div", oControl.getId() + "-content");
 				oRm.class("sapMGTContent");
-				if (isFooterPresent && frameType === frameTypes.OneByOne && (oControl.getSystemInfo() || oControl.getAppShortcut())) {
-					oRm.class("appInfoWithFooter");
-				} else {
-					oRm.class("appInfoWithoutFooter");
+				if (oControl.getSystemInfo() || oControl.getAppShortcut()) {
+					if (aTileContent.length === 0){
+						oRm.class("appInfoWithoutTileCnt");
+					}
+					if (isFooterPresent && frameType !== frameTypes.OneByHalf) {
+						oRm.class("appInfoWithFooter");
+					} else {
+						oRm.class("appInfoWithoutFooter");
+					}
 				}
 				oRm.openEnd();
 				for (var i = 0; i < iLength; i++) {
 					oRm.renderControl(aTileContent[i]);
 				}
+
+				//Render InfoContainer except for TwoByHalf frame
+				if (this._shouldRenderInfoContainer(oControl) && frameType !== frameTypes.TwoByHalf) {
+					this._renderInfoContainer(oRm, oControl);
+				}
+
 				oRm.close("div");
 			}
 
-			//Restrict creation of InfoContainer for IconMode, ActionMode and ArticleMode
-			if (!bIsArticleMode && !bIsActionMode && !oControl._isIconMode() && (frameType === frameTypes.OneByOne && (oControl.getSystemInfo() || oControl.getAppShortcut()))){
-				oRm.openStart("div", oControl.getId() + "-tInfo");
-				oRm.class("sapMGTTInfoContainer");
-				oRm.openEnd();
-				oRm.openStart("div");
-				oRm.class("sapMGTTInfo");
-				oRm.openEnd();
-				if (oControl.getAppShortcut()) {
-					oRm.openStart("div", oControl.getId() + "-appShortcut");
-					oRm.class("sapMGTAppShortcutText").openEnd();
-					oRm.renderControl(oControl._oAppShortcut);
-					oRm.close("div");
-				}
-				if (oControl.getSystemInfo()) {
-					oRm.openStart("div", oControl.getId() + "-sytemInfo");
-					oRm.class("sapMGTSystemInfoText").openEnd();
-					oRm.renderControl(oControl._oSystemInfo);
-					oRm.close("div");
-				}
+			//Render InfoContainer for TwoByHalf frame
+			if (this._shouldRenderInfoContainer(oControl) && frameType === frameTypes.TwoByHalf) {
 				oRm.close("div");
+				this._renderInfoContainer(oRm, oControl);
 				oRm.close("div");
 			}
 		}
+
 		if (sState !== LoadState.Loaded && sState !== LoadState.Loading) {
 			this._renderStateOverlay(oRm, oControl, sTooltipText);
 		}
@@ -357,16 +366,58 @@ sap.ui.define(["sap/m/library", "sap/base/security/encodeCSS"],
 		}
 	};
 
+	/**
+	 * Checks if the GenericTile should render the info container.
+	 * @param {sap.m.GenericTile} oControl The GenericTile control
+	 * @returns {boolean} True if the info container should be rendered, false otherwise
+	 * @private
+	 */
+	GenericTileRenderer._shouldRenderInfoContainer = function(oControl) {
+		var frameType = oControl.getFrameType(),
+			bIsArticleMode = oControl.getMode() === GenericTileMode.ArticleMode,
+			bIsActionMode = oControl.getMode() === GenericTileMode.ActionMode,
+			bIsIconMode = oControl.getMode() === GenericTileMode.IconMode;
+			if (frameType === frameTypes.OneByOne && bIsIconMode){
+				return true;
+			}
+		return !bIsArticleMode && !bIsActionMode && !bIsIconMode && frameType !== frameTypes.OneByHalf && (oControl.getSystemInfo() || oControl.getAppShortcut());
+	};
+
+	/**
+	 * Renders the Info Container.
+	 * @param {sap.ui.core.RenderManager} oRm The RenderManager that can be used for writing to the render output buffer
+	 * @param {sap.m.GenericTile} oControl The control that will be rendered
+	 * @private
+	 */
+	GenericTileRenderer._renderInfoContainer = function(oRm, oControl) {
+		oRm.openStart("div", oControl.getId() + "-tInfo");
+		oRm.class("sapMGTTInfoContainer");
+		oRm.openEnd();
+		oRm.openStart("div", oControl.getId() + "-tInfo-content");
+		oRm.class("sapMGTTInfo");
+		oRm.openEnd();
+		if (oControl.getAppShortcut()) {
+			oRm.openStart("div", oControl.getId() + "-appShortcut");
+			oRm.class("sapMGTAppShortcutText").openEnd();
+			oRm.renderControl(oControl._oAppShortcut);
+			oRm.close("div");
+		}
+		if (oControl.getSystemInfo()) {
+			oRm.openStart("div", oControl.getId() + "-sytemInfo");
+			if (oControl.getAppShortcut() && oControl.getSystemInfo()){
+				oRm.class("sapMGTMarginTop4px");
+			}
+			oRm.class("sapMGTSystemInfoText").openEnd();
+			oRm.renderControl(oControl._oSystemInfo);
+			oRm.close("div");
+		}
+		oRm.close("div");
+		oRm.close("div");
+	};
+
 	GenericTileRenderer._renderFocusDiv = function(oRm, oControl) {
 		oRm.openStart("div", oControl.getId() + "-focus");
 		oRm.class("sapMGTFocusDiv");
-		if (oControl._isIconMode()) { //Set respective BorderRadius for IconMode
-			if (oControl.getFrameType() === frameTypes.OneByOne) {
-				oRm.style("border-radius", "1rem");
-			} else {
-				oRm.style("border-radius", "0.75rem");
-			}
-		}
 		oRm.openEnd();
 		oRm.close("div");
 	};
@@ -478,6 +529,15 @@ sap.ui.define(["sap/m/library", "sap/base/security/encodeCSS"],
 			return true;
 		}
 		return false;
+	};
+
+	/**
+	 * Checks whether the current theme is a high contrast theme like sap_belize_hcb or sap_belize_hcw.
+	 * @returns {boolean} True if the theme name contains hcb or hcw, false otherwise
+	 * @private
+	 */
+	GenericTileRenderer._isThemeHighContrast = function() {
+		return /(hcw|hcb)/g.test(sap.ui.getCore().getConfiguration().getTheme());
 	};
 
 	return GenericTileRenderer;

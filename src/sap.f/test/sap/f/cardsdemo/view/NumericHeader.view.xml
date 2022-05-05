@@ -4,6 +4,7 @@
 	xmlns:f="sap.f"
 	xmlns:cards="sap.f.cards"
 	xmlns:w="sap.ui.integration.widgets"
+	controllerName="sap.f.cardsdemo.controller.NumericHeader"
 	displayBlock="true">
 	<Page title="{i18n>appTitle}">
 		<subHeader>
@@ -75,42 +76,47 @@
 					</f:header>
 				</f:Card>
 
-				<w:Card id="kpicard1" manifest="{manifests>/kpiManifests/kpicard1}" baseUrl="./">
+				<w:Card id="kpicard1" manifest="{manifests>/kpiManifests/kpicard1}" baseUrl="{cardsPlayground>/playgroundBaseUrl}">
 					<w:layoutData>
 						<f:GridContainerItemLayoutData columns="4" />
 					</w:layoutData>
 				</w:Card>
-				<w:Card id="kpicard2" manifest="{manifests>/kpiManifests/kpicard2}" baseUrl="./" >
+				<w:Card id="kpicard2" manifest="{manifests>/kpiManifests/kpicard2}" baseUrl="{cardsPlayground>/playgroundBaseUrl}" >
 					<w:layoutData>
 						<f:GridContainerItemLayoutData columns="4" />
 					</w:layoutData>
 				</w:Card>
-				<w:Card id="kpicard3" manifest="{manifests>/kpiManifests/kpicard3}" baseUrl="./">
+				<w:Card id="kpicard3" manifest="{manifests>/kpiManifests/kpicard3}" baseUrl="{cardsPlayground>/playgroundBaseUrl}">
 					<w:layoutData>
 						<f:GridContainerItemLayoutData columns="4" />
 					</w:layoutData>
 				</w:Card>
-				<w:Card id="kpicard4" manifest="{manifests>/kpiManifests/kpicard4}" baseUrl="./">
+				<w:Card id="kpicard4" manifest="{manifests>/kpiManifests/kpicard4}" baseUrl="{cardsPlayground>/playgroundBaseUrl}">
 					<w:layoutData>
 						<f:GridContainerItemLayoutData columns="4" />
 					</w:layoutData>
 				</w:Card>
-				<w:Card id="kpicard5" manifest="{manifests>/kpiManifests/kpicard5}" baseUrl="./">
+				<w:Card id="kpicard5" manifest="{manifests>/kpiManifests/kpicard5}" baseUrl="{cardsPlayground>/playgroundBaseUrl}">
 					<w:layoutData>
 						<f:GridContainerItemLayoutData columns="4" />
 					</w:layoutData>
 				</w:Card>
-				<w:Card id="tablecard1" manifest="{manifests>/kpiManifests/tablecard1}" baseUrl="./">
+				<w:Card id="kpicard6" manifest="{manifests>/kpiManifests/kpicard6}" baseUrl="{cardsPlayground>/playgroundBaseUrl}">
 					<w:layoutData>
 						<f:GridContainerItemLayoutData columns="4" />
 					</w:layoutData>
 				</w:Card>
-				<w:Card id="tablecard123" manifest="{manifests>/kpiManifests/tablecard123}" baseUrl="./">
+				<w:Card id="tablecard1" manifest="{manifests>/kpiManifests/tablecard1}" baseUrl="{cardsPlayground>/playgroundBaseUrl}">
 					<w:layoutData>
 						<f:GridContainerItemLayoutData columns="4" />
 					</w:layoutData>
 				</w:Card>
-				<w:Card id="unitOfMeasurementOnly" manifest="{manifests>/kpiManifests/unitOfMeasurementOnly}" baseUrl="./">
+				<w:Card id="tablecard123" manifest="{manifests>/kpiManifests/tablecard123}" baseUrl="{cardsPlayground>/playgroundBaseUrl}">
+					<w:layoutData>
+						<f:GridContainerItemLayoutData columns="4" />
+					</w:layoutData>
+				</w:Card>
+				<w:Card id="unitOfMeasurementOnly" manifest="{manifests>/kpiManifests/unitOfMeasurementOnly}" baseUrl="{cardsPlayground>/playgroundBaseUrl}">
 					<w:layoutData>
 						<f:GridContainerItemLayoutData columns="4" />
 					</w:layoutData>

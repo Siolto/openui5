@@ -33,17 +33,16 @@ sap.ui.define([
         "use strict";
 
         /**
-         /**
          * Constructor for a new ChartToolbar.
          *
          * @param {string} [sId] id for the new control, generated automatically if no id is given
          * @param {object} [mSettings] initial settings for the new control
-         * @class The ChartToolbar control creates a sap.m.OverflowToolbar based on metadata and the configuration specified.
-         * @extends sap.m.OverflowToolbar
+         * @class The ChartToolbar control is a sap.m.OverflowToolbar based on metadata and the configuration specified.
+         * @extends sap.ui.mdc.ActionToolbar
          * @author SAP SE
          * @version ${version}
          * @constructor
-         * @experimental As of version ...
+         * @experimental As of version 1.88
          * @private
          * @since 1.88
          * @alias sap.ui.mdc.chart.ChartToolbar
@@ -162,7 +161,20 @@ sap.ui.define([
 					text: MDCRb.getText('chart.PERSONALIZATION_DIALOG_TITLE'),
                     enabled: false,
                     press: function (oEvent) {
-                        oMDCChart.getEngine().uimanager.show(oMDCChart, oMDCChart.getP13nMode());
+                        var aP13nMode = oMDCChart.getP13nMode();
+                        var iIdx = aP13nMode.indexOf("Type");
+						if (iIdx > -1) {
+							aP13nMode.splice(iIdx, 1);
+						}
+
+                        //TODO: Move this to p13n functionality?
+                        if (oMDCChart.isPropertyHelperFinal()){
+                            oMDCChart.getEngine().uimanager.show(oMDCChart, aP13nMode);
+                        } else {
+                            oMDCChart.finalizePropertyHelper().then(function(){
+                                oMDCChart.getEngine().uimanager.show(oMDCChart, aP13nMode);
+                            });
+                        }
                     }
                 });
                 this.addEnd(this._oSettingsBtn);

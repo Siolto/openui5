@@ -113,21 +113,24 @@ sap.ui.define([
 
 		//Init parent
 		this.oTestTable.initialized().then(function(){
-
-			try {
-				this.oAdaptationFilterBar.getPropertyHelper();
-				assert.ok(false, "PropertyHelper not expected");
-			} catch (ex) {
-				assert.ok(true, "Inner FB has no PropertyHelper if not initialzed");
-			}
-
-			//init AdaptationFilterBar
-			this.oAdaptationFilterBar.initialized().then(function(){
-				this.oTestTable.awaitPropertyHelper().then(function(oPropertyHelper){
-					assert.deepEqual(this.oAdaptationFilterBar.getPropertyHelper(), oPropertyHelper, "PropertyHelper has been passed from the Parent");
-					done();
-				}.bind(this));
+			assert.notOk(this.oAdaptationFilterBar.getPropertyHelper(), "PropertyHelper not expected");
+			this.oTestTable.awaitPropertyHelper().then(function(oPropertyHelper){
+				assert.deepEqual(this.oAdaptationFilterBar.getPropertyHelper(), oPropertyHelper, "PropertyHelper has been passed from the Parent");
+				done();
 			}.bind(this));
+		}.bind(this));
+
+	});
+
+	QUnit.test("Check the delegation of PropertyHelper related functions", function(assert){
+
+		return this.oAdaptationFilterBar.initialized().then(function() {
+			assert.ok(this.oAdaptationFilterBar.getTypeUtil());
+			assert.equal(this.oAdaptationFilterBar.getTypeUtil(), this.oTestTable.getTypeUtil());
+
+			assert.ok(this.oAdaptationFilterBar.getPropertyHelper());
+			assert.equal(this.oAdaptationFilterBar.getPropertyHelper(), this.oTestTable.getPropertyHelper());
+
 		}.bind(this));
 
 	});
@@ -319,7 +322,7 @@ sap.ui.define([
 		var done = assert.async();
 		this.prepareTestSetup(false);
 
-		oAdaptationFilterBar.setP13nModel(new JSONModel({
+		oAdaptationFilterBar.setP13nData({
 			items: [
 				{
 					name: "key1"
@@ -328,7 +331,7 @@ sap.ui.define([
 					name: "key2"
 				}
 			]
-		}));
+		});
 
 		Promise.all([
 			//1) Init Parent (Delegate + PropertyHelper)
@@ -350,7 +353,7 @@ sap.ui.define([
 		this.prepareTestSetup(false);
 
 		//the order (key1, key2) should be maintained in the AdaptationFilterBar
-		oAdaptationFilterBar.setP13nModel(new JSONModel({
+		oAdaptationFilterBar.setP13nData({
 			items: [
 				{
 					name: "key1"
@@ -359,7 +362,7 @@ sap.ui.define([
 					name: "key2"
 				}
 			]
-		}));
+		});
 
 		//introduce custom filter delegate 'addItem' to mock a delay in FF creation
 		AggregationBaseDelegate.getFilterDelegate = function() {
@@ -422,7 +425,7 @@ sap.ui.define([
 		]);
 
 
-		oAdaptationFilterBar.setP13nModel(new JSONModel({
+		oAdaptationFilterBar.setP13nData({
 			items: [
 				{
 					name: "key1"
@@ -434,7 +437,7 @@ sap.ui.define([
 					name: "key3"
 				}
 			]
-		}));
+		});
 
 		Promise.all([
 			//1) Init Parent (Delegate + PropertyHelper)
@@ -475,7 +478,7 @@ sap.ui.define([
 		]);
 
 
-		oAdaptationFilterBar.setP13nModel(new JSONModel({
+		oAdaptationFilterBar.setP13nData({
 			items: [
 				{
 					name: "key1"
@@ -487,7 +490,7 @@ sap.ui.define([
 					name: "key3"
 				}
 			]
-		}));
+		});
 
 		Promise.all([
 			//1) Init Parent (Delegate + PropertyHelper)
@@ -530,7 +533,7 @@ sap.ui.define([
 			return [];
 		};
 
-		oAdaptationFilterBar.setP13nModel(new JSONModel({
+		oAdaptationFilterBar.setP13nData({
 			items: [
 				{
 					name: "key1"
@@ -539,7 +542,7 @@ sap.ui.define([
 					name: "key2"
 				}
 			]
-		}));
+		});
 
 		Promise.all([
 			//1) Init Parent (Delegate + PropertyHelper)
@@ -573,7 +576,7 @@ sap.ui.define([
 			return [];
 		};
 
-		oAdaptationFilterBar.setP13nModel(new JSONModel({
+		oAdaptationFilterBar.setP13nData({
 			items: [
 				{
 					name: "key1"
@@ -582,7 +585,7 @@ sap.ui.define([
 					name: "key2"
 				}
 			]
-		}));
+		});
 
 		Promise.all([
 			//1) Init Parent (Delegate + PropertyHelper)
@@ -636,6 +639,7 @@ sap.ui.define([
 						collectionName: "test"
 					}
 				},
+				propertyInfo: [{name: "key1", typeConfig: {}}],
 				filterItems: {
 					path: "$custom>/data",
 					template: new FilterField({
@@ -645,15 +649,18 @@ sap.ui.define([
 				}
 			});
 
-			this.oParent.setModel(oMyModel, "$custom");
+			return this.oParent.initialized().then(function() {
+				this.oParent.setModel(oMyModel, "$custom");
 
-			sinon.stub(FBTestDelegate, "addItem").callsFake(function(sKey, oControl){
-				return Promise.resolve(new FilterField({
-					conditions: "{$filters>/conditions/" + sKey + "}"
-				}));
-			});
+				sinon.stub(FBTestDelegate, "addItem").callsFake(function(sKey, oControl){
+					return Promise.resolve(new FilterField({
+						conditions: "{$filters>/conditions/" + sKey + "}"
+					}));
+				});
 
-			return this.oParent.retrieveInbuiltFilter();
+				return this.oParent.retrieveInbuiltFilter();
+			}.bind(this));
+
 		},
 		afterEach: function(assert) {
 			FBTestDelegate.addItem.restore();
@@ -664,7 +671,7 @@ sap.ui.define([
 	QUnit.test("Use bound label property for p13n", function(assert){
 		var done = assert.async();
 
-		this.oParent.getInbuiltFilter().setP13nModel(new JSONModel({
+		this.oParent.getInbuiltFilter().setP13nData({
 			items: [
 				{
 					name: "key1"
@@ -673,7 +680,9 @@ sap.ui.define([
 					name: "key2"
 				}
 			]
-		}));
+		});
+
+		sinon.stub();
 
 		Promise.all([
 			//1) Init Parent (Delegate + PropertyHelper)
@@ -697,7 +706,7 @@ sap.ui.define([
 	QUnit.test("Always destroy leftovers on exit", function(assert){
 		var done = assert.async();
 
-		this.oParent.getInbuiltFilter().setP13nModel(new JSONModel({
+		this.oParent.getInbuiltFilter().setP13nData({
 			items: [
 				{
 					name: "key1"
@@ -706,7 +715,7 @@ sap.ui.define([
 					name: "key2"
 				}
 			]
-		}));
+		});
 
 		Promise.all([
 			//1) Init Parent (Delegate + PropertyHelper)
@@ -730,10 +739,10 @@ sap.ui.define([
 		}.bind(this));
 	});
 
-	QUnit.test("Destroy lefover fields (also dynamically added ones)", function(assert){
+	QUnit.test("Destroy leftover fields (also dynamically added ones)", function(assert){
 		var done = assert.async();
 
-		this.oParent.getInbuiltFilter().setP13nModel(new JSONModel({
+		this.oParent.getInbuiltFilter().setP13nData({
 			items: [
 				{
 					name: "key1",
@@ -746,7 +755,7 @@ sap.ui.define([
 					visibleInDialog: true
 				}
 			]
-		}));
+		});
 
 		Promise.all([
 			//1) Init Parent (Delegate + PropertyHelper)
@@ -761,9 +770,9 @@ sap.ui.define([
 				// 1) Add the filterfield to the p13n model (usually triggered by user interaction with the AdaptationFilterBar)
 				// 2) Add the filterfield to the parent FilterBar --> check if the AdaptationFilterBar recognizes that the field has
 				// been added during runtime
-				var aP13nItems = oAdaptationFilterBar.getP13nModel().getProperty("/items");
+				var aP13nItems = oAdaptationFilterBar.getP13nData().items;
 				aP13nItems[1].visible = true;
-				oAdaptationFilterBar.getP13nModel().setProperty("/items", aP13nItems);
+				oAdaptationFilterBar.setP13nData({items: aP13nItems});
 				this.oParent.addFilterItem(new FilterField({
 					fieldPath: "key2",
 					conditions: "{$filters>/conditions/key2}"
@@ -785,5 +794,4 @@ sap.ui.define([
 			}.bind(this));
 		}.bind(this));
 	});
-
 });

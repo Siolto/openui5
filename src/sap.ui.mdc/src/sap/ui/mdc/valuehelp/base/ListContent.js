@@ -14,9 +14,9 @@ sap.ui.define([
 	/**
 	 * Constructor for a new <code>ListContent</code>.
 	 *
-	 * @param {string} [sId] ID for the new control, generated automatically if no ID is given
-	 * @param {object} [mSettings] Initial settings for the new control
-	 * @class Content for the <code>sap.ui.mdc.valuehelp.base.Container</code> element.
+	 * @param {string} [sId] ID for the new element, generated automatically if no ID is given
+	 * @param {object} [mSettings] Initial settings for the new element
+	 * @class Content for the {@link sap.ui.mdc.valuehelp.base.Container Container} element.
 	 * @extends sap.ui.mdc.valuehelp.base.Content
 	 * @version ${version}
 	 * @constructor
@@ -70,7 +70,7 @@ sap.ui.define([
 				 *
 				 * If set, the field help reads the data of these entities in the model and uses it to filter in the value help.
 				 */
-				inParameters: {
+				inParameters: { // TODO: remove!
 					type: "sap.ui.mdc.field.InParameter",
 					group: "Data",
 					multiple: true
@@ -81,7 +81,7 @@ sap.ui.define([
 				 *
 				 * If set, the fields sets the data of these entities in the model based to the selected values.
 				 */
-				outParameters: {
+				outParameters: { // TODO: remove!
 					type: "sap.ui.mdc.field.OutParameter",
 					group: "Data",
 					multiple: true

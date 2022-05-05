@@ -6,14 +6,13 @@ sap.ui.define([
 	"sap/ui/unified/MenuItem",
 	"sap/ui/unified/MenuItemBase",
 	"sap/ui/unified/MenuTextFieldItem",
-	"sap/base/Log",
 	"sap/m/Button",
 	"sap/ui/Device",
 	"sap/ui/events/KeyCodes",
 	"sap/ui/core/Popup",
 	"sap/ui/core/Core",
 	"sap/ui/thirdparty/jquery"
-], function(qutils, Menu, MenuItem, MenuItemBase, MenuTextFieldItem, Log, Button, Device, KeyCodes, Popup, Core, jQuery) {
+], function(qutils, Menu, MenuItem, MenuItemBase, MenuTextFieldItem, Button, Device, KeyCodes, Popup, Core, jQuery) {
 	"use strict";
 
 	var Dock = Popup.Dock;
@@ -657,6 +656,51 @@ sap.ui.define([
 		assert.equal(oRootMenu.getEnabled(), true, "Custom 'enabled':");
 
 		closeAllMenusAndCheck(assert);
+	});
+
+	QUnit.test("alt/meta key + right/left or + home/end is not handled", function(assert) {
+		// Prepare
+		var oMenuItem = new MenuItem({
+				text:"WSL"
+			}),
+			oMenu = new Menu({
+				items: oMenuItem
+			}),
+			oEvent = {
+				metaKey: true
+			};
+
+		// Act
+		oMenu.onsapprevious(oEvent);
+
+		// Assert
+		assert.ok(true, "left is not handled when meta key is pressed");
+
+		// Act
+		oMenu.onsapnext(oEvent);
+
+		// Assert
+		assert.ok(true, "right is not handled when meta key is pressed");
+
+		// Prepare
+		oEvent = {
+			altKey: true
+		};
+
+		// Act
+		oMenu.onsapprevious(oEvent);
+
+		// Assert
+		assert.ok(true, "left is not handled when alt key is pressed");
+
+		// Act
+		oMenu.onsapnext(oEvent);
+
+		// Assert
+		assert.ok(true, "right is not handled when alt key is pressed");
+
+		// Cleanup
+		oMenu.destroy();
 	});
 
 	QUnit.module("Mouse");

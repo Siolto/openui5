@@ -160,9 +160,9 @@ sap.ui.define([
 	});
 
 	QUnit.test("getColumnExportSettings", function(assert) {
-		assert.strictEqual(this.oPropertyHelper.getColumnExportSettings(), null, "No parameter");
-		assert.strictEqual(this.oPropertyHelper.getColumnExportSettings({}), null, "Empty property object");
-		assert.strictEqual(this.oPropertyHelper.getColumnExportSettings(this.oInvalidColumn), null, "mdc.Column pointing to invalid property info");
+		assert.deepEqual(this.oPropertyHelper.getColumnExportSettings(), [], "No parameter");
+		assert.deepEqual(this.oPropertyHelper.getColumnExportSettings({}), [], "Empty property object");
+		assert.deepEqual(this.oPropertyHelper.getColumnExportSettings(this.oInvalidColumn), [], "mdc.Column pointing to invalid property info");
 		assert.deepEqual(this.oPropertyHelper.getColumnExportSettings(this.oColumnPropA), [{
 			columnId: "propAColumn",
 			label: "Export label",
@@ -214,8 +214,14 @@ sap.ui.define([
 			type: "String",
 			width: 5
 		}], "Expected column export settings returned");
-		assert.deepEqual(this.oPropertyHelper.getColumnExportSettings(this.oNoDataColumn2), [],
-			"Expected column export settings returned");
+		assert.deepEqual(this.oPropertyHelper.getColumnExportSettings(this.oNoDataColumn2), [{
+			columnId: "noDataColumn2",
+			label: "NoDataColumn2",
+			property: "",
+			textAlign: "Begin",
+			type: "String",
+			width: ""
+		}], "Expected column export settings returned");
 		assert.deepEqual(this.oPropertyHelper.getColumnExportSettings(this.oColumnComplexPropC), [{
 			columnId: "columnComplexPropC",
 			label: "Complex export label C",
@@ -226,77 +232,4 @@ sap.ui.define([
 		}], "Expected column export settings returned");
 	});
 
-	QUnit.test("getColumnExportSettings with bSplitCells", function(assert) {
-		assert.deepEqual(this.oPropertyHelper.getColumnExportSettings(this.oColumnPropA, true), [{
-			columnId: "propAColumn",
-			label: "Export label",
-			displayUnit: false,
-			property: "propAPath",
-			textAlign: "Begin",
-			type: "Number",
-			width: 20
-		}], "Expected column export settings returned");
-		assert.deepEqual(this.oPropertyHelper.getColumnExportSettings(this.oColumnPropB, true), [{
-			columnId: "propBColumn",
-			label: "Property B",
-			displayUnit: false,
-			property: "propB",
-			textAlign: "End",
-			type: "String",
-			width: ""
-		}], "Expected column export settings returned");
-		assert.deepEqual(this.oPropertyHelper.getColumnExportSettings(this.oColumnComplexPropA, true), [{
-			columnId: "columnComplexPropA",
-			label: "Export label",
-			displayUnit: false,
-			property: "propAPath",
-			textAlign: "Begin",
-			type: "Number",
-			width: 20
-			}, {
-			columnId: "columnComplexPropA-additionalProperty1",
-			label: "Property B",
-			displayUnit: false,
-			property: "propB",
-			textAlign: "Begin",
-			type: "String",
-			width: ""
-		}], "Expected column export settings returned");
-		assert.deepEqual(this.oPropertyHelper.getColumnExportSettings(this.oColumnComplexPropB, true), [{
-			columnId: "columnComplexPropB",
-			label: "Property B",
-			displayUnit: false,
-			property: "propB",
-			textAlign: "Begin",
-			type: "String",
-			width: ""
-		}], "Expected column export settings returned");
-		assert.deepEqual(this.oPropertyHelper.getColumnExportSettings(this.oColumnPrice, true), [{
-			columnId: "priceColumn",
-			displayUnit: false,
-			label: "Price",
-			property: "price",
-			textAlign: "End",
-			type: "Currency",
-			unitProperty: "currency",
-			width: ""
-			}, {
-			columnId: "priceColumn-additionalProperty",
-			label: "Currency",
-			displayUnit: false,
-			property: "currency",
-			textAlign: "End",
-			type: "String",
-			width: ""
-		}], "Expected column export settings returned");
-		assert.deepEqual(this.oPropertyHelper.getColumnExportSettings(this.oColumnComplexPropC, true), [{
-			columnId: "columnComplexPropC",
-			label: "NoDataColumn1",
-			displayUnit: false,
-			property: "",
-			textAlign: "Begin",
-			type: "String",
-			width: 5
-		}], "Expected column export settings returned");
-	});
 });

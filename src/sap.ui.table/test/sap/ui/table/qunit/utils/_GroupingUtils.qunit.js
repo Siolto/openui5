@@ -1,15 +1,15 @@
 /*global QUnit, sinon, oTable, oTreeTable */
 
 sap.ui.define([
-	"sap/ui/table/qunit/TableQUnitUtils",
 	"sap/ui/table/utils/TableUtils",
 	"sap/ui/Device",
 	"sap/ui/table/Table",
 	"sap/ui/table/TreeTable",
 	"sap/ui/table/AnalyticalTable",
 	"sap/ui/table/Row",
-	"sap/ui/core/Core"
-], function(TableQUnitUtils, TableUtils, Device, Table, TreeTable, AnalyticalTable, Row, oCore) {
+	"sap/ui/core/Core",
+	"sap/ui/table/qunit/TableQUnitUtils" // implicitly used via globals (e.g. createTables)
+], function(TableUtils, Device, Table, TreeTable, AnalyticalTable, Row, oCore) {
 	"use strict";
 
 	// mapping of global function calls
@@ -243,7 +243,7 @@ sap.ui.define([
 		assert.ok(!Grouping.showGroupMenuButton(new TreeTable()), "sap.ui.table.TreeTable / no desktop");
 		assert.ok(Grouping.showGroupMenuButton(new AnalyticalTable()), "sap.ui.table.AnalyticalTable / no desktop");
 
-		sap.ui.Device.system.desktop = true;
+		Device.system.desktop = true;
 		assert.ok(!Grouping.showGroupMenuButton(new Table()), "sap.ui.table.Table / desktop");
 		assert.ok(!Grouping.showGroupMenuButton(new TreeTable()), "sap.ui.table.TreeTable / desktop");
 		assert.ok(!Grouping.showGroupMenuButton(new AnalyticalTable()), "sap.ui.table.AnalyticalTable / desktop");

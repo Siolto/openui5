@@ -55,23 +55,33 @@ sap.ui.define([
 	 *
 	 * Metadata information:
 	 * - type
-	 *     Can be any type that is also allowed for a control property, plus "PropertyReference" for references to simple properties.
+	 * 	   Can be any type that is also allowed for a control property, plus "PropertyReference" for references to simple properties.
 	 *     Complex types can be specified with an object that describes sub-attributes.
 	 *     Examples: "string", "string[]", "sap.ui.mdc.MyEnum", "any", "PropertyReference",
 	 *               {
-	 *                   subAttribute: {type: "string", defaultValue: "myDefaultValue"}
+	 *                   subAttribute: {
+	 *  				     type: "string",
+	 * 					     default: {
+	 *                           value: "myDefaultValue"
+	 *                       }
+	 *                   }
 	 *                   ...
 	 *               }
 	 * - mandatory (optional, default=false, only for top-level attribute)
 	 *     Whether this attribute must be provided.
 	 * - allowedForComplexProperty (optional, default=false)
-	 *     Whether it is allowed to provide this attribute for a complex property.
+	 *	   Whether it is allowed to provide this attribute for a complex property.
 	 * - valueForComplexProperty (optional):
 	 *     For a complex property, this defines the value of an attribute that is not allowed for complex properties.
-	 * - defaultValue (optional)
-	 *     This can either be a value, or a reference to another attribute in the form "attribute:x", with x being the name of the other
-	 *     attribute. The default value of this attribute is then the value of the other attribute. This works only one level deep.
-	 *     Examples: "attribute:name", "attribute:attributeName.subAttributeName"
+	 * - default: { (optional, type: Object) - specifies the default value property of the attribute
+	 * 	   - value
+	 * 	   	   This can either be a value, or a reference to another attribute in the form "attribute:x", with x being the name of the other
+	 *     	   attribute. The default value of this attribute is then the value of the other attribute. This works only one level deep.
+	 *     	   Examples: "attribute:name", "attribute:attributeName.subAttributeName"
+	 *     - ignoreIfNull (default=false)
+	 *     	   Prevents setting the default value for this attribute if set to <code>true</code>.
+	 * 	       Defines the entire attribute as <code>null</code> if the attribute value itself is from type <code>null</code>.
+	 * 	}
 	 */
 	var mAttributeMetadata = { // TODO: "allowedForComplexProperty" propagation to children + reserved reference attribute, e.g. unit -> unitProperty
 		// Common
@@ -87,7 +97,9 @@ sap.ui.define([
 		},
 		visible: { // Whether the property is visible in the "Items" personalization.
 			type: "boolean",
-			defaultValue: true,
+			"default": {
+				value: true
+			},
 			allowedForComplexProperty: true
 		},
 		path: { // The technical path for a data source property.
@@ -113,12 +125,16 @@ sap.ui.define([
 		// TODO: What's the meaning? type = boolean? Is used only once in FilterBarBase: oProperty.maxConditions !== -1
 		maxConditions: {
 			type: "int",
-			defaultValue: -1,
+			"default": {
+				value: -1
+			},
 			valueForComplexProperty: null
 		},
 		caseSensitive: {
 			type: "boolean",
-			defaultValue: true
+			"default": {
+				value: true
+			}
 		},
 		group: { // Key of the group the property is inside. Used to visually group properties in personalization dialogs.
 			type: "string",
@@ -132,12 +148,16 @@ sap.ui.define([
 		// Table, Chart, P13N
 		filterable: { // Whether it is possible to filter by this property.
 			type: "boolean",
-			defaultValue: true,
+			"default": {
+				value: true
+			},
 			valueForComplexProperty: false
 		},
 		sortable: { // Whether it is possible to sort by this property.
 			type: "boolean",
-			defaultValue: true,
+			"default": {
+				value: true
+			},
 			valueForComplexProperty: false
 		},
 
@@ -162,10 +182,66 @@ sap.ui.define([
 		},
 		exportSettings: { // Export settings as specified by sap.ui.export.Spreadsheet.
 			type: "object",
+			"default": {
+				value: {},
+				ignoreIfNull: true
+			},
 			allowedForComplexProperty: true
 		},
 		visualSettings: { // This object contains all relevant properties for visual adjustments
-			type: "object"
+			type: {
+				widthCalculation: { // This object contains all properties and their default values for the column width calculation
+					type: {
+						minWidth: {
+							type: "int",
+							"default": {
+								value: 2
+							}
+						},
+						maxWidth: {
+							type: "int",
+							"default": {
+								value: 19
+							}
+						},
+						defaultWidth: {
+							type: "int",
+							"default": {
+								value: 8
+							}
+						},
+						gap: {
+							type: "float",
+							"default": {
+								value: 0
+							}
+						},
+						includeLabel: {
+							type: "boolean",
+							"default": {
+								value: true
+							}
+						},
+						verticalArrangement: {
+							type: "boolean",
+							"default": {
+								value: false
+							}
+						},
+						excludeProperties: {
+							type: "PropertyReference[]"
+						}
+					},
+					"default": {
+						value: {},
+						ignoreIfNull: true
+					}
+				}
+			},
+			"default": {
+				value: {}
+			},
+			allowedForComplexProperty: true
 		},
 
 		// Chart
@@ -380,7 +456,7 @@ sap.ui.define([
 			}
 
 			if (vValue == null) {
-				setAttributeDefault(oPropertySection, mAttribute, sPath, sAttribute, aDependenciesForDefaults);
+				setAttributeDefault(oPropertySection, mAttribute, sPath, sAttribute, aDependenciesForDefaults, vValue);
 			}
 
 			if (typeof mAttribute.type === "object") {
@@ -413,21 +489,30 @@ sap.ui.define([
 		});
 	}
 
-	function setAttributeDefault(oPropertySection, mAttributeSection, sSection, sAttribute, aDependenciesForDefaults) {
-		if ("defaultValue" in mAttributeSection) {
-			if (typeof mAttributeSection.defaultValue === "string" && mAttributeSection.defaultValue.startsWith("attribute:")) {
+	function setAttributeDefault(oPropertySection, mAttributeSection, sSection, sAttribute, aDependenciesForDefaults, vValue) {
+		if ("default" in mAttributeSection) {
+			var oDefault = mAttributeSection.default;
+
+			// ignoreIfNull will applies only if a default value for the attribute has been specified in its metadata
+			if (vValue === null && oDefault.ignoreIfNull && oDefault.value !== undefined) {
+				return;
+			}
+
+			if (oDefault.value === undefined) {
+				oPropertySection[sAttribute] = getTypeDefault(mAttributeSection.type);
+			} else if (typeof oDefault.value === "string" && oDefault.value.startsWith("attribute:")) {
 				// Attributes that reference another attribute for the default value need to be processed in a second step.
 				// This is only supported 1 level deep.
 				aDependenciesForDefaults.push({
-					source: mAttributeSection.defaultValue.substring(mAttributeSection.defaultValue.indexOf(":") + 1),
+					source: oDefault.value.substring(oDefault.value.indexOf(":") + 1),
 					targetPath: sSection,
 					targetAttribute: sAttribute,
 					targetType: mAttributeSection.type
 				});
-			} else if (typeof mAttributeSection.defaultValue === "object" && mAttributeSection.defaultValue !== null) {
-				oPropertySection[sAttribute] = merge({}, mAttributeSection.defaultValue);
+			} else if (typeof oDefault.value === "object") {
+				oPropertySection[sAttribute] = merge({}, oDefault.value);
 			} else {
-				oPropertySection[sAttribute] = mAttributeSection.defaultValue;
+				oPropertySection[sAttribute] = oDefault.value;
 			}
 		} else {
 			oPropertySection[sAttribute] = getTypeDefault(mAttributeSection.type);
@@ -451,16 +536,33 @@ sap.ui.define([
 		}
 	}
 
+	function finalizeAttributeMetadata(mAttributeSection, sPath, bParentAllowedForComplexProperty) {
+		for (var sAttribute in mAttributeSection) {
+			var mAttribute = mAttributeSection[sAttribute];
+			var sAttributePath = sPath == null ? sAttribute : sPath + "." + sAttribute;
+
+			if (sPath === "extension") {
+				finalizeAttributeMetadata(mAttribute.type, sAttributePath);
+				continue;
+			}
+
+			if (bParentAllowedForComplexProperty && mAttribute.allowedForComplexProperty !== false) {
+				mAttribute.allowedForComplexProperty = true;
+			}
+
+			if (typeof mAttribute.type === "object") {
+				finalizeAttributeMetadata(mAttribute.type, sAttributePath, mAttribute.allowedForComplexProperty);
+			}
+		}
+	}
+
 	function mergeExtensionsIntoProperties(aProperties, mExtensions) {
 		var iMatchingExtensions = 0;
-
 		mExtensions = mExtensions || {};
-
 		for (var i = 0; i < aProperties.length; i++) {
 			if ("extension" in aProperties[i]) {
 				throwInvalidPropertyError("Property contains invalid attribute 'extension'.", aProperties[i]);
 			}
-
 			if (aProperties[i].name in mExtensions) {
 				aProperties[i].extension = mExtensions[aProperties[i].name];
 				iMatchingExtensions++;
@@ -468,10 +570,65 @@ sap.ui.define([
 				aProperties[i].extension = {};
 			}
 		}
-
 		if (iMatchingExtensions !== Object.keys(mExtensions).length) {
 			throw new Error("At least one property extension does not point to an existing property.");
 		}
+	}
+
+	function _createPrivate(oInstance, oParent, aProperties, mExtensions, aAllowedAttributes, mExtensionAttributeMetadata) {
+		var mPrivate = {};
+		var mInstanceAttributeMetadata = aCommonAttributes.concat(aAllowedAttributes || []).reduce(function(mMetadata, sAttribute) {
+			if (sAttribute in mAttributeMetadata) {
+				mMetadata[sAttribute] = mAttributeMetadata[sAttribute];
+			}
+			return mMetadata;
+		}, Object.assign({}, oInstance._mExperimentalAdditionalAttributes));
+		if (mExtensionAttributeMetadata) {
+			mPrivate.mAttributeMetadata = Object.assign({
+				extension: {
+					type: mExtensionAttributeMetadata,
+					mandatory: true,
+					allowedForComplexProperty: true
+				}
+			}, mInstanceAttributeMetadata);
+			mPrivate.aMandatoryExtensionAttributes = Object.keys(mExtensionAttributeMetadata).filter(function(sAttribute) {
+				return mExtensionAttributeMetadata[sAttribute].mandatory;
+			});
+		} else {
+			mPrivate.mAttributeMetadata = mInstanceAttributeMetadata;
+			mPrivate.aMandatoryExtensionAttributes = [];
+		}
+
+		finalizeAttributeMetadata(mPrivate.mAttributeMetadata);
+
+		mPrivate.aMandatoryAttributes = Object.keys(mPrivate.mAttributeMetadata).filter(function(sAttribute) {
+			return mPrivate.mAttributeMetadata[sAttribute].mandatory;
+		});
+
+		var aClonedProperties = merge([], aProperties);
+		var mProperties = createPropertyMap(aClonedProperties);
+		if (mExtensionAttributeMetadata) {
+			mergeExtensionsIntoProperties(aClonedProperties, merge({}, mExtensions));
+		}
+
+		var oPreviousPrivate = _private.get(oInstance);
+		var aPreviousProperties = oPreviousPrivate && oPreviousPrivate.aRawProperties;
+		_private.set(oInstance, mPrivate);
+		oInstance.validateProperties(aClonedProperties, aPreviousProperties);
+
+
+		mPrivate.oParent = oParent || null;
+		mPrivate.aRawProperties = aProperties;
+		mPrivate.aProperties = aClonedProperties;
+		mPrivate.mProperties = mProperties;
+		mPrivate._ = {
+			mExtensions: mExtensions,
+			aAllowedAttributes: aAllowedAttributes,
+			mExtensionAttributeMetadata: mExtensionAttributeMetadata
+		};
+
+		enrichProperties(oInstance, aClonedProperties);
+		prepareProperties(oInstance, aClonedProperties);
 	}
 
 	/**
@@ -523,7 +680,6 @@ sap.ui.define([
 					throw new Error("Property extensions must be a plain object.");
 				}
 			}
-
 			if (oParent && !BaseObject.isA(oParent, "sap.ui.base.ManagedObject")) {
 				throw new Error("The type of the parent is invalid.");
 			}
@@ -536,50 +692,7 @@ sap.ui.define([
 				}.bind(this));
 			}
 
-			var mPrivate = {};
-			var mInstanceAttributeMetadata = aCommonAttributes.concat(aAllowedAttributes || []).reduce(function(mMetadata, sAttribute) {
-				if (sAttribute in mAttributeMetadata) {
-					mMetadata[sAttribute] = mAttributeMetadata[sAttribute];
-				}
-				return mMetadata;
-			}, Object.assign({}, this._mExperimentalAdditionalAttributes));
-
-			if (mExtensionAttributeMetadata) {
-				mPrivate.mAttributeMetadata = Object.assign({
-					extension: {
-						type: mExtensionAttributeMetadata,
-						mandatory: true,
-						allowedForComplexProperty: true
-					}
-				}, mInstanceAttributeMetadata);
-				mPrivate.aMandatoryExtensionAttributes = Object.keys(mExtensionAttributeMetadata).filter(function(sAttribute) {
-					return mExtensionAttributeMetadata[sAttribute].mandatory;
-				});
-			} else {
-				mPrivate.mAttributeMetadata = mInstanceAttributeMetadata;
-				mPrivate.aMandatoryExtensionAttributes = [];
-			}
-
-			mPrivate.aMandatoryAttributes = Object.keys(mPrivate.mAttributeMetadata).filter(function(sAttribute) {
-				return mPrivate.mAttributeMetadata[sAttribute].mandatory;
-			});
-
-			var aClonedProperties = merge([], aProperties);
-			var mProperties = createPropertyMap(aClonedProperties);
-
-			if (mExtensionAttributeMetadata) {
-				mergeExtensionsIntoProperties(aClonedProperties, merge({}, mExtensions));
-			}
-
-			_private.set(this, mPrivate);
-			this.validateProperties(aClonedProperties);
-
-			mPrivate.oParent = oParent || null;
-			mPrivate.aProperties = aClonedProperties;
-			mPrivate.mProperties = mProperties;
-
-			enrichProperties(this, aClonedProperties);
-			prepareProperties(this, aClonedProperties);
+			_createPrivate(this, oParent, aProperties, mExtensions, aAllowedAttributes, mExtensionAttributeMetadata);
 		}
 	});
 
@@ -591,14 +704,15 @@ sap.ui.define([
 	 * any method that tries to access them might not work as expected.
 	 *
 	 * @param {object[]} aProperties The properties to validate
+	 * @param {object[]} [aPreviousProperties] The previous set of properties to validate against
 	 * @throws {Error} If the properties are invalid
 	 * @protected
 	 */
-	PropertyHelper.prototype.validateProperties = function(aProperties) {
+	PropertyHelper.prototype.validateProperties = function(aProperties, aPreviousProperties) {
 		var oUniquePropertiesSet = new Set();
 
 		for (var i = 0; i < aProperties.length; i++) {
-			this.validateProperty(aProperties[i], aProperties);
+			this.validateProperty(aProperties[i], aProperties, aPreviousProperties);
 			oUniquePropertiesSet.add(aProperties[i].name);
 		}
 
@@ -616,10 +730,11 @@ sap.ui.define([
 	 *
 	 * @param {object} oProperty The property to validate
 	 * @param {object[]} aProperties The entire array properties
+	 * @param {object[]} [aPreviousProperties] The previous set of properties to validate against
 	 * @throws {Error} If the property is invalid
 	 * @protected
 	 */
-	PropertyHelper.prototype.validateProperty = function(oProperty, aProperties) {
+	PropertyHelper.prototype.validateProperty = function(oProperty, aProperties, aPreviousProperties) {
 		if (!isPlainObject(oProperty)) {
 			throwInvalidPropertyError("Property info must be a plain object.", oProperty);
 		}
@@ -639,7 +754,6 @@ sap.ui.define([
 				throwInvalidPropertyError("Property does not contain mandatory attribute '" + sMandatoryAttribute + "'.", oProperty);
 			}
 		});
-
 		_private.get(this).aMandatoryExtensionAttributes.forEach(function(sMandatoryAttribute) {
 			if (!(sMandatoryAttribute in oProperty.extension)) {
 				reportInvalidProperty("Property does not contain mandatory attribute 'extension." + sMandatoryAttribute + "'.", oProperty);
@@ -745,6 +859,21 @@ sap.ui.define([
 	PropertyHelper.prototype.getParent = function() {
 		var oPrivate = _private.get(this);
 		return oPrivate ? oPrivate.oParent : null;
+	};
+
+
+	/**
+	 * Sets all properties known to this helper.
+  	 *
+	 * @param {object[]} aProperties The properties to process in this helper
+	 * @returns {sap.ui.mdc.util.PropertyHelper} returns propertyhelper instance
+	 * @public
+	 * @since 1.100.0
+	 */
+	 PropertyHelper.prototype.setProperties = function (aProperties) {
+		var mPrivate = _private.get(this);
+		_createPrivate(this, mPrivate.oParent, aProperties, mPrivate._.mExtensions, mPrivate._.aAllowedAttributes, mPrivate._.mExtensionAttributeMetadata);
+		return this;
 	};
 
 	/**

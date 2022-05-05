@@ -5,9 +5,12 @@
 //Provides class sap.ui.model.odata.v2.Context
 sap.ui.define([
 	"sap/ui/base/SyncPromise",
-	"sap/ui/model/Context"
-], function (SyncPromise, BaseContext) {
+	"sap/ui/model/Context",
+	"sap/ui/model/_Helper"
+], function (SyncPromise, BaseContext, _Helper) {
 	"use strict";
+
+	var aDeleteParametersAllowList = ["changeSetId", "groupId", "refreshAfterChange"];
 
 	/**
 	 * Do <strong>NOT</strong> call this private constructor.
@@ -151,6 +154,63 @@ sap.ui.define([
 	};
 
 	/**
+	 * Deletes the OData entity this context points to.
+	 * <b>Note:</b> The context must not be used anymore after successful deletion.
+	 *
+	 * @param {object} [mParameters]
+	 *   For a persistent context, a map of parameters as specified for
+	 *   {@link sap.ui.model.odata.v2.ODataModel#remove}
+	 * @param {string} [mParameters.groupId]
+	 *   ID of a request group; requests belonging to the same group will be bundled in one batch
+	 *   request
+	 * @param {string} [mParameters.changeSetId]
+	 *   ID of the <code>ChangeSet</code> that this request should belong to
+	 * @param {boolean} [mParameters.refreshAfterChange]
+	 *   Defines whether to update all bindings after submitting this change operation,
+	 *   see {@link #setRefreshAfterChange}. If given, this overrules the model-wide
+	 *   <code>refreshAfterChange</code> flag for this operation only.
+	 * @returns {Promise} A promise resolving with <code>undefined</code> in case of successful
+	 *   deletion or rejecting with an error in case the deletion failed
+	 * @throws {Error}
+	 *   If the given parameter map contains any other parameter than those documented above in case
+	 *   of a persistent context
+	 *
+	 * @public
+	 * @since 1.101
+	 */
+	Context.prototype.delete = function (mParameters) {
+		var sParameterKey,
+			oModel = this.getModel(),
+			that = this;
+
+		mParameters = mParameters || {};
+		for (sParameterKey in mParameters) {
+			if (!aDeleteParametersAllowList.includes(sParameterKey)) {
+				throw new Error("Parameter '" + sParameterKey + "' is not supported");
+			}
+		}
+
+		if (this.isInactive()) {
+			oModel._discardEntityChanges(oModel._getKey(this), true);
+			oModel.checkUpdate();
+
+			return Promise.resolve();
+		} else if (this.isTransient()) {
+			return oModel.resetChanges([this.getPath()], /*bAll=abort deferred requests*/false,
+				/*bDeleteCreatedEntities*/true);
+		}
+
+		return new Promise(function (resolve, reject) {
+			oModel.remove("",
+				_Helper.merge({
+					context : that,
+					error : reject,
+					success : function () {resolve();}
+				}, mParameters));
+		});
+	};
+
+	/**
 	 * Returns the promise which resolves with <code>undefined</code> on activation of this context
 	 * or if this context is already active; the promise never rejects.
 	 *
@@ -189,7 +249,9 @@ sap.ui.define([
 	/**
 	 * Returns whether this context is inactive. An inactive context will only be sent to the
 	 * server after the first property update. From then on it behaves like any other created
-	 * context.
+	 * context. The result of this function can also be accessed via the
+	 * "@$ui5.context.isInactive" instance annotation at the entity, see
+	 * {@link sap.ui.model.odata.v2.ODataModel#getProperty} for details.
 	 *
 	 * @return {boolean} Whether this context is inactive
 	 *
@@ -231,7 +293,9 @@ sap.ui.define([
 	 * {@link sap.ui.model.odata.v2.ODataListBinding#create}, the method returns <code>true</code>
 	 * if the context is transient or <code>false</code> if the context is not transient. A
 	 * transient context represents an entity created on the client which has not been persisted in
-	 * the back end.
+	 * the back end. The result of this function can also be accessed via the
+	 * "@$ui5.context.isTransient" instance annotation at the entity, see
+	 * {@link sap.ui.model.odata.v2.ODataModel#getProperty} for details.
 	 *
 	 * @returns {boolean}
 	 *   <ul>

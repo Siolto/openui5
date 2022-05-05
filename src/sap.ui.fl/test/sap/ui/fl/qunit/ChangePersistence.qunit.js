@@ -17,6 +17,7 @@ sap.ui.define([
 	"sap/ui/fl/registry/Settings",
 	"sap/ui/fl/write/_internal/condenser/Condenser",
 	"sap/ui/fl/write/_internal/Storage",
+	"sap/ui/fl/write/api/Version",
 	"sap/ui/fl/Cache",
 	"sap/ui/fl/ChangePersistence",
 	"sap/ui/fl/Change",
@@ -40,6 +41,7 @@ sap.ui.define([
 	Settings,
 	Condenser,
 	WriteStorage,
+	Version,
 	Cache,
 	ChangePersistence,
 	Change,
@@ -517,26 +519,6 @@ sap.ui.define([
 					"then variant dependent control change content was replaced with an instance");
 				assert.strictEqual(this.oChangePersistence._bHasChangesOverMaxLayer, false, "then the flag _bHasChangesOverMaxLayer was not set");
 			}.bind(this));
-		});
-
-		QUnit.test("when _getLayerFromChangeOrChangeContent is called with a change instance", function(assert) {
-			var oChange = new Change({
-				fileName: "change1",
-				layer: Layer.USER,
-				selector: {id: "controlId"},
-				dependentSelector: []
-			});
-			assert.strictEqual(this.oChangePersistence._getLayerFromChangeOrChangeContent(oChange), Layer.USER, "then the correct layer is returned");
-		});
-
-		QUnit.test("when _getLayerFromChangeOrChangeContent is called with a variant instance", function(assert) {
-			var oVariant = new Variant({
-				content: {
-					fileName: "variant1",
-					layer: Layer.USER
-				}
-			});
-			assert.strictEqual(this.oChangePersistence._getLayerFromChangeOrChangeContent(oVariant), Layer.USER, "then the correct layer is returned");
 		});
 
 		QUnit.test("getChangesForComponent shall ignore max layer parameter when current layer is set", function(assert) {
@@ -1270,7 +1252,7 @@ sap.ui.define([
 
 			var fnPublishStub = sandbox.stub(WriteStorage, "publish").resolves();
 			var fnGetChangesForComponentStub = sandbox.stub(this.oChangePersistence, "getChangesForComponent").resolves([oMockNewChange]);
-			var fnGetCompEntitiesByIdMapStub = sandbox.stub(FlexState, "getCompVariantsMap").resolves({
+			var fnGetCompEntitiesByIdMapStub = sandbox.stub(FlexState, "getCompVariantsMap").returns({
 				somePersistencyKey: {
 					byId: {
 						id1: oMockCompVariant1,
@@ -1590,13 +1572,13 @@ sap.ui.define([
 			assert.equal(this.oChangePersistence._aDirtyChanges[1], oVENDORChange3, "which is the third change");
 		});
 
-		QUnit.test("when calling resetChanges without aSelectorIds and aChangeTypes (application reset)", function(assert) {
+		QUnit.test("when calling resetChanges without generator, aSelectorIds and aChangeTypes (application reset)", function(assert) {
 			var done = assert.async();
 			// changes for the component
-			var oVENDORChange1 = new Change({
+			var oCUSTOMERChange1 = new Change({
 				fileType: "change",
-				layer: Layer.VENDOR,
-				fileName: "1",
+				layer: Layer.CUSTOMER,
+				fileName: "oCUSTOMERChange1",
 				namespace: "b",
 				packageName: "$TMP",
 				changeType: "labelChange",
@@ -1610,10 +1592,10 @@ sap.ui.define([
 				}
 			});
 
-			var oVENDORChange2 = new Change({
+			var oCUSTOMERChange2 = new Change({
 				fileType: "change",
-				layer: Layer.VENDOR,
-				fileName: "2",
+				layer: Layer.CUSTOMER,
+				fileName: "oCUSTOMERChange2",
 				namespace: "b",
 				packageName: "c",
 				changeType: "labelChange",
@@ -1626,21 +1608,76 @@ sap.ui.define([
 					something: "createNewVariant"
 				}
 			});
+			var oMockCompVariant1 = {
+				getRequest: function () {
+					return "$TMP";
+				},
+				getState: function () {
+					return Change.states.NEW;
+				},
+				getLayer: function () {
+					return Layer.CUSTOMER;
+				}
+			};
 
-			var aChanges = [oVENDORChange1, oVENDORChange2];
+			var oMockCompVariant2 = {
+				getRequest: function () {
+					return "some_transport_id";
+				},
+				getState: function () {
+					return Change.states.PERSISTED;
+				},
+				getLayer: function () {
+					return Layer.VENDOR;
+				}
+			};
+
+			var oMockCompVariant3 = {
+				getFileName: function() {
+					return "oMockCompVariant3";
+				},
+				getRequest: function () {
+					return "some_transport_id";
+				},
+				getState: function () {
+					return Change.states.PERSISTED;
+				},
+				getLayer: function () {
+					return Layer.CUSTOMER;
+				}
+			};
+
+			var aChanges = [oCUSTOMERChange1, oCUSTOMERChange2];
 			sandbox.stub(this.oChangePersistence, "getChangesForComponent").resolves(aChanges);
 			var aDeletedChangeContentIds = {response: [{fileName: "1"}, {fileName: "2"}]};
 
 			var oResetChangesStub = sandbox.stub(WriteStorage, "reset").resolves(aDeletedChangeContentIds);
 			var oCacheRemoveChangesStub = sandbox.stub(Cache, "removeChanges");
 			var oGetChangesFromMapByNamesStub = sandbox.stub(this.oChangePersistence, "_getChangesFromMapByNames").resolves();
-
-			this.oChangePersistence.resetChanges(Layer.VENDOR, "Change.createInitialFileContent").then(function(aChanges) {
+			var fnGetCompEntitiesByIdMapStub = sandbox.stub(FlexState, "getCompVariantsMap").returns({
+				somePersistencyKey: {
+					byId: {
+						id1: oMockCompVariant1,
+						id2: oMockCompVariant2,
+						id3: oMockCompVariant3
+					}
+				}
+			});
+			sandbox.stub(Settings, "getInstanceOrUndef").returns({
+				isPublicLayerAvailable: function() {
+					return true;
+				}
+			});
+			this.oChangePersistence.resetChanges(Layer.CUSTOMER).then(function(aChanges) {
+				assert.equal(fnGetCompEntitiesByIdMapStub.callCount, 1, "then getCompEntitiesByIdMap called once");
 				assert.equal(oResetChangesStub.callCount, 1, "Storage.reset is called once");
 				var oResetArgs = oResetChangesStub.getCall(0).args[0];
 				assert.equal(oResetArgs.reference, "MyComponent");
-				assert.equal(oResetArgs.layer, Layer.VENDOR);
-				assert.equal(oResetArgs.generator, "Change.createInitialFileContent");
+				assert.equal(oResetArgs.layer, Layer.CUSTOMER);
+				assert.equal(oResetArgs.changes.length, 3); //oCUSTOMERChange1, oCUSTOMERChange2, oMockCompVariant3
+				assert.equal(oResetArgs.changes[0].getFileName(), "oCUSTOMERChange1");
+				assert.equal(oResetArgs.changes[1].getFileName(), "oCUSTOMERChange2");
+				assert.equal(oResetArgs.changes[2].getFileName(), "oMockCompVariant3");
 				assert.equal(oCacheRemoveChangesStub.callCount, 0, "the Cache.removeChanges is not called");
 				assert.equal(oGetChangesFromMapByNamesStub.callCount, 0, "the getChangesFromMapByNames is not called");
 				assert.deepEqual(aChanges, [], "empty array is returned");
@@ -2125,7 +2162,7 @@ sap.ui.define([
 					originalLanguage: "DE"
 				};
 				var aDirtyChanges = [this.oChangePersistence.addChange(oChangeContent, this._oComponentInstance), this.oChangePersistence.addChange(oChangeContent2, this._oComponentInstance)];
-				return this.oChangePersistence.saveDirtyChanges(this._oComponentInstance, undefined, aDirtyChanges, sap.ui.fl.Versions.Draft, aFilenames);
+				return this.oChangePersistence.saveDirtyChanges(this._oComponentInstance, undefined, aDirtyChanges, Version.Number.Draft, aFilenames);
 			}.bind(this))
 			.then(function() {
 				assert.equal(this.oWriteStub.callCount, 0);
@@ -2168,7 +2205,7 @@ sap.ui.define([
 					originalLanguage: "DE"
 				};
 				var aDirtyChanges = [this.oChangePersistence.addChange(oChangeContent, this._oComponentInstance), this.oChangePersistence.addChange(oChangeContent2, this._oComponentInstance)];
-				return this.oChangePersistence.saveDirtyChanges(this._oComponentInstance, undefined, aDirtyChanges, sap.ui.fl.Versions.Draft, aFilenames);
+				return this.oChangePersistence.saveDirtyChanges(this._oComponentInstance, undefined, aDirtyChanges, Version.Number.Draft, aFilenames);
 			}.bind(this))
 			.then(function() {
 				assert.equal(this.oWriteStub.callCount, 0);
@@ -2211,7 +2248,7 @@ sap.ui.define([
 					originalLanguage: "DE"
 				};
 				var aDirtyChanges = [this.oChangePersistence.addChange(oChangeContent, this._oComponentInstance), this.oChangePersistence.addChange(oChangeContent2, this._oComponentInstance)];
-				return this.oChangePersistence.saveDirtyChanges(this._oComponentInstance, undefined, aDirtyChanges, sap.ui.fl.Versions.Draft, aFilenames);
+				return this.oChangePersistence.saveDirtyChanges(this._oComponentInstance, undefined, aDirtyChanges, Version.Number.Draft, aFilenames);
 			}.bind(this))
 			.then(function() {
 				assert.equal(this.oWriteStub.callCount, 0);
@@ -2238,7 +2275,7 @@ sap.ui.define([
 			};
 			var aChanges = [this.oChangePersistence.addChange(oChangeContent, this._oComponentInstance)];
 			var aFilenames = ["filename", "not", "in", "draft"];
-			return this.oChangePersistence.saveDirtyChanges(this._oComponentInstance, undefined, aChanges, sap.ui.fl.Versions.Draft, aFilenames).then(function() {
+			return this.oChangePersistence.saveDirtyChanges(this._oComponentInstance, undefined, aChanges, Version.Number.Draft, aFilenames).then(function() {
 				assert.equal(this.oWriteStub.callCount, 1, "the write function was called");
 				assert.equal(this.oStorageCondenseStub.callCount, 0, "the condense route of the storage is not called");
 				assert.equal(this.oCondenserStub.callCount, 0, "the condenser was not called");
@@ -2537,9 +2574,9 @@ sap.ui.define([
 
 			this.oChangePersistence.addChange(oChangeContent, this._oComponentInstance);
 
-			return this.oChangePersistence.saveDirtyChanges(this._oComponentInstance, undefined, undefined, sap.ui.fl.Versions.Draft).then(function() {
+			return this.oChangePersistence.saveDirtyChanges(this._oComponentInstance, undefined, undefined, Version.Number.Draft).then(function() {
 				assert.equal(this.oWriteStub.callCount, 1, "the Connector was called once");
-				assert.equal(this.oWriteStub.getCall(0).args[0].parentVersion, sap.ui.fl.Versions.Draft, "the draft version number was passed");
+				assert.equal(this.oWriteStub.getCall(0).args[0].parentVersion, Version.Number.Draft, "the draft version number was passed");
 			}.bind(this));
 		});
 
@@ -2614,8 +2651,9 @@ sap.ui.define([
 			this.oChangePersistence.deleteChange(oChangeToBeSaved);
 
 			assert.equal(this.oChangePersistence.getDirtyChanges().length, 2, "then two dirty changes exists initially");
-			return this.oChangePersistence.saveDirtyChanges(this._oComponentInstance, false, [oChangeToBeSaved]).then(function() {
+			return this.oChangePersistence.saveDirtyChanges(this._oComponentInstance, false, [oChangeToBeSaved], Version.Number.Original).then(function() {
 				assert.equal(this.oRemoveStub.callCount, 1);
+				assert.equal(this.oRemoveStub.getCall(0).args[0].parentVersion, Version.Number.Original, "the (original) version parameter was passed");
 				assert.equal(this.oWriteStub.callCount, 0);
 				assert.equal(this.oChangePersistence.getDirtyChanges().length, 1, "then one dirty change still exists");
 				assert.deepEqual(this.oChangePersistence.getDirtyChanges()[0], oChangeNotToBeSaved, "the the correct dirty change was not saved");
@@ -3042,44 +3080,13 @@ sap.ui.define([
 
 			var aDirtyChanges = [this.oChangePersistence._aDirtyChanges[0], this.oChangePersistence._aDirtyChanges[2]];
 
-			return this.oChangePersistence.saveSequenceOfDirtyChanges(aDirtyChanges, undefined, sap.ui.fl.Versions.Original).then(function() {
+			return this.oChangePersistence.saveSequenceOfDirtyChanges(aDirtyChanges, undefined, Version.Number.Original).then(function() {
 				assert.equal(this.oWriteStub.callCount, 2, "the create method of the connector is called for each selected change");
 				assert.deepEqual(this.oWriteStub.getCall(0).args[0].flexObjects[0], oChangeContent1, "the first change was processed first");
-				assert.equal(this.oWriteStub.getCall(0).args[0].parentVersion, sap.ui.fl.Versions.Original, "the (original) version parameter was passed");
+				assert.equal(this.oWriteStub.getCall(0).args[0].parentVersion, Version.Number.Original, "the (original) version parameter was passed");
 				assert.deepEqual(this.oWriteStub.getCall(1).args[0].flexObjects[0], oChangeContent3, "the second change was processed afterwards");
-				assert.equal(this.oWriteStub.getCall(1).args[0].parentVersion, sap.ui.fl.Versions.Draft, "the version parameter is set to draft for further requests");
+				assert.equal(this.oWriteStub.getCall(1).args[0].parentVersion, Version.Number.Draft, "the version parameter is set to draft for further requests");
 			}.bind(this));
-		});
-	});
-
-	QUnit.module("getResetAndPublishInfo", {
-		beforeEach: function() {
-			sandbox.stub(FlexState, "initialize").resolves();
-			sandbox.stub(WriteStorage, "getFlexInfo").returns(
-				Promise.resolve({
-					isResetEnabled: true,
-					isPublishEnabled: true
-				})
-			);
-			this._mComponentProperties = {
-				name: "testScenarioComponent"
-			};
-			this.oChangePersistence = new ChangePersistence(this._mComponentProperties);
-			this.mPropertyBag = {
-				layer: Layer.CUSTOMER,
-				reference: "testScenarioComponent"
-			};
-		},
-		afterEach: function() {
-			sandbox.restore();
-		}
-	}, function() {
-		QUnit.test("call getResetAndPublishInfo", function(assert) {
-			return this.oChangePersistence.getResetAndPublishInfo(this.mPropertyBag)
-				.then(function(oResetAndPublishInfo) {
-					assert.equal(oResetAndPublishInfo.isResetEnabled, true, "isResetEnabled is true");
-					assert.equal(oResetAndPublishInfo.isPublishEnabled, true, "isPublishEnabled is true");
-				});
 		});
 	});
 

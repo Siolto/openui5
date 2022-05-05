@@ -1,4 +1,4 @@
-sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/common/thirdparty/base/renderer/LitRenderer', 'sap/ui/webc/common/thirdparty/base/delegate/ResizeHandler', 'sap/ui/webc/common/thirdparty/base/Render', 'sap/ui/webc/common/thirdparty/base/animations/slideDown', 'sap/ui/webc/common/thirdparty/base/animations/slideUp', 'sap/ui/webc/common/thirdparty/base/types/AnimationMode', 'sap/ui/webc/common/thirdparty/base/config/AnimationMode', 'sap/ui/webc/common/thirdparty/base/delegate/ItemNavigation', 'sap/ui/webc/common/thirdparty/base/Keys', 'sap/ui/webc/common/thirdparty/base/MediaRange', 'sap/ui/webc/common/thirdparty/base/i18nBundle', 'sap/ui/webc/common/thirdparty/icons/slim-arrow-up', 'sap/ui/webc/common/thirdparty/icons/slim-arrow-down', './generated/i18n/i18n-defaults', './Button', './Icon', './List', './ResponsivePopover', './types/TabContainerTabsPlacement', './generated/templates/TabContainerTemplate.lit', './generated/templates/TabContainerPopoverTemplate.lit', './generated/themes/TabContainer.css', './generated/themes/ResponsivePopoverCommon.css', './types/TabLayout', './types/TabsOverflowMode'], function (UI5Element, litRender, ResizeHandler, Render, slideDown, slideUp, AnimationMode$1, AnimationMode, ItemNavigation, Keys, MediaRange, i18nBundle, slimArrowUp, slimArrowDown, i18nDefaults, Button, Icon, List, ResponsivePopover, TabContainerTabsPlacement, TabContainerTemplate_lit, TabContainerPopoverTemplate_lit, TabContainer_css, ResponsivePopoverCommon_css, TabLayout, TabsOverflowMode) { 'use strict';
+sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/common/thirdparty/base/renderer/LitRenderer', 'sap/ui/webc/common/thirdparty/base/delegate/ResizeHandler', 'sap/ui/webc/common/thirdparty/base/Render', 'sap/ui/webc/common/thirdparty/base/animations/slideDown', 'sap/ui/webc/common/thirdparty/base/animations/slideUp', 'sap/ui/webc/common/thirdparty/base/types/AnimationMode', 'sap/ui/webc/common/thirdparty/base/config/AnimationMode', 'sap/ui/webc/common/thirdparty/base/delegate/ItemNavigation', 'sap/ui/webc/common/thirdparty/base/Keys', 'sap/ui/webc/common/thirdparty/base/MediaRange', 'sap/ui/webc/common/thirdparty/base/i18nBundle', 'sap/ui/webc/common/thirdparty/icons/slim-arrow-up', 'sap/ui/webc/common/thirdparty/icons/slim-arrow-down', './generated/i18n/i18n-defaults', './Button', './Icon', './List', './ResponsivePopover', './types/TabContainerTabsPlacement', './types/SemanticColor', './generated/templates/TabContainerTemplate.lit', './generated/templates/TabContainerPopoverTemplate.lit', './generated/themes/TabContainer.css', './generated/themes/ResponsivePopoverCommon.css', './types/TabLayout', './types/TabsOverflowMode'], function (UI5Element, litRender, ResizeHandler, Render, slideDown, slideUp, AnimationMode$1, AnimationMode, ItemNavigation, Keys, MediaRange, i18nBundle, slimArrowUp, slimArrowDown, i18nDefaults, Button, Icon, List, ResponsivePopover, TabContainerTabsPlacement, SemanticColor, TabContainerTemplate_lit, TabContainerPopoverTemplate_lit, TabContainer_css, ResponsivePopoverCommon_css, TabLayout, TabsOverflowMode) { 'use strict';
 
 	function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e['default'] : e; }
 
@@ -74,17 +74,14 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 			_startOverflowText: {
 				type: String,
 				noAttribute: true,
+				defaultValue: "0",
 			},
 			_endOverflowText: {
 				type: String,
 				noAttribute: true,
 				defaultValue: "More",
 			},
-			_startOverflowItems: {
-				type: Object,
-				multiple: true,
-			},
-			_endOverflowItems: {
+			_overflowItems: {
 				type: Object,
 				multiple: true,
 			},
@@ -131,27 +128,17 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 			});
 		}
 		onBeforeRendering() {
-			const tabs = this._getTabs();
-			if (tabs.length) {
-				const selectedTabs = tabs.filter(tab => tab.selected);
+			this._allItemsAndSubItems = this._getAllSubItems(this.items);
+			if (this._allItemsAndSubItems.length) {
+				const selectedTabs = this._allItemsAndSubItems.filter(tab => tab.selected);
 				if (selectedTabs.length) {
 					this._selectedTab = selectedTabs[0];
 				} else {
-					this._selectedTab = tabs[0];
+					this._selectedTab = this._allItemsAndSubItems[0];
 					this._selectedTab._selected = true;
 				}
 			}
-			this.items.filter(item => !item.isSeparator).forEach((item, index, arr) => {
-				item._isInline = this.tabLayout === TabLayout.Inline;
-				item._mixedMode = this.mixedMode;
-				item._posinset = index + 1;
-				item._setsize = arr.length;
-				item._getTabContainerHeaderItemCallback = _ => {
-					return this.getDomRef().querySelector(`#${item._id}`);
-				};
-				item._itemSelectCallback = this._onItemSelect.bind(this);
-				item._getRealDomRef = () => this.getDomRef().querySelector(`*[data-ui5-stable=${item.stableDomRef}]`);
-			});
+			this._setItemsExternalProperties(this.items);
 			if (!this._animationRunning) {
 				this._contentCollapsed = this.collapsed;
 			}
@@ -161,7 +148,7 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 		}
 		onAfterRendering() {
 			this.items.forEach(item => {
-				item._getTabInStripDomRef = this.getDomRef().querySelector(`*[data-ui5-stable="${item.stableDomRef}"]`);
+				item._tabInStripDomRef = this.getDomRef().querySelector(`*[data-ui5-stable="${item.stableDomRef}"]`);
 			});
 		}
 		onEnterDOM() {
@@ -170,32 +157,127 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 		onExitDOM() {
 			ResizeHandler__default.deregister(this._getHeader(), this._handleResize);
 		}
-		_onTabStripClick(event) {
+		async _handleResize() {
+			if (this.responsivePopover && this.responsivePopover.opened) {
+				this.responsivePopover.close();
+			}
+			this._updateMediaRange();
+			await Render.renderFinished();
+			this._setItemsForStrip();
+		}
+		_updateMediaRange() {
+			this.mediaRange = MediaRange__default.getCurrentRange(MediaRange__default.RANGESETS.RANGE_4STEPS, this.getDomRef().offsetWidth);
+		}
+		_setItemsExternalProperties(items) {
+			items.filter(item => !item.isSeparator).forEach((item, index, arr) => {
+				item._isInline = this.tabLayout === TabLayout.Inline;
+				item._mixedMode = this.mixedMode;
+				item._posinset = index + 1;
+				item._setsize = arr.length;
+				item._getTabContainerHeaderItemCallback = _ => this.getDomRef().querySelector(`#${item._id}`);
+				item._itemSelectCallback = this._onItemSelect.bind(this);
+				item._getRealDomRef = () => this.getDomRef().querySelector(`*[data-ui5-stable=${item.stableDomRef}]`);
+				item._realTab = this._selectedTab;
+				item._isTopLevelTab = this.items.some(i => i === item);
+				walk(items, tab => {
+					tab._realTab = item._realTab;
+				});
+			});
+		}
+		async _onTabStripClick(event) {
 			const tab = getTab(event.target);
-			if (!tab) {
+			if (!tab || tab._realTab.disabled) {
+				return;
+			}
+			event.preventDefault();
+			event.stopPropagation();
+			if (event.target.hasAttribute("ui5-button")) {
+				this._onTabExpandButtonClick(event);
+				return;
+			}
+			if (!tab._realTab._hasOwnContent && tab._realTab.tabs.length) {
+				this._overflowItems = tab._realTab.subTabs;
+				this._addStyleIndent(this._overflowItems);
+				this.responsivePopover = await this._respPopover();
+				if (this.responsivePopover.opened) {
+					this.responsivePopover.close();
+				} else {
+					this._setInitialFocus(this._getSelectedInPopover());
+				}
+				this.responsivePopover.showAt(tab);
 				return;
 			}
 			this._onHeaderItemSelect(tab);
 		}
+		async _onTabExpandButtonClick(event) {
+			event.stopPropagation();
+			event.preventDefault();
+			let button = event.target;
+			let tabInstance = button.tab;
+			if (tabInstance) {
+				tabInstance.focus();
+			}
+			if ((event.type === "keydown") && !event.target._realTab.isSingleClickArea) {
+				button = event.target.querySelectorAll(".ui5-tab-expand-button")[0];
+				tabInstance = event.target._realTab;
+			}
+			if (!tabInstance) {
+				this._onHeaderItemSelect(button.parentElement);
+				return;
+			}
+			this._overflowItems = tabInstance.subTabs;
+			this._addStyleIndent(this._overflowItems);
+			this.responsivePopover = await this._respPopover();
+			if (this.responsivePopover.opened) {
+				this.responsivePopover.close();
+			} else {
+				this._setInitialFocus(this._getSelectedInPopover());
+			}
+			this.responsivePopover.showAt(button);
+		}
+		_setInitialFocus(selectedInPopover) {
+			if (selectedInPopover.length) {
+				this.responsivePopover.initialFocus = selectedInPopover[0].id;
+			} else {
+				this.responsivePopover.initialFocus = this.responsivePopover.content[0].items.filter(item => item.classList.contains("ui5-tab-overflow-item"))[0].id;
+			}
+		}
 		_onTabStripKeyDown(event) {
 			const tab = getTab(event.target);
-			if (!tab) {
+			if (!tab || tab._realTab.disabled) {
 				return;
 			}
 			if (Keys.isEnter(event)) {
-				this._onHeaderItemSelect(tab);
+				if (tab._realTab.isSingleClickArea) {
+					this._onTabStripClick(event);
+				} else {
+					this._onHeaderItemSelect(tab);
+				}
 			}
 			if (Keys.isSpace(event)) {
 				event.preventDefault();
 			}
+			if (Keys.isDown(event)) {
+				if (tab._realTab.requiresExpandButton) {
+					this._onTabExpandButtonClick(event);
+				}
+				if (tab._realTab.isSingleClickArea) {
+					this._onTabStripClick(event);
+				}
+			}
 		}
 		_onTabStripKeyUp(event) {
 			const tab = getTab(event.target);
-			if (!tab) {
+			if (!tab || tab._realTab.disabled) {
 				return;
 			}
 			if (Keys.isSpace(event)) {
-				this._onHeaderItemSelect(tab);
+				event.preventDefault();
+				if (tab._realTab.isSingleClickArea) {
+					this._onTabStripClick(event);
+				} else {
+					this._onHeaderItemSelect(tab);
+				}
 			}
 		}
 		_onHeaderItemSelect(tab) {
@@ -206,19 +288,32 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 				}
 			}
 		}
-		_onOverflowListItemClick(event) {
+		async _onOverflowListItemClick(event) {
 			event.preventDefault();
 			const { item } = event.detail;
 			this._onItemSelect(item);
-			this.responsivePopover.close();
+			await this.responsivePopover.close();
 			this._setItemsForStrip();
-			this.shadowRoot.querySelector(`#${item.id}`).focus();
+			const selectedTopLevel = this._getRootTab(this._selectedTab);
+			selectedTopLevel.focus();
+		}
+		_getAllSubItems(items, result = [], level = 1) {
+			items.forEach(item => {
+				if (item.hasAttribute("ui5-tab") || item.hasAttribute("ui5-tab-separator")) {
+					item._level = level;
+					result.push(item);
+					if (item.subTabs) {
+						this._getAllSubItems(item.subTabs, result, level + 1);
+					}
+				}
+			});
+			return result;
 		}
 		_onItemSelect(target) {
-			const selectedIndex = findIndex(this.items, item => item._id === target.id);
-			const selectedTabIndex = findIndex(this._getTabs(), item => item._id === target.id);
-			const selectedTab = this.items[selectedIndex];
-			this.items
+			const selectedIndex = findIndex(this._allItemsAndSubItems, item => item.__id === target.id);
+			const selectedTabIndex = findIndex(this._allItemsAndSubItems, item => item.__id === target.id);
+			const selectedTab = this._allItemsAndSubItems[selectedIndex];
+			this._allItemsAndSubItems
 				.forEach((item, index) => {
 					const selected = selectedIndex === index;
 					item.selected = selected;
@@ -282,8 +377,7 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 			const isStartOverflow = overflow.classList.contains("ui5-tc__overflow--start");
 			const items = [];
 			const overflowAttr = isEndOverflow ? "end-overflow" : "start-overflow";
-			this._startOverflowItems = [];
-			this._endOverflowItems = [];
+			this._overflowItems = [];
 			this.items.forEach(item => {
 				if (item.getTabInStripDomRef() && item.getTabInStripDomRef().hasAttribute(overflowAttr)) {
 					items.push(item);
@@ -292,37 +386,46 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 			let button;
 			if (isEndOverflow) {
 				button = this.overflowButton[0] || overflow.querySelector("[ui5-button]");
-				this._endOverflowItems = items;
+				this._overflowItems = items;
+				this._addStyleIndent(this._overflowItems);
 			}
 			if (isStartOverflow) {
 				button = this.startOverflowButton[0] || overflow.querySelector("[ui5-button]");
-				this._startOverflowItems = items;
+				this._overflowItems = items;
+				this._addStyleIndent(this._overflowItems);
 			}
 			this.responsivePopover = await this._respPopover();
 			if (this.responsivePopover.opened) {
 				this.responsivePopover.close();
 			} else {
 				this.responsivePopover.initialFocus = this.responsivePopover.content[0].items.filter(item => item.classList.contains("ui5-tab-overflow-item"))[0].id;
-				this.responsivePopover.showAt(button);
+				await this.responsivePopover.showAt(button);
 			}
+		}
+		_getSelectedInPopover() {
+			return this.responsivePopover.content[0].items.filter(item => (item._realTab && item._realTab.selected));
+		}
+		_addStyleIndent(tabs) {
+			const extraIndent = this._getAllSubItems(tabs)
+				.filter(tab => !tab.isSeparator)
+				.some(tab => tab.design !== SemanticColor.Default && tab.design !== SemanticColor.Neutral);
+			walk(tabs, tab => {
+				let level = tab._level - 1;
+				if (tab.isSeparator) {
+					level += 1;
+				}
+				tab._style = {
+					"--_ui5-tab-indentation-level": level,
+					"--_ui5-tab-extra-indent": extraIndent ? 1 : null,
+				};
+			});
 		}
 		async _onOverflowKeyDown(event) {
 			const isEndOverflow = event.currentTarget.classList.contains("ui5-tc__overflow--end");
 			const isStartOverflow = event.currentTarget.classList.contains("ui5-tc__overflow--start");
-			switch (true) {
-			case Keys.isDown(event):
-			case isStartOverflow && Keys.isLeft(event):
-			case isEndOverflow && Keys.isRight(event):
+			if (Keys.isDown(event) || (isStartOverflow && Keys.isLeft(event)) || (isEndOverflow && Keys.isRight(event))) {
 				await this._onOverflowClick(event);
 			}
-		}
-		async _handleResize() {
-			if (this.responsivePopover && this.responsivePopover.opened) {
-				this.responsivePopover.close();
-			}
-			this._updateMediaRange();
-			await Render.renderFinished();
-			this._setItemsForStrip();
 		}
 		_setItemsForStrip() {
 			const tabStrip = this._getTabStrip();
@@ -353,11 +456,21 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 				this._updateEndOverflow(itemsDomRefs);
 			}
 			this._itemNavigation._init();
-			this._itemNavigation.setCurrentItem(this._selectedTab);
+			this._itemNavigation.setCurrentItem(this._getRootTab(this._selectedTab));
+		}
+		_getRootTab(tab) {
+			while (tab.hasAttribute("ui5-tab")) {
+				if (tab.parentElement.hasAttribute("ui5-tabcontainer")) {
+					break;
+				}
+				tab = tab.parentElement;
+			}
+			return tab;
 		}
 		_updateEndOverflow(itemsDomRefs) {
 			this._getEndOverflow().removeAttribute("hidden");
-			const selectedTabDomRef = this._selectedTab.getTabInStripDomRef();
+			const selectedTab = this._getRootTab(this._selectedTab);
+			const selectedTabDomRef = selectedTab.getTabInStripDomRef();
 			const containerWidth = this._getTabStrip().offsetWidth;
 			const selectedItemIndexAndWidth = this._getSelectedItemIndexAndWidth(itemsDomRefs, selectedTabDomRef);
 			const lastVisibleTabIndex = this._findLastVisibleItem(itemsDomRefs, containerWidth, selectedItemIndexAndWidth.width);
@@ -369,7 +482,8 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 		}
 		_updateStartAndEndOverflow(itemsDomRefs) {
 			let containerWidth = this._getTabStrip().offsetWidth;
-			const selectedTabDomRef = this._selectedTab.getTabInStripDomRef();
+			const selectedTab = this._getRootTab(this._selectedTab);
+			const selectedTabDomRef = selectedTab.getTabInStripDomRef();
 			const selectedItemIndexAndWidth = this._getSelectedItemIndexAndWidth(itemsDomRefs, selectedTabDomRef);
 			const hasStartOverflow = this._hasStartOverflow(containerWidth, itemsDomRefs, selectedItemIndexAndWidth);
 			const hasEndOverflow = this._hasEndOverflow(containerWidth, itemsDomRefs, selectedItemIndexAndWidth);
@@ -528,7 +642,11 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 			}
 			const focusableTabs = [];
 			if (!this._getStartOverflow().hasAttribute("hidden")) {
-				focusableTabs.push(this._getStartOverflow().querySelector("[ui5-button]"));
+				if (this._getCustomStartOverflowBtnDOM()) {
+					focusableTabs.push(this._getCustomStartOverflowBtnDOM());
+				} else {
+					focusableTabs.push(this._getStartOverflowBtnDOM());
+				}
 			}
 			this._getTabs().forEach(tab => {
 				if (tab.getTabInStripDomRef() && !tab.getTabInStripDomRef().hasAttribute("hidden")) {
@@ -536,12 +654,13 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 				}
 			});
 			if (!this._getEndOverflow().hasAttribute("hidden")) {
-				focusableTabs.push(this._getEndOverflow().querySelector("[ui5-button]"));
+				if (this._getCustomEndOverflowBtnDOM()) {
+					focusableTabs.push(this._getCustomEndOverflowBtnDOM());
+				} else {
+					focusableTabs.push(this._getEndOverflowBtnDOM());
+				}
 			}
 			return focusableTabs;
-		}
-		_updateMediaRange() {
-			this.mediaRange = MediaRange__default.getCurrentRange(MediaRange__default.RANGESETS.RANGE_4STEPS, this.getDomRef().offsetWidth);
 		}
 		_getHeader() {
 			return this.shadowRoot.querySelector(`#${this._id}-header`);
@@ -557,6 +676,18 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 		}
 		_getEndOverflow() {
 			return this.shadowRoot.querySelector(".ui5-tc__overflow--end");
+		}
+		_getCustomStartOverflowBtnDOM() {
+			return this.shadowRoot.querySelector("slot[name=startOverflowButton]");
+		}
+		_getStartOverflowBtnDOM() {
+			return this._getStartOverflow().querySelector("[ui5-button]");
+		}
+		_getCustomEndOverflowBtnDOM() {
+			return this.shadowRoot.querySelector("slot[name=overflowButton]");
+		}
+		_getEndOverflowBtnDOM() {
+			return this._getEndOverflow().querySelector("[ui5-button]");
 		}
 		async _respPopover() {
 			const staticAreaItem = await this.getStaticAreaItemDomRef();
@@ -615,6 +746,9 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 		get overflowButtonText() {
 			return TabContainer.i18nBundle.getText(i18nDefaults.TABCONTAINER_END_OVERFLOW);
 		}
+		get popoverCancelButtonText() {
+			return TabContainer.i18nBundle.getText(i18nDefaults.TABCONTAINER_POPOVER_CANCEL_BUTTON);
+		}
 		get animate() {
 			return AnimationMode.getAnimationMode() !== AnimationMode__default.None;
 		}
@@ -648,6 +782,14 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 			}
 		}
 		return -1;
+	};
+	const walk = (tabs, callback) => {
+		[...tabs].forEach(tab => {
+			callback(tab);
+			if (tab.subTabs) {
+				walk(tab.subTabs, callback);
+			}
+		});
 	};
 	TabContainer.define();
 

@@ -140,6 +140,9 @@ sap.ui.define([
 
 			this._fnHoverTrue = this._toggleHoverStyleClasses.bind(this, true);
 			this._fnHoverFalse = this._toggleHoverStyleClasses.bind(this, false);
+			// is needed to prevent that multiple events listeners are attached
+			// to the same overlay because setVisible is called multiple times
+			this._bEventAttachedToElement = false;
 		}
 	});
 
@@ -173,10 +176,13 @@ sap.ui.define([
 		var oOverlay = Core.byId(this.getOverlayId());
 		// needed because the change indicator cleanup is only triggered on save and exit
 		if (oOverlay) {
-			if (bVisible) {
+			if (bVisible && !this._bEventAttachedToElement) {
 				handleBrowserEventsOnElement.call(this, oOverlay, "attachBrowserEvent");
-			} else {
+				this._bEventAttachedToElement = true;
+			}
+			if (!bVisible) {
 				handleBrowserEventsOnElement.call(this, oOverlay, "detachBrowserEvent");
+				this._bEventAttachedToElement = false;
 				if (this.getAggregation("_popover")) {
 					this.getAggregation("_popover").destroy();
 				}
@@ -274,10 +280,11 @@ sap.ui.define([
 			return mPayload;
 		}, {});
 
+		var mPropertyBag = { appComponent: FlUtils.getAppComponentForControl(oAffectedElement) };
 		var oOverlay = Core.byId(this.getOverlayId());
 		var sElementLabel = oOverlay.getDesignTimeMetadata().getLabel(oAffectedElement);
 		var oVisualizationUtil = getVisualizationCategory(mChangeInformation.commandName);
-		var oDescription = oVisualizationUtil && oVisualizationUtil.getDescription(mPayload, sElementLabel);
+		var oDescription = oVisualizationUtil && oVisualizationUtil.getDescription(mPayload, sElementLabel, mPropertyBag);
 		var oRtaResourceBundle = Core.getLibraryResourceBundle("sap.ui.rta");
 		sElementLabel = sElementLabel && "'" + sElementLabel + "'";
 		var sShortenedElementLabel = ChangeVisualizationUtils.shortenString(sElementLabel);

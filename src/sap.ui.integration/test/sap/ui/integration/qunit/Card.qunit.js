@@ -17,6 +17,7 @@ sap.ui.define([
 	"sap/m/MessageStrip",
 	"sap/ui/integration/util/DataProviderFactory",
 	"sap/m/library",
+	"sap/base/util/deepExtend",
 	"sap/base/util/LoaderExtensions",
 	"sap/m/HBox",
 	"sap/ui/model/json/JSONModel",
@@ -40,6 +41,7 @@ sap.ui.define([
 		MessageStrip,
 		DataProviderFactory,
 		mLibrary,
+		deepExtend,
 		LoaderExtensions,
 		HBox,
 		JSONModel,
@@ -1104,7 +1106,7 @@ sap.ui.define([
 		QUnit.test("setManifest - correct and incorrect", function (assert) {
 
 			var done = assert.async(),
-				oManifest_WrongType = jQuery.extend(true, {}, oManifest_ListCard);
+				oManifest_WrongType = deepExtend({}, oManifest_ListCard);
 
 			oManifest_WrongType["sap.card"].type = "Wrong";
 
@@ -1171,7 +1173,7 @@ sap.ui.define([
 
 			this.oCard.createManifest(oManifest_ListCard);
 
-			this.oCard.destroyManifest();
+			this.oCard._destroyManifest();
 			this.oCard.createManifest(oManifest_ListCard);
 		});
 
@@ -1710,10 +1712,10 @@ sap.ui.define([
 
 			// Act
 			this.oCard.attachEvent("_ready", function () {
+				Core.applyChanges();
+
 				var oHeader = this.oCard.getAggregation("_header"),
 					oMainIndicator = oHeader.getAggregation("_numericIndicators").getAggregation("_mainIndicator");
-
-				Core.applyChanges();
 
 				// Assert aggregation mainIndicator
 				assert.ok(oMainIndicator.getDomRef(), "Card header main indicator aggregation should be set and rendered");
@@ -1736,10 +1738,10 @@ sap.ui.define([
 
 			// Act
 			this.oCard.attachEvent("_ready", function () {
+				Core.applyChanges();
+
 				var oHeader = this.oCard.getAggregation("_header"),
 					oMainIndicator = oHeader.getAggregation("_numericIndicators").getAggregation("_mainIndicator");
-
-				Core.applyChanges();
 
 				// Assert aggregation _mainIndicator
 				assert.ok(oMainIndicator.getDomRef(), "Card header main indicator aggregation should be set and rendered");
@@ -1762,9 +1764,9 @@ sap.ui.define([
 
 			// Act
 			this.oCard.attachEvent("_ready", function () {
-				var oHeader = this.oCard.getAggregation("_header");
-
 				Core.applyChanges();
+
+				var oHeader = this.oCard.getAggregation("_header");
 
 				// Assert aggregation sideIndicators
 				assert.ok(oHeader.getAggregation("sideIndicators"), "Card header side indicators should be set.");
@@ -1792,22 +1794,16 @@ sap.ui.define([
 
 			// Act
 			this.oCard.attachEvent("_ready", function () {
-				var oHeader = this.oCard.getAggregation("_header");
-
 				Core.applyChanges();
 
 				// Assert
-				assert.notOk(oHeader.getAggregation("_details"), "Card header should have no Details.");
-				assert.notOk(oHeader.getAggregation("_numericIndicators").getAggregation("_mainIndicator"), "Card header should have no Main indicators.");
-				assert.equal(oHeader.getAggregation("sideIndicators").length, 0, "Card header should have no Side indicators.");
-
 				assert.equal(document.getElementsByClassName("sapFCardHeaderDetails").length, 0, "Card header Details are not rendered.");
 				assert.equal(document.getElementsByClassName("sapFCardNumericIndicators").length, 0, "Card header Indicators are not rendered.");
 				assert.equal(document.getElementsByClassName("sapFCardNumericIndicatorsMain").length, 0, "Card header Main Indicator is not rendered.");
 				assert.equal(document.getElementsByClassName("sapFCardNumericIndicatorsSide").length, 0, "Card header Side Indicator is not rendered.");
 
 				done();
-			}.bind(this));
+			});
 			this.oCard.setManifest(oManifest_NumericHeader_OnlyTitleAndSubtitle);
 			this.oCard.placeAt(DOM_RENDER_LOCATION);
 			Core.applyChanges();
@@ -2005,7 +2001,9 @@ sap.ui.define([
 							"size": "Auto"
 						}
 					};
-					var oIllustratedMessage = this.oCard._getIllustratedMessage(oErrorConfiguration, true);
+					var oFlexBox = this.oCard._getIllustratedMessage(oErrorConfiguration, true),
+						oIllustratedMessage = oFlexBox.getItems()[0];
+
 					// Assert
 					assert.strictEqual(oIllustratedMessage.getIllustrationType(), IllustratedMessageType.NoEntries, "The message type set by developer is correct");
 					assert.strictEqual(oIllustratedMessage.getIllustrationSize(), IllustratedMessageSize.Auto, "The message size set by developer is correct");
@@ -2027,9 +2025,9 @@ sap.ui.define([
 			var done = assert.async();
 			this.oCard.attachEventOnce("_ready", function () {
 				Core.applyChanges();
-				var oIllustratedMessage = this.oCard._getIllustratedMessage();
+				var oFlexBox = this.oCard._getIllustratedMessage(),
+					oIllustratedMessage = oFlexBox.getItems()[0];
 				// Assert
-
 				assert.strictEqual(oIllustratedMessage.getIllustrationType(), IllustratedMessageType.UnableToLoad, "Default message type is used for list");
 
 				// Clean up
@@ -2046,10 +2044,11 @@ sap.ui.define([
 			var done = assert.async();
 			this.oCard.attachEventOnce("_ready", function () {
 				Core.applyChanges();
-				var oIllustratedMessage = this.oCard._getIllustratedMessage(undefined, true);
+				var oFlexBox = this.oCard._getIllustratedMessage(undefined, true),
+					oIllustratedMessage = oFlexBox.getItems()[0];
 				// Assert
 				assert.strictEqual(oIllustratedMessage.getIllustrationType(), IllustratedMessageType.NoData, "Illustrated message type should be no data for List Card");
-				assert.strictEqual(this.oCard.getCardContent().getTitle(), this.oRb.getText("CARD_NO_ITEMS_ERROR_LISTS"), "Correct message is displayed");
+				assert.strictEqual(this.oCard.getCardContent().getItems()[0].getTitle(), this.oRb.getText("CARD_NO_ITEMS_ERROR_LISTS"), "Correct message is displayed");
 
 				// Clean up
 				done();
@@ -2065,10 +2064,12 @@ sap.ui.define([
 			var done = assert.async();
 			this.oCard.attachEventOnce("_ready", function () {
 				Core.applyChanges();
-				var oIllustratedMessage = this.oCard._getIllustratedMessage(undefined, true);
+				var oFlexBox = this.oCard._getIllustratedMessage(undefined, true),
+					oIllustratedMessage = oFlexBox.getItems()[0];
+
 				// Assert
 				assert.strictEqual(oIllustratedMessage.getIllustrationType(), IllustratedMessageType.NoEntries, "Illustrated message type should be no data for Table Card");
-				assert.strictEqual(this.oCard.getCardContent().getTitle(), this.oRb.getText("CARD_NO_ITEMS_ERROR_LISTS"), "Correct message is displayed");
+				assert.strictEqual(this.oCard.getCardContent().getItems()[0].getTitle(), this.oRb.getText("CARD_NO_ITEMS_ERROR_LISTS"), "Correct message is displayed");
 
 				// Clean up
 				done();
@@ -2769,6 +2770,45 @@ sap.ui.define([
 					}
 				}
 			});
+		});
+
+		QUnit.test("Not ready", function (assert) {
+			var bTypeError = false;
+
+			try {
+				this.oCard.placeAt(DOM_RENDER_LOCATION);
+				this.oCard.setManifest({
+					"sap.app": {
+						"id": "test.card.refreshing.card1"
+					},
+					"sap.card": {
+						"configuration": {
+							"filters": {
+								"f1": {
+
+								},
+								"f2": {
+
+								}
+							}
+						},
+						"type": "List",
+						"header": {
+							"title": "L3 Request list content Card"
+						},
+						"content": {
+							"item": {
+								"title": "{Name}"
+							}
+						}
+					}
+				});
+				this.oCard.refreshData();
+			} catch (error) {
+				bTypeError = true;
+			}
+
+			assert.ok(!bTypeError, "There is no error"); // BCP 2280081647
 		});
 
 		QUnit.module("Refreshing data - invalid response", {

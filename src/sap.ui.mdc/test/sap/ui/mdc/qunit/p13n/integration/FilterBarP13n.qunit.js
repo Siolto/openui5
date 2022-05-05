@@ -61,6 +61,8 @@ sap.ui.define([
 					conditions: "{$filters>/conditions/" + sKey + "}"
 				}));
 			});
+
+			return this.oFilterBar.initialized();
 		},
 		destroyTestObjects: function() {
 			this.oFilterBar.destroy();
@@ -178,8 +180,10 @@ sap.ui.define([
 			aModelItemsGrouped[0].items[2].visible = true;
 
 			//3 items selected --> mock a model change
-			oAddaptFiltersController._oAdaptationModel.setProperty("/items", aModelItems);
-			oAddaptFiltersController._oAdaptationModel.setProperty("/itemsGrouped", aModelItemsGrouped);
+			oAFPanel.setP13nData({
+				items: aModelItems,
+				itemsGrouped: aModelItemsGrouped
+			});
 
 			assert.equal(oFirstGroupList.getItems().length, 3, "3 items created");
 			assert.equal(oFirstGroupList.getSelectedItems().length, 3, "3 items selected");
@@ -209,19 +213,20 @@ sap.ui.define([
 			item3: [{operator: "EQ", values:["Test"]}]
 		};
 
+        sinon.stub(Engine.getInstance(), '_processChanges').callsFake(function fakeFn(vControl, aChanges) {
+			return Promise.resolve(aChanges);
+        });
+
 		Engine.getInstance().createChanges({
 			control: this.oFilterBar,
 			key: "Filter",
 			state: mConditions
 		}).then(function(aChanges){
 			assert.ok(aChanges, "changes created");
-			assert.equal(aChanges.length, 6, "six changes created");
-			assert.equal(aChanges[0].changeSpecificData.changeType, "addPropertyInfo", "one metadata change created");
+			assert.equal(aChanges.length, 3, "three changes created");
+			assert.equal(aChanges[0].changeSpecificData.changeType, "addCondition", "one condition change created");
 			assert.equal(aChanges[1].changeSpecificData.changeType, "addCondition", "one condition change created");
-			assert.equal(aChanges[2].changeSpecificData.changeType, "addPropertyInfo", "one metadata change created");
-			assert.equal(aChanges[3].changeSpecificData.changeType, "addCondition", "one condition change created");
-			assert.equal(aChanges[4].changeSpecificData.changeType, "addPropertyInfo", "one metadata change created");
-			assert.equal(aChanges[5].changeSpecificData.changeType, "addCondition", "one condition change created");
+			assert.equal(aChanges[2].changeSpecificData.changeType, "addCondition", "one condition change created");
 			done();
 		});
 
@@ -266,11 +271,9 @@ sap.ui.define([
 			state: mConditions
 		}).then(function(aChanges){
 			assert.ok(aChanges, "changes created");
-			assert.equal(aChanges.length, 4, "four changes created");
-			assert.equal(aChanges[0].changeSpecificData.changeType, "addPropertyInfo", "one metadata change created");   // item1
+			assert.equal(aChanges.length, 2, "two changes created");
+			assert.equal(aChanges[0].changeSpecificData.changeType, "addCondition", "one condition change created"); // item1
 			assert.equal(aChanges[1].changeSpecificData.changeType, "addCondition", "one condition change created"); // item2
-			assert.equal(aChanges[2].changeSpecificData.changeType, "addPropertyInfo", "one metadata change created");  // item3
-			assert.equal(aChanges[3].changeSpecificData.changeType, "addCondition", "one condition change created"); // item3
 			done();
 		});
 
@@ -294,13 +297,10 @@ sap.ui.define([
 			state: mConditions
 		}).then(function(aChanges){
 			assert.ok(aChanges, "changes created");
-			assert.equal(aChanges.length, 6, "six changes created");
-			assert.equal(aChanges[0].changeSpecificData.changeType, "addPropertyInfo", "one metadata change created");   // item1
-			assert.equal(aChanges[1].changeSpecificData.changeType, "removeCondition", "one condition change created");
-			assert.equal(aChanges[2].changeSpecificData.changeType, "addPropertyInfo", "one metadata change created");   // item2
-			assert.equal(aChanges[3].changeSpecificData.changeType, "addCondition", "one condition change created");
-			assert.equal(aChanges[4].changeSpecificData.changeType, "addPropertyInfo", "one metadata change created");   // item3
-			assert.equal(aChanges[5].changeSpecificData.changeType, "addCondition", "one condition change created");
+			assert.equal(aChanges.length, 3, "three changes created");
+			assert.equal(aChanges[0].changeSpecificData.changeType, "removeCondition", "one condition change created");
+			assert.equal(aChanges[1].changeSpecificData.changeType, "addCondition", "one condition change created");
+			assert.equal(aChanges[2].changeSpecificData.changeType, "addCondition", "one condition change created");
 			done();
 		});
 
@@ -322,9 +322,8 @@ sap.ui.define([
 			state: mConditions
 		}).then(function(aChanges){
 			assert.ok(aChanges, "changes created");
-			assert.equal(aChanges.length, 2, "two changes created");
-			assert.equal(aChanges[0].changeSpecificData.changeType, "addPropertyInfo", "one metadata change created");
-			assert.equal(aChanges[1].changeSpecificData.changeType, "addCondition", "one condition change created");
+			assert.equal(aChanges.length, 1, "one changes created");
+			assert.equal(aChanges[0].changeSpecificData.changeType, "addCondition", "one condition change created");
 			done();
 		});
 

@@ -7,14 +7,15 @@ sap.ui.define([
 	'sap/ui/model/ChangeReason',
 	'sap/base/strings/capitalize',
 	'sap/m/library',
-	"sap/ui/mdc/util/loadModules"
-
+	'sap/ui/mdc/util/loadModules',
+	'sap/ui/thirdparty/jquery'
 	], function(
 			FieldValueHelpTableWrapperBase,
 			ChangeReason,
 			capitalize,
 			mLibrary,
-			loadModules
+			loadModules,
+			jQuery
 	) {
 	"use strict";
 
@@ -290,6 +291,8 @@ sap.ui.define([
 		if (oTable) {
 			return bSelectedOnly ? oTable.getSelectedItems() : oTable.getItems();
 		}
+
+		return [];
 	};
 
 	FieldValueHelpMTableWrapper.prototype._modifyTableSelection = function (aItems, oItem, bSelected, iItemIndex) {

@@ -42,21 +42,15 @@ sap.ui.define([
 	/**
 	 * Check if the given overlay is editable.
 	 * @param {sap.ui.dt.ElementOverlay} oOverlay - Overlay to be checked for editable
-	 * @returns {Promise.<boolean>|boolean} <code>true</code> when editable wrapped in a promise.
+	 * @returns {Promise.<boolean>} <code>true</code> when editable wrapped in a promise.
 	 * @private
 	 */
 	Combine.prototype._isEditable = function (oOverlay) {
 		var oCombineAction = this.getAction(oOverlay);
-		if (!oOverlay.isRoot() && oCombineAction && oCombineAction.changeType && oCombineAction.changeOnRelevantContainer) {
-			var oRelevantContainer = oOverlay.getRelevantContainer();
-			return this.hasChangeHandler(oCombineAction.changeType, oRelevantContainer)
-				.then(function(bHasChangeHandler) {
-					return bHasChangeHandler &&
-						this.hasStableId(oOverlay) &&
-						this._checkRelevantContainerStableID(oCombineAction, oOverlay);
-				}.bind(this));
+		if (!oOverlay.isRoot() && oCombineAction && oCombineAction.changeOnRelevantContainer) {
+			return this._checkChangeHandlerAndStableId(oOverlay);
 		}
-		return false;
+		return Promise.resolve(false);
 	};
 
 	Combine.prototype._checkForSameRelevantContainer = function(aElementOverlays) {
@@ -157,7 +151,7 @@ sap.ui.define([
 	/**
 	 * @param {sap.ui.dt.ElementOverlay[]} aElementOverlays - specified overlays
 	 * @param {sap.ui.core.Element} oCombineElement - element where the combine was triggered
-	 * @returns {promise} Promise
+	 * @returns {Promise} Promise
 	 */
 	Combine.prototype.handleCombine = function(aElementOverlays, oCombineElement) {
 		var oCombineElementOverlay;

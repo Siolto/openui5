@@ -1,11 +1,8 @@
 /*!
  * ${copyright}
  */
-/* Provides a sandbox for this component:
- * For the "realOData" (realOData=true/proxy) case when the component runs with
- * backend, the v2.ODataModel constructor is wrapped so that the URL is adapted to a proxy URL
- * For the case realOData=false a mockserver will be set up. Unknown values default to false.
- */
+// The SandboxModel is used in the manifest instead of OData V2 model for the following purposes:
+// For the "non-realOData" case, a mock server for the back-end requests is set up.
 sap.ui.define([
 	"sap/ui/model/odata/v2/ODataModel",
 	"sap/ui/test/TestUtils",
@@ -15,21 +12,23 @@ sap.ui.define([
 
 	var oMockData = {
 			mFixture : {
-				"$metadata?customAll='custom%2Fall'&customMeta='custom%2Fmeta'" : {
-					source : "metadata.xml"
-				},
 				"ProductSet?customAll='custom%2Fall'&customService='custom%2Fservice'&$skip=0&$top=5&$inlinecount=allpages" :
 				{
 					source : "ProductSet_0_5.json"
 				},
 				"SAP__Currencies?customAll='custom%2Fall'&customService='custom%2Fservice'&$skip=0&$top=5000" : {
-					source : "SAP__Currencies.json"
+					source : "../../data/SAP__Currencies.json"
 				},
 				"SAP__UnitsOfMeasure?customAll='custom%2Fall'&customService='custom%2Fservice'&$skip=0&$top=5000" : {
-					source : "SAP__UnitsOfMeasure.json"
+					source : "../../data/SAP__UnitsOfMeasure.json"
 				}
 			},
-			aRegExpFixture : []
+			aRegExpFixture : [{
+				regExp : /\/sap\/opu\/odata\/sap\/ZUI5_GWSAMPLE_BASIC\/\$metadata/,
+				response : {
+					source : "metadata.xml"
+				}
+			}]
 		};
 
 	return ODataModel.extend("sap.ui.core.internal.samples.odata.v2.Products.SandboxModel", {
@@ -41,10 +40,6 @@ sap.ui.define([
 				TestUtils.setupODataV4Server(oSandbox, oMockData.mFixture,
 					"sap/ui/core/internal/samples/odata/v2/Products/data",
 					"/sap/opu/odata/sap/ZUI5_GWSAMPLE_BASIC/", oMockData.aRegExpFixture);
-			} else {
-				mParameters = Object.assign({}, mParameters, {
-					serviceUrl : TestUtils.proxy(mParameters.serviceUrl)
-				});
 			}
 
 			oModel = new ODataModel(mParameters);

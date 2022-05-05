@@ -8,9 +8,10 @@ sap.ui.define([
 	"sap/m/Text",
 	"sap/m/library",
 	"sap/ui/core/Core",
-	"sap/ui/thirdparty/jquery"
+	"sap/ui/thirdparty/jquery",
+	"sap/ui/Device"
 ],
-function(qutils, DomUnitsRem, Parameters, Breadcrumbs, Link, Text, library, oCore, jQuery) {
+function(qutils, DomUnitsRem, Parameters, Breadcrumbs, Link, Text, library, oCore, jQuery, Device) {
 	"use strict";
 	var core, oFactory, helpers;
 
@@ -67,13 +68,13 @@ function(qutils, DomUnitsRem, Parameters, Breadcrumbs, Link, Text, library, oCor
 		},
 		setMobile: function () {
 			jQuery("html").removeClass("sapUiMedia-Std-Desktop").addClass("sapUiMedia-Std-Phone");
-			sap.ui.Device.system.desktop = false;
-			sap.ui.Device.system.phone = true;
+			Device.system.desktop = false;
+			Device.system.phone = true;
 		},
 		resetMobile: function () {
 			jQuery("html").addClass("sapUiMedia-Std-Desktop").removeClass("sapUiMedia-Std-Phone");
-			sap.ui.Device.system.desktop = true;
-			sap.ui.Device.system.phone = false;
+			Device.system.desktop = true;
+			Device.system.phone = false;
 		},
 		setSmallScreenSize: function () {
 			jQuery("#qunit-fixture").css("width", "50px");
@@ -687,6 +688,29 @@ function(qutils, DomUnitsRem, Parameters, Breadcrumbs, Link, Text, library, oCor
 		assert.strictEqual(oBreadcrumbsControl.getAriaLabelledBy().join(""), "id1", "aria-labelledby is set correctly");
 
 		oBreadcrumbsControl.destroy();
+	});
+
+	QUnit.module("Internal ItemNavigation");
+
+	QUnit.test("alt/meta key + right/left or + home/end is not handled", function (assert) {
+		// Prepare
+		var oBreadcrumbs = new Breadcrumbs(),
+		oModifiers;
+
+		// Act
+		oBreadcrumbs._configureKeyboardHandling();
+
+		// Assert
+		var oModifiers = oBreadcrumbs._getItemNavigation().getDisabledModifiers();
+		assert.ok(oModifiers["sapnext"], "sapnext has disabled modifiers");
+		assert.ok(oModifiers["sapprevious"], "sapprevious has disabled modifiers");
+		assert.ok(oModifiers["sapnext"].indexOf("alt") !== -1, "right is not handled when alt is pressed");
+		assert.ok(oModifiers["sapnext"].indexOf("meta") !== -1, "right is not handled when meta key is pressed");
+		assert.ok(oModifiers["sapprevious"].indexOf("alt") !== -1, "left is not handled when alt is pressed");
+		assert.ok(oModifiers["sapprevious"].indexOf("meta") !== -1, "left is not handled when meta key is pressed");
+
+		// Cleanup
+		oBreadcrumbs.destroy();
 	});
 
 });

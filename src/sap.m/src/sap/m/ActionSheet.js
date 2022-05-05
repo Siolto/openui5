@@ -225,8 +225,15 @@ sap.ui.define([
 			this._oItemNavigation.setPageSize(5);
 
 			this._oItemNavigation.setDisabledModifiers({
-				sapnext: ["alt"],
-				sapprevious: ["alt"]
+				// Alt + arrow keys are reserved for browser navigation
+				sapnext: [
+					"alt", // Windows and Linux
+					"meta" // Apple (⌘)
+				],
+				sapprevious: [
+					"alt",
+					"meta"
+				]
 			});
 
 		}
@@ -435,7 +442,7 @@ sap.ui.define([
 		if (!this._oCancelButton) {
 			var sCancelButtonText = (this.getCancelButtonText()) ? this.getCancelButtonText() : sap.ui.getCore().getLibraryResourceBundle("sap.m").getText("ACTIONSHEET_CANCELBUTTON_TEXT"),
 				that = this;
-	//			var sButtonStyle = (sap.ui.Device.os.ios) ? sap.m.ButtonType.Unstyled : sap.m.ButtonType.Default;
+	//			var sButtonStyle = (Device.os.ios) ? ButtonType.Unstyled : ButtonType.Default;
 			this._oCancelButton = new Button(this.getId() + '-cancelBtn', {
 				text: sCancelButtonText,
 				type: ButtonType.Reject,

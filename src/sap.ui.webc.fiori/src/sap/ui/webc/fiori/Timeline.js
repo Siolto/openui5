@@ -42,11 +42,17 @@ sap.ui.define([
 			properties: {
 
 				/**
+				 * Defines the accessible aria name of the component.
+				 */
+				accessibleName: {
+					type: "string"
+				},
+
+				/**
 				 * Defines the height of the control
 				 */
 				height: {
 					type: "sap.ui.core.CSSSize",
-					defaultValue: null,
 					mapping: "style"
 				},
 
@@ -71,7 +77,6 @@ sap.ui.define([
 				 */
 				width: {
 					type: "sap.ui.core.CSSSize",
-					defaultValue: null,
 					mapping: "style"
 				}
 			},

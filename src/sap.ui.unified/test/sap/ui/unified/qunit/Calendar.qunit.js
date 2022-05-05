@@ -17,13 +17,12 @@ sap.ui.define([
 	"sap/ui/core/InvisibleText",
 	"sap/ui/core/format/DateFormat",
 	"sap/ui/unified/library",
-	"sap/ui/unified/CalendarMonthInterval",
 	"sap/ui/unified/calendar/MonthRenderer",
 	"sap/ui/thirdparty/jquery",
 	"sap/ui/core/Core"
 ], function(qutils, Calendar, DateRange, DateTypeRange, CalendarLegend, CalendarLegendRenderer,
 	CalendarLegendItem, CalendarType, Locale, LocaleData, HTML, KeyCodes, CalendarDate, InvisibleText,
-	DateFormat, unifiedLibrary, CalendarMonthInterval, MonthRenderer, jQuery, oCore) {
+	DateFormat, unifiedLibrary, MonthRenderer, jQuery, oCore) {
 	"use strict";
 	// set language to en-US, since we have specific language strings tested
 	oCore.getConfiguration().setLanguage("en_US");
@@ -1291,7 +1290,7 @@ sap.ui.define([
 		oShowYearPickerSpy.restore();
 	});
 
-	QUnit.test("Header buttons visibility and text is corretly managed when selecting a year range", function (assert) {
+	QUnit.test("Header buttons visibility and text is correctly managed when selecting a year range", function (assert) {
 		// Prepare
 		var oCal = new Calendar({
 				primaryCalendarType: CalendarType.Gregorian,

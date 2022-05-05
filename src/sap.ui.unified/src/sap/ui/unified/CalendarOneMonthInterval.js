@@ -63,6 +63,7 @@ sap.ui.define([
 		 * @alias sap.ui.unified.CalendarOneMonthInterval
 		 */
 		var CalendarOneMonthInterval = CalendarDateInterval.extend("sap.ui.unified.CalendarOneMonthInterval", /** @lends sap.ui.unified.CalendarOneMonthInterval.prototype */  {
+			renderer: CalendarOneMonthIntervalRenderer
 		});
 
 		CalendarOneMonthInterval.prototype.init = function() {
@@ -75,7 +76,6 @@ sap.ui.define([
 
 			if (!this._oCalendar) {
 				oCalendar = new CustomMonthPicker(this.getId() + "--Cal");
-				oCalendar.setPopupMode(true);
 
 				oCalendar.attachEvent("select", function () {
 					var oCalPicker = this._getCalendar(),

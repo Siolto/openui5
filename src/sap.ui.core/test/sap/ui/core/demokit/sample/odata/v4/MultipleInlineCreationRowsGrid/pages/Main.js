@@ -4,10 +4,9 @@
 sap.ui.define([
 	"sap/ui/core/sample/common/Helper",
 	"sap/ui/test/Opa5",
-	"sap/ui/test/actions/EnterText",
 	"sap/ui/test/actions/Press",
 	"sap/ui/test/matchers/Properties"
-], function (Helper, Opa5, EnterText, Press, Properties) {
+], function (Helper, Opa5, Press, Properties) {
 	"use strict";
 	var sViewName = "sap.ui.core.sample.odata.v4.MultipleInlineCreationRowsGrid.Main";
 
@@ -61,7 +60,7 @@ sap.ui.define([
 						matchers : new Properties({title : "Confirm Deletion"}),
 						success : function (aControls) {
 							new Press().executeOn(aControls[0].getButtons()[0]);
-							Opa5.assert.ok(true, 'Confirm Deletion');
+							Opa5.assert.ok(true, "Confirm Deletion");
 						}
 					});
 				},
@@ -71,7 +70,7 @@ sap.ui.define([
 						Helper.pressButton(this, sViewName, "save");
 					}
 				},
-				pressCancel : function (iRow) {
+				pressCancel : function () {
 					Helper.pressButton(this, sViewName, "cancel");
 				},
 				pressDeletePartButton : function (iRow) {
@@ -88,7 +87,7 @@ sap.ui.define([
 						viewName : sViewName
 					});
 				},
-				pressSortPartsQuantity : function (iRow) {
+				pressSortPartsQuantity : function () {
 					Helper.pressButton(this, sViewName, "sortByPartsQuantity");
 				}
 			},
@@ -116,25 +115,31 @@ sap.ui.define([
 						viewName : sViewName
 					});
 				},
-				checkPart : function (iRow, sExpectedPartId, sExpectedState) {
+				checkPart : function (iRow, sExpectedPartId, sExpectedState, sExpectedDescription) {
 					Helper.waitForSortedByID(this, {
 						autoWait : false, // to match also disabled delete buttons
 						matchers : function (oControl) {
 							return oControl.getBindingContext()
 								&& oControl.getBindingContext().getIndex() === iRow;
 						},
-						id : /partDelete|partId|partState/,
+						id : /partDelete|partId|partState|description/,
 						success : function (aControls) {
-							var bDeletable = aControls[0].getEnabled(),
-								sPartId = aControls[1].getValue(),
-								sState = aControls[2].getTooltip();
-							Opa5.assert.strictEqual(aControls.length, 3, "exactly 3 controls");
+							var sDescription = aControls[0].getValue(),
+								bDeletable = aControls[1].getEnabled(),
+								sPartId = aControls[2].getValue(),
+								sState = aControls[3].getTooltip();
+
+							Opa5.assert.strictEqual(aControls.length, 4, "exactly 4 controls");
 							Opa5.assert.strictEqual(sPartId, sExpectedPartId,
 								"Row: " + iRow + ", Part ID: " + sPartId);
 							Opa5.assert.strictEqual(bDeletable, sExpectedState !== "inactive",
 								"Row: " + iRow + ", deletable: " + bDeletable);
 							Opa5.assert.strictEqual(sState, sExpectedState,
 								"Row: " + iRow + ", state: " + sState);
+							if (sExpectedDescription) {
+								Opa5.assert.strictEqual(sDescription, sExpectedDescription,
+									"Row: " + iRow + ", description: " + sDescription);
+							}
 						},
 						viewName : sViewName
 					});

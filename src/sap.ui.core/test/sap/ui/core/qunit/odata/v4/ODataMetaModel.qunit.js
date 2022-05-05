@@ -24,12 +24,11 @@ sap.ui.define([
 	"sap/ui/model/odata/v4/ODataModel",
 	"sap/ui/model/odata/v4/ValueListType",
 	"sap/ui/model/odata/v4/lib/_Helper",
-	"sap/ui/test/TestUtils",
 	"sap/ui/thirdparty/URI"
 ], function (Log, JSTokenizer, uid, SyncPromise, BindingMode, ChangeReason, ClientListBinding,
 		BaseContext, ContextBinding, Filter, FilterOperator, MetaModel, Model, PropertyBinding,
 		Sorter, OperationMode, AnnotationHelper, Context, ODataMetaModel, ODataModel, ValueListType,
-		_Helper, TestUtils, URI) {
+		_Helper, URI) {
 	"use strict";
 
 	// Common := com.sap.vocabularies.Common.v1
@@ -1648,6 +1647,12 @@ sap.ui.define([
 		"/T€AMS/name.space.OverloadedAction/parameter2" : aOverloadedAction[1].$Parameter[2],
 		"/T€AMS/name.space.OverloadedAction/$Parameter/parameter2"
 			: aOverloadedAction[1].$Parameter[2],
+		// @see _AnnotationHelperExpression.path - - - - - - - - - - - - - - - - - - - - - - - - - -
+		"/T€AMS/name.space.OverloadedAction/@$ui5.overload/0/$Parameter/1/$Name/$"
+			: aOverloadedAction[1].$Parameter[1],
+		"/OverloadedAction/parameter0" : aOverloadedAction[2].$Parameter[0],
+		"/OverloadedAction/@$ui5.overload/0/$Parameter/0/$Name/$"
+			: aOverloadedAction[2].$Parameter[0],
 		// parameters take precedence, empty segment disambiguates - - - - - - - - - - - - - - - - -
 		"/T€AMS/tea_busi.NewAction/Name" : oTeamData.Name, // "Name" is not a parameter
 		"/T€AMS/tea_busi.NewAction/_it" : mScope["tea_busi.NewAction"][1].$Parameter[0],
@@ -1675,6 +1680,12 @@ sap.ui.define([
 		"/T€AMS/name.space.OverloadedBoundFunction/B" : aOverloadedBoundFunction[1].$Parameter[1],
 		"/T€AMS/name.space.OverloadedBoundFunction/$Parameter/B"
 			: aOverloadedBoundFunction[1].$Parameter[1],
+		// @see _AnnotationHelperExpression.path - - - - - - - - - - - - - - - - - - - - - - - - - -
+		"/T€AMS/name.space.OverloadedBoundFunction/@$ui5.overload/0/$Parameter/1/$Name/$"
+			: aOverloadedBoundFunction[1].$Parameter[1],
+		"/OverloadedFunctionImport/C" : aOverloadedBoundFunction[2].$Parameter[0],
+		"/OverloadedFunctionImport/@$ui5.overload/0/$Parameter/0/$Name/$"
+			: aOverloadedBoundFunction[2].$Parameter[0],
 		// annotations ----------------------------------------------------------------------------
 		"/@DefaultContainer"
 			: mScope.$Annotations["tea_busi.DefaultContainer"]["@DefaultContainer"],
@@ -2379,6 +2390,35 @@ sap.ui.define([
 			+ ",formatOptions:{'parseKeepsEmptyString':true}}");
 	});
 });
+
+	//*********************************************************************************************
+	QUnit.test("AnnotationHelper.format and parameters of operation overloads", function (assert) {
+		var sPath = "/T€AMS/name.space.OverloadedAction/@$ui5.overload/0/$Parameter/1",
+			oSyncPromise;
+
+		this.oMetaModelMock.expects("fetchEntityContainer").atLeast(1)
+			.returns(SyncPromise.resolve(mScope));
+		this.mock(AnnotationHelper).expects("format")
+			.withExactArgs({$Name : "parameter1", $Type : "Edm.String"}, sinon.match({
+				$$valueAsPromise : undefined,
+				context : sinon.match({
+					oModel : this.oMetaModel,
+					sPath : sPath
+				}),
+				// Note: overload is currently not needed in case path contains $Parameter
+				//overload : sinon.match.same(aOverloadedAction[1]),
+				schemaChildName : "name.space.OverloadedAction"
+			})).callThrough(); // this is an integrative test
+
+		// code under test
+		oSyncPromise = this.oMetaModel.fetchObject(sPath
+			+ "@@sap.ui.model.odata.v4.AnnotationHelper.format");
+
+		assert.strictEqual(oSyncPromise.isFulfilled(), true);
+		assert.strictEqual(oSyncPromise.getResult(), "{path:'parameter1'"
+			+ ",type:'sap.ui.model.odata.type.String'"
+			+ ",formatOptions:{'parseKeepsEmptyString':true}}");
+	});
 
 	//*********************************************************************************************
 	QUnit.test("@@computedAnnotation with arguments", function (assert) {
@@ -3633,7 +3673,7 @@ sap.ui.define([
 		// Note: we try to "calculate key predicate" because context path alone is no indication
 		// that entity is still transient! @see "@$ui5.keepTransientPath"
 		this.mock(oContext).expects("fetchValue").withExactArgs("/TEAMS($uid=id-1-23)")
-			.returns(SyncPromise.resolve({"@$ui5._" : {transient : "update"}}));
+			.returns(SyncPromise.resolve({"@$ui5.context.isTransient" : true}));
 
 		// code under test
 		return this.oMetaModel.fetchUpdateData("Name", oContext).then(function (oResult) {
@@ -6880,7 +6920,7 @@ sap.ui.define([
 				.then(function () {
 					assert.ok(false);
 				}, function (oError) {
-					TestUtils.checkError(assert, oError, Error, oFixture.sErrorMessage);
+					assert.strictEqual(oError.message, oFixture.sErrorMessage);
 
 					// code under test
 					return that.oMetaModel.requestCodeList("T€RM")
@@ -6940,8 +6980,7 @@ sap.ui.define([
 				.then(function () {
 					assert.ok(false);
 				}, function (oError0) {
-					TestUtils.checkError(assert, oError0, Error,
-						"Single key expected: /UnitsOfMeasure/");
+					assert.strictEqual(oError0.message, "Single key expected: /UnitsOfMeasure/");
 
 					// code under test
 					return that.oMetaModel.requestCodeList("T€RM")
@@ -7515,62 +7554,6 @@ forEach({
 				assert.strictEqual(JSON.stringify(mValueListByQualifier), sJSON);
 			});
 	});
-
-	//*********************************************************************************************
-	if (TestUtils.isRealOData()) {
-		//*****************************************************************************************
-		QUnit.test("getValueListType, requestValueListInfo: realOData", function (assert) {
-			var oModel = new ODataModel({
-					serviceUrl : sSampleServiceUrl,
-					synchronizationMode : "None"
-				}),
-				oMetaModel = oModel.getMetaModel(),
-				sPropertyPath = "/ProductList('HT-1000')/Category";
-
-			return oMetaModel.requestObject("/ProductList/").then(function () {
-				assert.strictEqual(oMetaModel.getValueListType(
-						"/com.sap.gateway.default.zui5_epm_sample.v0002.Contact/Sex"),
-					ValueListType.Fixed);
-				assert.strictEqual(oMetaModel.getValueListType(sPropertyPath),
-					ValueListType.Standard);
-				return oMetaModel.requestValueListInfo(sPropertyPath).then(function (oResult) {
-					var oValueListInfo = oResult[""];
-
-					assert.strictEqual(oValueListInfo.CollectionPath, "H_EPM_PD_CATS_SH_Set");
-				});
-			});
-		});
-
-		//*****************************************************************************************
-		QUnit.test("requestValueListInfo: same model w/o reference, realOData", function (assert) {
-			var oModel = new ODataModel({
-					serviceUrl : sSampleServiceUrl,
-					synchronizationMode : "None"
-				}),
-				oMetaModel = oModel.getMetaModel(),
-				sPropertyPath = "/ProductList/0/CurrencyCode",
-				oValueListMetaModel;
-
-			return oMetaModel.requestObject("/ProductList/").then(function () {
-				// value list in the data service
-				assert.strictEqual(oMetaModel.getValueListType(sPropertyPath),
-					ValueListType.Standard);
-				return oMetaModel.requestValueListInfo(sPropertyPath);
-			}).then(function (oValueListInfo) {
-				var sPropertyPath2 = "/H_TCURC_SH_Set/1/WAERS";
-
-				// value list in the value list service
-				oValueListMetaModel = oValueListInfo[""].$model.getMetaModel();
-				assert.strictEqual(oValueListMetaModel.getValueListType(sPropertyPath2),
-					ValueListType.Standard);
-				assert.strictEqual(oValueListInfo[""].CollectionPath, "H_TCURC_SH_Set");
-				return oValueListMetaModel.requestValueListInfo(sPropertyPath2);
-			}).then(function (oValueListInfo) {
-				assert.strictEqual(oValueListInfo[""].$model.getMetaModel(), oValueListMetaModel);
-				assert.strictEqual(oValueListInfo[""].CollectionPath, "TCURC_CT_Set");
-			});
-		});
-	}
 
 	//*********************************************************************************************
 	[{

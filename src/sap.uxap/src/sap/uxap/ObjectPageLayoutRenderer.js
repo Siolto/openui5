@@ -7,8 +7,8 @@ sap.ui.define(["sap/ui/Device"],
 		"use strict";
 
 		/**
-		 * @class ObjectPageRenderer renderer.
-		 * @static
+		 * ObjectPageLayout renderer.
+		 * @namespace
 		 */
 		var ObjectPageLayoutRenderer = {
 			apiVersion: 2
@@ -197,11 +197,6 @@ sap.ui.define(["sap/ui/Device"],
 				.openEnd()
 				.close("div");
 
-			oRm.openStart("span", oControl.getId() + "-skipFastGroupAnchor")
-				.class("sapUiPseudoInvisibleText")
-				.openEnd()
-				.close("span");
-
 			oRm.close("div"); // END scroll
 
 			oRm.close("div"); // END wrapper
@@ -244,7 +239,7 @@ sap.ui.define(["sap/ui/Device"],
 		 * @param {sap.ui.core.Control} oControl an object representation of the control that should be rendered
 		 * @param {boolean} bRender - shows if the control should be rendered
 		 * @param {string} sId - the id of the div that should be rendered
-		 * @param {boolean} bRenderAlways - shows if the DOM of the control should be rendered no matter if the control is rendered inside or not
+		 * @param {boolean} bApplyBelizePlusClass - shows if the DOM of the control should be rendered no matter if the control is rendered inside or not
 		 */
 		ObjectPageLayoutRenderer._renderHeaderContentDOM = function (oRm, oControl, bRender, sId, bApplyBelizePlusClass) {
 			oRm.openStart("header", oControl.getId() + sId)

@@ -63,8 +63,10 @@ sap.ui.define([
 			if (bHasAppliedCustomData) {
 				// if the change was applied, set the revert data fetched from the custom data
 				oChange.setRevertData(FlexCustomData.sync.getParsedRevertDataFromCustomData(oControl, oChange));
+				oChange.markSuccessful();
+			} else {
+				oChange.markFailed();
 			}
-			oChange.markFinished();
 		}
 	}
 
@@ -112,14 +114,14 @@ sap.ui.define([
 						return FlexCustomData.getParsedRevertDataFromCustomData(oControl, oChange, oModifier)
 							.then(function (oParsedRevertDataFromCustomData) {
 								oChange.setRevertData(oParsedRevertDataFromCustomData);
-								oChange.markFinished();
+								oChange.markSuccessful();
 							});
 					}
-					oChange.markFinished();
+					oChange.markFailed();
 					return undefined;
 				} else if (bChangeStatusAppliedFinished && bIsCurrentlyAppliedOnControl) {
 					// both the change instance and the UI Control are already applied, so the change can be directly marked as finished
-					oChange.markFinished();
+					oChange.markSuccessful();
 				}
 				return undefined;
 			});
@@ -160,7 +162,7 @@ sap.ui.define([
 			.then(function () {
 				// if a change was reverted previously remove the flag as it is not reverted anymore
 				var oResult = {success: true};
-				oChange.markFinished(oResult);
+				oChange.markSuccessful(oResult);
 				return oResult;
 			});
 	}
@@ -192,7 +194,7 @@ sap.ui.define([
 				if (bXmlModifier) {
 					oChange.setInitialApplyState();
 				} else {
-					oChange.markFinished(oResult);
+					oChange.markFailed(oResult);
 				}
 				return oResult;
 			});
@@ -244,6 +246,22 @@ sap.ui.define([
 		oChange.addDependentControl(oActualOriginalControl, "originalSelector", oPropertyBag);
 	}
 
+	function registerOnAfterXMLChangeProcessingHandler(aOnAfterXMLChangeProcessingHandlers, oChangeHandler, oControl) {
+		var iChangeHandlerIndex = aOnAfterXMLChangeProcessingHandlers.findIndex(function (mHandler) {
+			return mHandler.handler === oChangeHandler;
+		});
+		if (iChangeHandlerIndex < 0) {
+			iChangeHandlerIndex = aOnAfterXMLChangeProcessingHandlers.length;
+			aOnAfterXMLChangeProcessingHandlers.push({
+				handler: oChangeHandler,
+				controls: []
+			});
+		}
+		if (!aOnAfterXMLChangeProcessingHandlers[iChangeHandlerIndex].controls.includes(oControl)) {
+			aOnAfterXMLChangeProcessingHandlers[iChangeHandlerIndex].controls.push(oControl);
+		}
+	}
+
 	var Applier = {
 		/**
 		 * Sets a specific precondition, which has to be fulfilled before applying all changes on control.
@@ -270,8 +288,11 @@ sap.ui.define([
 		 */
 		applyChangeOnControl: function(oChange, oControl, mPropertyBag) {
 			var mControl = Utils.getControlIfTemplateAffected(oChange, oControl, mPropertyBag);
+			var pHandlerPromise = mPropertyBag.changeHandler
+				? Promise.resolve(mPropertyBag.changeHandler)
+				: Utils.getChangeHandler(oChange, mControl, mPropertyBag);
 
-			return Utils.getChangeHandler(oChange, mControl, mPropertyBag).then(function(oChangeHandler) {
+			return pHandlerPromise.then(function(oChangeHandler) {
 				_checkPreconditions(oChange, mPropertyBag);
 				return oChangeHandler;
 			})
@@ -280,7 +301,7 @@ sap.ui.define([
 				if (oChange.hasApplyProcessStarted()) {
 					// wait for the change to be finished and then clean up the status and queue
 					return oChange.addPromiseForApplyProcessing().then(function(oResult) {
-						oChange.markFinished();
+						oChange.markSuccessful();
 						return oResult;
 					});
 				} else if (!oChange.isApplyProcessFinished()) {
@@ -298,7 +319,7 @@ sap.ui.define([
 
 				// make sure that everything that goes with finishing the apply process is done, even though the change was already applied
 				var oResult = {success: true};
-				oChange.markFinished(oResult);
+				oChange.markSuccessful(oResult);
 				return oResult;
 			})
 
@@ -401,17 +422,31 @@ sap.ui.define([
 				aChanges = [];
 			}
 
+			var aOnAfterXMLChangeProcessingHandlers = [];
+
 			return aChanges.reduce(function(oPreviousPromise, oChange) {
 				var oControl;
 				return oPreviousPromise
 					.then(_checkControlAndDependentSelectorControls.bind(null, oChange, mPropertyBag))
 					.then(function (oReturnedControl) {
 						oControl = oReturnedControl;
+						var mControl = Utils.getControlIfTemplateAffected(oChange, oControl, mPropertyBag);
+						return Utils.getChangeHandler(oChange, mControl, mPropertyBag);
+					})
+					.then(function (oChangeHandler) {
+						mPropertyBag.changeHandler = oChangeHandler;
 						oChange.setQueuedForApply();
 						return _checkAndAdjustChangeStatus(oControl, oChange, undefined, undefined, mPropertyBag);
 					})
 					.then(function () {
 						if (!oChange.isApplyProcessFinished()) {
+							if (typeof mPropertyBag.changeHandler.onAfterXMLChangeProcessing === "function") {
+								registerOnAfterXMLChangeProcessingHandler(
+									aOnAfterXMLChangeProcessingHandlers,
+									mPropertyBag.changeHandler,
+									oControl
+								);
+							}
 							return Applier.applyChangeOnControl(oChange, oControl, mPropertyBag);
 						}
 						return {success: true};
@@ -426,6 +461,18 @@ sap.ui.define([
 					});
 			}, new FlUtils.FakePromise())
 			.then(function() {
+				// Once all changes for a control are processed, call the
+				// onAfterXMLChangeProcessing hooks of all involved change handlers
+				aOnAfterXMLChangeProcessingHandlers.forEach(function (mHandler) {
+					mHandler.controls.forEach(function (oControl) {
+						try {
+							mHandler.handler.onAfterXMLChangeProcessing(oControl, mPropertyBag);
+						} catch (oError) {
+							Log.error("Error during onAfterXMLChangeProcessing", oError);
+						}
+					});
+				});
+
 				return mPropertyBag.view;
 			});
 		}

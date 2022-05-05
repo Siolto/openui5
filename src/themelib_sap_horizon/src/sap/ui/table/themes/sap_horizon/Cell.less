@@ -13,3 +13,17 @@
 		background-color: @sapUiListBackground !important;
 	}
 }
+
+.sapUiTableGroupMode .sapUiTableCell.sapUiTableRowSelectionCell {
+	box-shadow: none;
+}
+
+/*
+ * Focus outline in Condensed mode
+ */
+.sapUiSizeCondensed .sapUiTableCell:focus {
+	&::before {
+		outline: 0.0625rem @sapUiContentFocusStyle @sapUiContentFocusColor;
+		outline-offset: -1px;
+	}
+}

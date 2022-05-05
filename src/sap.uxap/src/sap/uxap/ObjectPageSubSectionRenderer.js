@@ -6,8 +6,8 @@ sap.ui.define(function () {
 	"use strict";
 
 	/**
-	 * @class Section renderer.
-	 * @static
+	 * SubSection renderer.
+	 * @namespace
 	 */
 	var ObjectPageSubSectionRenderer = {
 		apiVersion: 2
@@ -35,6 +35,10 @@ sap.ui.define(function () {
 
 		if (oControl._bBlockHasMore) {
 			oRm.class("sapUxAPObjectPageSubSectionWithSeeMore");
+		}
+
+		if (oControl._bMultiLine) {
+			oRm.class("sapUxAPObjectPageSectionMultilineContent");
 		}
 
 		oRm.class("sapUxAPObjectPageSubSection")

@@ -39,10 +39,18 @@
 						id="sapUiRta_discardDraft"
 						icon="sap-icon://delete"
 						press=".discardDraft"
-						visible="{= ((${parts: ['versions>/displayedVersion', 'versions>/versioningEnabled' ], formatter: '.formatDiscardDraftVisible'})  &amp;&amp; (${controls>/modeSwitcher} === 'adaptation'))}"
+						visible="{parts: ['versions>/displayedVersion', 'versions>/versioningEnabled', 'controls>/modeSwitcher' ], formatter: '.formatDiscardDraftVisible'}"
 						type="Transparent"
 						text="{i18n>TOL_DISCARD_DRAFT}"
 						tooltip="{i18n>TOL_DISCARD_DRAFT}" />
+				<toolbar:OverflowToolbarButton
+						id="sapUiRta_publishVersion"
+						enabled="{versions>/publishVersionEnabled}"
+						visible="{parts: ['controls>/publishVisible', 'versions>/versioningEnabled', 'versions>/displayedVersion', 'controls>/modeSwitcher'], formatter: '.formatPublishVersionVisibility'}"
+						press=".publishVersion"
+						type="Transparent"
+						icon="sap-icon://shipping-status"
+						tooltip="{i18n>TOL_PUBLISH_VERSION}" />
 			</content>
 		</OverflowToolbar>
 	</HBox>
@@ -87,43 +95,36 @@
 		<OverflowToolbar id="sapUiRta_actionsToolbar">
 			<content>
 				<ToolbarSpacer />
-				<toolbar:OverflowToolbarButton
-						id="sapUiRta_translate"
+				<MenuButton
+						id="sapUiRta_translateMenu"
 						icon="sap-icon://translate"
-						press=".showTranslationPopover"
-						visible="{controls>/translationVisible}"
+						visible="{= ${controls>/modeSwitcher} === 'adaptation' &amp;&amp; ${controls>/translationVisible}}"
 						enabled="{controls>/translationEnabled}"
 						type="Transparent"
-						text="{i18n>BTN_TRANSLATE}"
 						tooltip="{i18n>BTN_TRANSLATE}">
-					<toolbar:layoutData>
-						<OverflowToolbarLayoutData priority="Low" />
-					</toolbar:layoutData>
-				</toolbar:OverflowToolbarButton>
-				<MenuButton
+					<Menu
+							id="sapUiRta_translate"
+							class="sapUiRtaToolbarVisualizationSelection">
+						<MenuItem
+								text="{i18n>BTN_OPEN_DOWNLOAD_TRANSLATION}"
+								press=".openDownloadTranslationDialog"
+								icon="sap-icon://download"/>
+						<MenuItem
+								text="{i18n>BTN_OPEN_UPLOAD_TRANSLATION}"
+								press=".openUploadTranslationDialog"
+								enabled="{= ${translation>/sourceLanguages}.length > 0}"
+								icon="sap-icon://upload"/>
+					</Menu>
+				</MenuButton>
+				<Button
 						id="sapUiRta_toggleChangeVisualizationMenuButton"
 						visible="{= ${controls>/modeSwitcher} === 'visualization'}"
 						text="{visualizationModel>/commandCategoryText}"
 						type="Transparent"
-						tooltip="{i18n>BUT_CHANGEVISUALIZATION_SELECTCHANGES}">
-					<menu>
-						<Menu
-								id="sapUiRta_changesList"
-								items="{visualizationModel>/commandCategories/}"
-								itemSelected=".onCommandCategorySelection"
-								class="sapUiRtaToolbarVisualizationSelection">
-							<MenuItem
-									id="sapUiRta_changesListItem"
-									text="{visualizationModel>title}"
-									key="{visualizationModel>key}"
-									icon="{visualizationModel>icon}"
-									enabled="{= ${visualizationModel>count} > 0}"/>
-						</Menu>
-					</menu>
-					<layoutData>
-						<OverflowToolbarLayoutData priority="NeverOverflow" />
-					</layoutData>
-				</MenuButton>
+						icon="sap-icon://slim-arrow-down"
+						iconFirst="false"
+						press=".openChangeCategorySelectionPopover"
+						tooltip="{i18n>BUT_CHANGEVISUALIZATION_SELECTCHANGES}"/>
 				<Button
 						id="sapUiRta_undo"
 						icon="sap-icon://undo"
@@ -151,7 +152,7 @@
 				<toolbar:OverflowToolbarButton
 						id="sapUiRta_publish"
 						enabled="{controls>/publishEnabled}"
-						visible="{= (${controls>/publishVisible} &amp;&amp; ${controls>/modeSwitcher} === 'adaptation')}"
+						visible="{= (${controls>/publishVisible} &amp;&amp; !${versions>/versioningEnabled} &amp;&amp; ${controls>/modeSwitcher} === 'adaptation')}"
 						press=".publish"
 						type="Transparent"
 						text="{i18n>BTN_PUBLISH}" >

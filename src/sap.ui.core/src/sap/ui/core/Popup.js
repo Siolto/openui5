@@ -22,7 +22,6 @@ sap.ui.define([
 	"sap/base/util/uid",
 	"sap/base/util/extend",
 	"sap/base/util/deepExtend",
-	"sap/ui/dom/containsOrEquals",
 	"sap/ui/thirdparty/jquery",
 	"sap/ui/events/F6Navigation",
 	"sap/ui/events/isMouseEventDelayed",
@@ -47,7 +46,6 @@ sap.ui.define([
 	uid,
 	extend,
 	deepExtend,
-	containsOrEquals,
 	jQuery,
 	F6Navigation,
 	isMouseEventDelayed,
@@ -301,7 +299,7 @@ sap.ui.define([
 					if (!this._contains(oEvent.target)) {
 						this.close();
 					}
-				};
+				}.bind(this);
 			}
 
 			this._F6NavigationHandler = function(oEvent) {
@@ -337,7 +335,7 @@ sap.ui.define([
 				}
 
 				F6Navigation.handleF6GroupNavigation(oEvent, oSettings);
-			};
+			}.bind(this);
 		},
 
 		metadata : {
@@ -759,7 +757,7 @@ sap.ui.define([
 	/**
 	 * Opens the popup's content at the position either specified here or beforehand via {@link #setPosition}.
 	 * Content must be capable of being positioned via "position:absolute;"
-	 * All parameters are optional (open() may be called without any parameters). iDuration may just be omitted, but if any of "at", "of", "offset", "collision" is given, also the preceding positioning parameters ("my", at",...) must be given.
+	 * All parameters are optional (open() may be called without any parameters). iDuration may just be omitted, but if any of "at", "of", "offset", "collision" is given, also the preceding positional parameters ("my", at",...) must be given.
 	 *
 	 * If the Popup's OpenState is different from "CLOSED" (i.e. if the Popup is already open, opening or closing), the call is ignored.
 	 *
@@ -770,7 +768,7 @@ sap.ui.define([
 	 * @param {string} [offset='0 0'] the offset relative to the docking point, specified as a string with space-separated pixel values (e.g. "10 0" to move the popup 10 pixels to the right). If the docking of both "my" and "at" are both RTL-sensitive ("begin" or "end"), this offset is automatically mirrored in the RTL case as well.
 	 * @param {sap.ui.core.Collision} [collision='flip'] defines how the position of an element should be adjusted in case it overflows the within area in some direction.
 	 * @param {string | sap.ui.core.Element | Element | Window} [within=Window] defines the area the popup should be placed in. This affects the collision detection.
-	 * @param {boolean} [followOf=false] defines whether the popup should follow the dock reference when the reference changes its position.
+	 * @param {boolean | function | null} [followOf=false] defines whether the popup should follow the dock reference when the reference changes its position.
 	 * @public
 	 */
 	Popup.prototype.open = function(iDuration, my, at, of, offset, collision, within, followOf) {
@@ -1104,7 +1102,7 @@ sap.ui.define([
 
 		this._activateFocusHandle();
 
-		this._$(false, true).on("keydown", jQuery.proxy(this._F6NavigationHandler, this));
+		this._$(false, true).on("keydown", this._F6NavigationHandler);
 	};
 
 	Popup.prototype._shouldGetFocusAfterOpen = function() {
@@ -1124,7 +1122,7 @@ sap.ui.define([
 			return false;
 		}
 
-		var bContains = containsOrEquals(oPopupDomRef, oDomRef);
+		var bContains = oPopupDomRef.contains(oDomRef);
 
 		var aChildPopups;
 
@@ -1136,7 +1134,7 @@ sap.ui.define([
 				// therefore we need to try with document.getElementById to check the DOM id case first
 				// only when it doesn't contain the given DOM, we publish an event to the event bus
 				var oContainDomRef = (sChildID ? window.document.getElementById(sChildID) : null);
-				var bContains = containsOrEquals(oContainDomRef, oDomRef);
+				var bContains = oContainDomRef && oContainDomRef.contains(oDomRef);
 				if (!bContains) {
 					var sEventId = "sap.ui.core.Popup.contains-" + sChildID;
 					var oData = {
@@ -2027,7 +2025,7 @@ sap.ui.define([
 				if (this.touchEnabled && this._bAutoClose) {
 					if (!bModal) {
 						// register the autoclose handler when modal is set to false
-						jQuery(document).on("touchstart mousedown", jQuery.proxy(this._fAutoCloseHandler, this));
+						jQuery(document).on("touchstart mousedown", this._fAutoCloseHandler);
 					} else {
 						// deregister the autoclose handler when modal is set to true
 						jQuery(document).off("touchstart mousedown", this._fAutoCloseHandler);
@@ -2083,7 +2081,7 @@ sap.ui.define([
 			if (!this._bModal) {
 				if (bAutoClose) {
 					//register the autoclose hanlder when autoclose is set to true
-					jQuery(document).on("touchstart mousedown", jQuery.proxy(this._fAutoCloseHandler, this));
+					jQuery(document).on("touchstart mousedown", this._fAutoCloseHandler);
 				} else {
 					//deregister the autoclose handler when autoclose is set to false
 					jQuery(document).off("touchstart mousedown", this._fAutoCloseHandler);
@@ -2411,7 +2409,7 @@ sap.ui.define([
 	 */
 	Popup.prototype._addFocusEventListeners = function() {
 		if (!this.fnEventHandler) {
-			this.fnEventHandler = jQuery.proxy(this.onFocusEvent, this);
+			this.fnEventHandler = this.onFocusEvent.bind(this);
 		}
 		// make sure to notice all blur's in the popup
 		var $PopupRoot = this._$();
@@ -2473,7 +2471,7 @@ sap.ui.define([
 
 		//autoclose implementation for mobile or desktop browser in touch mode
 		if (this.touchEnabled && !this._bModal && this._bAutoClose) {
-			jQuery(document).on("touchstart mousedown", jQuery.proxy(this._fAutoCloseHandler, this));
+			jQuery(document).on("touchstart mousedown", this._fAutoCloseHandler);
 		}
 	};
 
@@ -2819,7 +2817,7 @@ sap.ui.define([
 	Popup.prototype._isFocusInsidePopup = function () {
 		var oDomRef = this._$(false).get(0);
 
-		if (oDomRef && containsOrEquals(oDomRef, document.activeElement)) {
+		if (oDomRef && oDomRef.contains(document.activeElement)) {
 			return true;
 		}
 
@@ -2837,7 +2835,7 @@ sap.ui.define([
 				oCurrentOfRect;
 
 			if (oCurrentOfRef) {
-				if ((oCurrentOfRef === window) || (oCurrentOfRef === window.document) || containsOrEquals(document.documentElement, oCurrentOfRef)) {
+				if ((oCurrentOfRef === window) || (oCurrentOfRef === window.document) || document.documentElement.contains(oCurrentOfRef)) {
 					// When the current Of reference is window or window.document or it's contained in the DOM tree,
 					// The client bounding rect can be calculated
 					oCurrentOfRect = jQuery(oCurrentOfRef).rect();
@@ -3028,7 +3026,7 @@ sap.ui.define([
 			this._addFocusEventListeners();
 		}
 
-		this._$(false, true).on("keydown", jQuery.proxy(this._F6NavigationHandler, this));
+		this._$(false, true).on("keydown", this._F6NavigationHandler);
 	};
 
 	/**

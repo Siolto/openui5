@@ -14,8 +14,11 @@ sap.ui.define([
 	"sap/m/Text",
 	"sap/m/Title",
 	"sap/m/ColumnHeaderPopover",
+	"sap/m/ColumnPopoverSelectListItem",
+	"sap/m/ColumnPopoverActionItem",
 	"sap/m/OverflowToolbar",
 	"sap/m/library",
+	"sap/m/table/columnmenu/Menu",
 	"sap/ui/core/Core",
 	"sap/ui/core/format/NumberFormat",
 	"sap/ui/core/dnd/DragDropInfo",
@@ -24,10 +27,10 @@ sap.ui.define([
 	"sap/ui/core/library",
 	"sap/ui/events/KeyCodes",
 	"sap/ui/model/Sorter",
-	"sap/ui/dom/containsOrEquals",
 	"sap/base/strings/capitalize",
 	"sap/base/util/deepEqual",
 	"sap/base/util/Deferred",
+	"sap/base/util/UriParameters",
 	"sap/ui/core/InvisibleMessage",
 	"sap/ui/core/InvisibleText",
 	"sap/ui/mdc/p13n/subcontroller/ColumnController",
@@ -35,13 +38,13 @@ sap.ui.define([
 	"sap/ui/mdc/p13n/subcontroller/FilterController",
 	"sap/ui/mdc/p13n/subcontroller/GroupController",
 	"sap/ui/mdc/p13n/subcontroller/AggregateController",
-	"sap/m/ColumnPopoverSelectListItem",
-	"sap/m/ColumnPopoverActionItem",
 	"sap/ui/mdc/p13n/subcontroller/ColumnWidthController",
 	"sap/ui/mdc/actiontoolbar/ActionToolbarAction",
 	"sap/ui/mdc/table/RowActionItem",
-	"sap/ui/base/ManagedObjectMetadata",
-	"sap/ui/mdc/table/RowSettings"
+	"sap/ui/mdc/table/RowSettings",
+	"sap/ui/mdc/table/menu/QuickActionContainer",
+	"sap/ui/mdc/table/menu/ItemContainer",
+	"sap/ui/base/ManagedObjectMetadata"
 ], function(
 	Control,
 	ActionToolbar,
@@ -54,8 +57,11 @@ sap.ui.define([
 	Text,
 	Title,
 	ColumnHeaderPopover,
+	ColumnPopoverSelectListItem,
+	ColumnPopoverActionItem,
 	OverflowToolbar,
 	MLibrary,
+	ColumnMenu,
 	Core,
 	NumberFormat,
 	DragDropInfo,
@@ -64,10 +70,10 @@ sap.ui.define([
 	coreLibrary,
 	KeyCodes,
 	Sorter,
-	containsOrEquals,
 	capitalize,
 	deepEqual,
 	Deferred,
+	UriParameters,
 	InvisibleMessage,
 	InvisibleText,
 	ColumnController,
@@ -75,23 +81,24 @@ sap.ui.define([
 	FilterController,
 	GroupController,
 	AggregateController,
-	ColumnPopoverSelectListItem,
-	ColumnPopoverActionItem,
 	ColumnWidthController,
 	ActionToolbarAction,
 	RowActionItem,
-	ManagedObjectMetadata,
-	RowSettings
+	RowSettings,
+	QuickActionContainer,
+	ItemContainer,
+	ManagedObjectMetadata
 ) {
 	"use strict";
 
 	var SelectionMode = library.SelectionMode;
 	var TableType = library.TableType;
-	var RowAction = library.RowAction;
+	var P13nMode = library.TableP13nMode;
 	var ToolbarDesign = MLibrary.ToolbarDesign;
 	var ToolbarStyle = MLibrary.ToolbarStyle;
 	var MultiSelectMode = library.MultiSelectMode;
 	var TitleLevel = coreLibrary.TitleLevel;
+	var SortOrder = coreLibrary.SortOrder;
 	var internalMap = new window.WeakMap();
 	var internal = function(oTable) {
 		if (!internalMap.has(oTable)) {
@@ -159,16 +166,6 @@ sap.ui.define([
 					group: "Dimension",
 					defaultValue: null,
 					invalidate: true
-				},
-				/**
-				 * Actions available for a table row.
-				 *
-				 * @since 1.60
-				 * @deprecated as of version 1.98, use row settings instead.
-				 */
-				rowAction: {
-					type: "sap.ui.mdc.RowAction[]",
-					defaultValue: []
 				},
 				/**
 				 * Personalization options for the table.<br>
@@ -587,6 +584,7 @@ sap.ui.define([
 		constructor: function() {
 			this._oTableReady = new Deferred();
 			this._oFullInitialize = new Deferred();
+			this._bUseColumnMenu = UriParameters.fromQuery(window.location.search).get("sap-ui-xx-columnmenu") === "true";
 
 			Control.apply(this, arguments);
 			this.bCreated = true;
@@ -653,23 +651,25 @@ sap.ui.define([
 	 * @inheritDoc
 	 */
 	Table.prototype.init = function() {
-
 		Control.prototype.init.apply(this, arguments);
-
-		// indicates whether binding the table is inevitable or not
-		this._bForceRebind = true;
-		this._updateAdaptation(this.getP13nMode());
 
 		// Skip propagation of properties (models and bindingContexts)
 		this.mSkipPropagation = {
 			rowSettings: true
 		};
+
+		// indicates whether binding the table is inevitable or not
+		this._bForceRebind = true;
+
+		this._aSupportedP13nModes = Object.keys(P13nMode);
+		this._updateAdaptation();
 	};
 
 	/**
 	 * @inheritDoc
 	 */
 	Table.prototype.applySettings = function() {
+		this._setPropertyHelperClass(PropertyHelper);
 		Control.prototype.applySettings.apply(this, arguments);
 		this.initControlDelegate();
 	};
@@ -874,11 +874,6 @@ sap.ui.define([
 	// ----End Type----
 
 	Table.prototype.setRowSettings = function(oRowSettings) {
-		if (this._oTableRowAction) {
-			if (oRowSettings.getRowActions().length == 0) {
-				oRowSettings.addRowAction(this._oTableRowAction);
-			}
-		}
 		this.setAggregation("rowSettings", oRowSettings, true);
 
 		if (this._oTable) {
@@ -907,11 +902,8 @@ sap.ui.define([
 	};
 
 	Table.prototype.focus = function(oFocusInfo) {
-		//see Element.prototype.focus, MDCTable does not have any own focusable DOM, therefor forward to inner control
-		var oDomRef = this.getDomRef();
-
-		if (this._oTable && oDomRef && !containsOrEquals(oDomRef, document.activeElement)) {
-			this._oTable.focus();
+		if (this._oTable) {
+			this._oTable.focus(oFocusInfo);
 		}
 	};
 
@@ -953,24 +945,6 @@ sap.ui.define([
 		return this;
 	};
 
-	// TODO: Temporary solution until apps adapted changes. Remove this, as this is replaced by rowSettings
-	Table.prototype.setRowAction = function(aActions) {
-		this.setProperty("rowAction", aActions, true);
-
-		var oRowSettings = this.getRowSettings() || new RowSettings();
-
-		oRowSettings.destroyRowActions();
-		if (this.getRowAction().indexOf(RowAction.Navigation) > -1) {
-			this._oTableRowAction = new RowActionItem({
-				type: RowAction.Navigation
-			});
-			oRowSettings.addRowAction(this._oTableRowAction);
-		}
-		this.setRowSettings(oRowSettings);
-
-		return this;
-	};
-
 	Table.prototype.setCreationRow = function(oCreationRow) {
 		this.setAggregation("creationRow", oCreationRow, true);
 
@@ -987,36 +961,23 @@ sap.ui.define([
 
 		if (this.getEnableColumnResize() !== bOldEnableColumnResize) {
 			this._updateColumnResizer();
-			this._updateAdaptation(this.getP13nMode());
+			this._updateAdaptation();
 		}
 
 		return this;
 	};
 
 	Table.prototype._onModifications = function() {
-		if (!this._oTable) {
-			return;
-		}
-		var oColumnWidth = this.getCurrentState().xConfig;
-		var oColumnWidthContent = oColumnWidth.aggregations && oColumnWidth.aggregations.columns;
-
-		this.getColumns().forEach(function(oColumn, iIndex) {
-			var sWidth = oColumnWidthContent && oColumnWidthContent[oColumn.getDataProperty()] && oColumnWidthContent[oColumn.getDataProperty()].width;
-			var oInnerColumn = this._oTable.getColumns()[iIndex];
-			if (!sWidth && oInnerColumn.getWidth() !== oColumn.getWidth()) {
-				oInnerColumn.setWidth(oColumn.getWidth());
-			} else if (sWidth && sWidth !== oInnerColumn.getWidth()) {
-				oInnerColumn.setWidth(sWidth);
-			}
-		}, this);
+		this.getColumns().forEach(function(oColumn) {
+			oColumn._onModifications();
+		});
 	};
 
 	Table.prototype.setP13nMode = function(aMode) {
 		var aOldP13nMode = this.getP13nMode();
 
-		var aSortedKeys = null;
+		var aSortedKeys = [];
 		if (aMode && aMode.length > 1){
-			aSortedKeys = [];
 			var mKeys = aMode.reduce(function(mMap, sKey, iIndex){
 				mMap[sKey] = true;
 				return mMap;
@@ -1044,7 +1005,7 @@ sap.ui.define([
 
 		this.setProperty("p13nMode", aSortedKeys, true);
 
-		this._updateAdaptation(this.getP13nMode());
+		this._updateAdaptation();
 
 		if (!deepEqual(aOldP13nMode.sort(), this.getP13nMode().sort())) {
 			updateP13nSettings(this);
@@ -1053,11 +1014,10 @@ sap.ui.define([
 		return this;
 	};
 
-	Table.prototype._updateAdaptation = function(aMode) {
+	Table.prototype._updateAdaptation = function() {
 		var oRegisterConfig = {
 			controller: {}
 		};
-
 		var mRegistryOptions = {
 			Column: ColumnController,
 			Sort: SortController,
@@ -1067,9 +1027,8 @@ sap.ui.define([
 			ColumnWidth: ColumnWidthController
 		};
 
-		aMode.forEach(function(sMode){
-			var sKey = sMode;
-			oRegisterConfig.controller[sKey] = mRegistryOptions[sMode];
+		this.getActiveP13nModes().forEach(function(sMode){
+			oRegisterConfig.controller[sMode] = mRegistryOptions[sMode];
 		});
 
 		if (this.getEnableColumnResize()) {
@@ -1090,7 +1049,7 @@ sap.ui.define([
 		if (oTable._oTable) {
 			var oDnDColumns = oTable._oTable.getDragDropConfig()[0];
 			if (oDnDColumns) {
-				oDnDColumns.setEnabled(oTable.getP13nMode().indexOf("Column") > -1);
+				oDnDColumns.setEnabled(oTable.getActiveP13nModes().indexOf("Column") > -1);
 			}
 		}
 
@@ -1300,7 +1259,15 @@ sap.ui.define([
 			return oRb.getText("table.NO_DATA");
 		}
 
-		return oRb.getText("table.NO_RESULTS");
+	// Table is bound, but does not show any data
+	// If table-internal or external (for example FilterBar) filters are set, then show the message that the data not found and also ask to adjust the filters.
+		var oExternalFilter = Core.byId(this.getFilter());
+		if ((this.isFilteringEnabled() && getFilteredProperties(this).length > 0) ||  //internal filters check
+			(oExternalFilter && getFilteredProperties(oExternalFilter).length > 0)) { //external filters check
+			return oRb.getText("table.NO_RESULTS");
+		}
+		// If no filters set, show only message that the data are not found, and nothing about the filters.
+		return oRb.getText("table.NO_DATA");
 	};
 
 	Table.prototype._updateRowAction = function() {
@@ -1338,6 +1305,9 @@ sap.ui.define([
 			}
 
 			var oDelegate = this.getControlDelegate();
+			this._aSupportedP13nModes = oDelegate.getSupportedP13nModes(this);
+			this._updateAdaptation();
+
 			if (oDelegate.preInit) {
 				// Call after libraries are loaded, but before initializing controls.
 				// This allows the delegate to load additional modules, e.g. from previously loaded libraries, in parallel.
@@ -1382,7 +1352,7 @@ sap.ui.define([
 		this._onAfterTableCreated(true); // Resolve any pending promise if table exists
 
 		var pTableInit = this.initialized().then(function() {
-			this.initPropertyHelper(PropertyHelper);
+			this.initPropertyHelper();
 
 			// add this to the micro task execution queue to enable consumers to handle this correctly
 			var oCreationRow = this.getCreationRow();
@@ -1483,7 +1453,6 @@ sap.ui.define([
 			// Create Toolbar
 			this._oToolbar = new ActionToolbar(this.getId() + "-toolbar", {
 				design: ToolbarDesign.Transparent,
-				style: this._isOfType(TableType.ResponsiveTable) ? ToolbarStyle.Standard : ToolbarStyle.Clear,
 				begin: [
 					this._oTitle
 				],
@@ -1494,6 +1463,7 @@ sap.ui.define([
 				]
 			});
 		}
+		this._oToolbar.setStyle(this._bMobileTable ? ToolbarStyle.Standard : ToolbarStyle.Clear);
 		return this._oToolbar;
 	};
 
@@ -1539,8 +1509,9 @@ sap.ui.define([
 		return this.getEngine().readXConfig(this);
 	};
 
-	function getFilteredProperties(oTable) {
-		var mFilterConditions = oTable.getFilterConditions();
+	// oControl can be a Table or FilterBar - any Control that is able to have Filter
+	function getFilteredProperties(oControl) {
+		var mFilterConditions = oControl.getFilterConditions();
 
 		return Object.keys(mFilterConditions).filter(function(sProperty) {
 			return mFilterConditions[sProperty].length > 0;
@@ -1556,7 +1527,7 @@ sap.ui.define([
 	 */
 	Table.prototype.getCurrentState = function() {
 		var oState = {};
-		var aP13nMode = this.getP13nMode();
+		var aP13nMode = this.getActiveP13nModes();
 
 		if (aP13nMode.indexOf("Column") > -1) {
 			oState.items = this._getVisibleProperties();
@@ -1592,7 +1563,7 @@ sap.ui.define([
 	 * @returns {boolean} Whether filter personalization is enabled
 	 */
 	Table.prototype.isFilteringEnabled = function() {
-		return this.getP13nMode().indexOf("Filter") > -1;
+		return this.getActiveP13nModes().includes(P13nMode.Filter);
 	};
 
 	/**
@@ -1602,7 +1573,7 @@ sap.ui.define([
 	 * @returns {boolean} Whether sort personalization is enabled
 	 */
 	Table.prototype.isSortingEnabled = function() {
-		return this.getP13nMode().indexOf("Sort") > -1;
+		return this.getActiveP13nModes().includes(P13nMode.Sort);
 	};
 
 	/**
@@ -1612,7 +1583,7 @@ sap.ui.define([
 	 * @returns {boolean} Whether group personalization is enabled
 	 */
 	Table.prototype.isGroupingEnabled = function () {
-		return this.getP13nMode().indexOf("Group") > -1;
+		return this.getActiveP13nModes().includes(P13nMode.Group);
 	};
 
 	/**
@@ -1622,11 +1593,26 @@ sap.ui.define([
 	 * @returns {boolean} Whether aggregation personalization is enabled
 	 */
 	Table.prototype.isAggregationEnabled = function () {
-		return this.getP13nMode().indexOf("Aggregate") > -1;
+		return this.getActiveP13nModes().includes(P13nMode.Aggregate);
+	};
+
+	Table.prototype.getSupportedP13nModes = function() {
+		return this._aSupportedP13nModes || [];
+	};
+
+	Table.prototype.getActiveP13nModes = function() {
+		var aP13nModes = this.getP13nMode();
+		var aSupportedP13nModes = this.getSupportedP13nModes();
+
+		aP13nModes = aP13nModes.filter(function(sMode) {
+			return aSupportedP13nModes.includes(sMode);
+		});
+
+		return aP13nModes;
 	};
 
 	Table.prototype._getP13nButtons = function() {
-		var aP13nMode = this.getP13nMode();
+		var aP13nMode = this.getActiveP13nModes();
 		var aButtons = [];
 
 		// Note: 'Aggregate' does not have a p13n UI, if only 'Aggregate' is enabled no settings icon is necessary
@@ -1658,23 +1644,17 @@ sap.ui.define([
 			return null;
 		}
 
-		var mDefaultExportSettings = {
-			fileName: this.getHeader()
-		};
-
-		if (!this._cachedExportSettings) {
-			this._cachedExportSettings = mDefaultExportSettings;
-		}
-
 		if (!this._oExportButton) {
 			this._oExportButton = TableSettings.createExportButton(this.getId(), {
 				"default": [
 					function() {
-						this._onExport(mDefaultExportSettings);
+						this._onExport();
 					}, this
 				],
 				"exportAs": [
-					this._onExportAs, this
+					function() {
+						this._onExport(true);
+					}, this
 				]
 			});
 		}
@@ -1707,8 +1687,7 @@ sap.ui.define([
 	 * @returns {Promise} Column configuration to be exported
 	 * @private
 	 */
-	Table.prototype._createExportColumnConfiguration = function(mCustomConfig) {
-		var bSplitCells = mCustomConfig && mCustomConfig.splitCells;
+	Table.prototype._createExportColumnConfiguration = function() {
 		var aColumns = this.getColumns();
 
 		return this._fullyInitialized().then(function() {
@@ -1716,26 +1695,35 @@ sap.ui.define([
 			var aSheetColumns = [];
 
 			aColumns.forEach(function(oColumn) {
-				var aColumnExportSettings = oPropertyHelper.getColumnExportSettings(oColumn, bSplitCells);
+				var aColumnExportSettings = oPropertyHelper.getColumnExportSettings(oColumn);
 				aSheetColumns = aSheetColumns.concat(aColumnExportSettings);
 			}, this);
-			return [aSheetColumns, oPropertyHelper];
+			return aSheetColumns;
 		}.bind(this));
+	};
+
+	/**
+	 * Returns the label/header text of the column
+	 * @param {string} sPath column key
+	 * @returns {string|null} column label/header text. Returns null if no column or header/label text is available.
+	 * @private
+	 */
+	Table.prototype._getColumnLabel = function(sPath) {
+		var oPropertyHelper = this.getPropertyHelper();
+		var mPropertyInfo = oPropertyHelper.getProperty(sPath);
+		return mPropertyInfo && mPropertyInfo.label;
 	};
 
 	/**
 	 * Triggers export via "sap.ui.export"/"Document Export Services" export functionality
 	 *
-	 * @param {Object} mCustomConfig Custom config for the spreadsheet export
+	 * @param {boolean} bExportAs controls whether the regular export or the Export As dialog should be called
 	 * @returns {Promise} export build process promise
 	 * @private
 	 */
-	Table.prototype._onExport = function(mCustomConfig) {
+	Table.prototype._onExport = function(bExportAs) {
 		var that = this;
-		return this._createExportColumnConfiguration(mCustomConfig).then(function(aResult) {
-			var aSheetColumns = aResult[0];
-			var oPropertyHelper = aResult[1];
-
+		return this._createExportColumnConfiguration().then(function(aSheetColumns) {
 			// If no columns exist, show message and return without exporting
 			if (!aSheetColumns || !aSheetColumns.length) {
 				sap.ui.require(["sap/m/MessageBox"], function(MessageBox) {
@@ -1747,91 +1735,39 @@ sap.ui.define([
 			}
 
 			var oRowBinding = that._getRowBinding();
+			var fnGetColumnLabel = that._getColumnLabel.bind(that);
 			var mExportSettings = {
 				workbook: {
 					columns: aSheetColumns,
-					context: {title: that.getHeader()}
+					context: {
+						title: that.getHeader()
+					}
 				},
 				dataSource: oRowBinding,
-				fileType: mCustomConfig.selectedFileType == "pdf" ? "PDF" : "XLSX",
-				fileName: mCustomConfig ? mCustomConfig.fileName : this.getHeader()
+				fileName: that.getHeader()
 			};
-
-			var mPDFUserSettings = {
-				border: mCustomConfig.border,
-				fontSize: mCustomConfig.fontSize,
-				paperSize: mCustomConfig.selectedPaperSize,
-				doEnableAccessibility: mCustomConfig.doEnableAccessibility,
-				signature: mCustomConfig.signature,
-				signatureReason: mCustomConfig.signatureReason,
-				orientation: mCustomConfig.selectedOrientation
-			};
-
-			if (mExportSettings.fileType === "PDF") {
-				Object.assign(mExportSettings, mPDFUserSettings);
-			}
 
 			that._loadExportLibrary().then(function() {
-				sap.ui.require(["sap/ui/export/ExportUtils"], function(ExportUtils) {
-					var oProcessor = Promise.resolve();
+				sap.ui.require(["sap/ui/export/ExportHandler"], function(ExportHandler) {
+					var oHandler;
 
-					if (mCustomConfig.includeFilterSettings) {
-						oProcessor = ExportUtils.parseFilterConfiguration(oRowBinding, function(sPropertyName) {
-							return oPropertyHelper.hasProperty(sPropertyName) ? oPropertyHelper.getProperty(sPropertyName).label : null;
-						}).then(function(oFilterConfig) {
-							if (oFilterConfig) {
-								var oContext = mExportSettings.workbook.context;
+					that.getControlDelegate().fetchExportCapabilities(that).then(function(oExportCapabilities) {
+						if (!that._oExportHandler) {
+							oHandler = new ExportHandler(oExportCapabilities);
 
-								oContext.metaSheetName =  oFilterConfig.name;
-								oContext.metainfo = [oFilterConfig];
-							}
-						});
-					}
-
-					oProcessor.then(function() {
-						var mUserSettings = {
-							splitCells: false,
-							includeFilterSettings: false
-						};
-
-						if (mCustomConfig) {
-							mUserSettings.splitCells = mCustomConfig.splitCells;
-							mUserSettings.includeFilterSettings = mCustomConfig.includeFilterSettings;
-						}
-
-						ExportUtils.getExportInstance(mExportSettings).then(function(oSheet){
-							oSheet.attachBeforeExport(function(oEvent) {
-							var oExportSettings = oEvent.getParameter("exportSettings");
-
-							that.fireBeforeExport({
-								exportSettings: oExportSettings,
-								userExportSettings: mUserSettings
-							  });
-						    }, that);
-							oSheet.build().finally(function() {
-								oSheet.destroy();
+							oHandler.attachBeforeExport(function(oEvent) {
+								that.fireBeforeExport({
+									exportSettings: oEvent.getParameter('exportSettings'),
+									userExportSettings: oEvent.getParameter('userExportSettings')
+								});
 							});
-						});
-					});
-				});
-			});
-		});
-	};
-
-	/**
-	 * Opens the export settings dialog for providing user specific export settings.
-	 *
-	 * @private
-	 */
-	Table.prototype._onExportAs = function(mCustomConfig) {
-		var that = this;
-
-		this._loadExportLibrary().then(function() {
-			sap.ui.require(['sap/ui/export/ExportUtils'], function(ExportUtils) {
-				that.getControlDelegate().fetchExportCapabilities().then(function(oExportCapabilities) {
-					ExportUtils.getExportSettingsViaDialog(that._cachedExportSettings, oExportCapabilities, that).then(function(oUserInput) {
-						that._cachedExportSettings = oUserInput;
-						that._onExport(oUserInput);
+							that._oExportHandler = oHandler;
+						}
+						if (bExportAs) {
+							that._oExportHandler.exportAs(mExportSettings, fnGetColumnLabel);
+						} else {
+							that._oExportHandler.export(mExportSettings, fnGetColumnLabel);
+						}
 					});
 				});
 			});
@@ -1864,7 +1800,7 @@ sap.ui.define([
 
 		if ((oEvent.metaKey || oEvent.ctrlKey) && oEvent.shiftKey && oEvent.which === KeyCodes.E) {
 			if (this.getEnableExport() && this._oExportButton && this._oExportButton.getEnabled()) {
-				this._onExportAs();
+				this._onExport(true);
 				oEvent.setMarked();
 				oEvent.preventDefault();
 			}
@@ -1911,7 +1847,6 @@ sap.ui.define([
 				]
 			});
 			this._oTemplate = ResponsiveTableType.createTemplate(this.getId() + "-innerTableRow", oRowSettings);
-			this._createColumn = Table.prototype._createMobileColumn;
 			this._sAggregation = "items";
 			// map bindItems to bindRows for Mobile Table to enable reuse of rebind mechanism
 			this._oTable.bindRows = this._oTable.bindItems;
@@ -1943,7 +1878,6 @@ sap.ui.define([
 				],
 				rowSettingsTemplate: oRowSettings
 			});
-			this._createColumn = Table.prototype._createColumn;
 			this._sAggregation = "rows";
 		}
 
@@ -1960,7 +1894,7 @@ sap.ui.define([
 			sourceAggregation: "columns",
 			targetAggregation: "columns",
 			dropPosition: "Between",
-			enabled: this.getP13nMode().indexOf("Column") > -1,
+			enabled: this.getActiveP13nModes().includes(P13nMode.Column),
 			drop: [
 				this._onColumnRearrange, this
 			]
@@ -1996,11 +1930,6 @@ sap.ui.define([
 		} else {
 			oTableType.disableColumnResizer(this, this._oTable);
 		}
-
-		var aMDCColumns = this.getColumns();
-		aMDCColumns.forEach(function(oColumn) {
-			oColumn.updateColumnResizing(bEnableColumnResizer);
-		}, this);
 	};
 
 	Table.prototype._updateSelectionBehavior = function() {
@@ -2035,82 +1964,102 @@ sap.ui.define([
 
 		var oParent = oColumn.getParent(),
 			iIndex = oParent.indexOfColumn(oColumn),
-			oMDCColumn = this.getColumns()[iIndex],
-			bResizeButton = this._bMobileTable && this.getEnableColumnResize();
+			oMDCColumn = this.getColumns()[iIndex];
 
 		this._fullyInitialized().then(function() {
-			var oResourceBundle = Core.getLibraryResourceBundle("sap.ui.mdc");
-			var oProperty = this.getPropertyHelper().getProperty(oMDCColumn.getDataProperty());
+			if (this._bUseColumnMenu) {
+				if (!this._oColumnHeaderMenu) {
+					this._oQuickActionContainer = new QuickActionContainer({table: this});
+					this._oItemContainer = new ItemContainer({table: this});
+					this._oColumnHeaderMenu = new ColumnMenu({
+						_quickActions: [this._oQuickActionContainer],
+						_items: [this._oItemContainer]
+					});
+				}
+				this._oQuickActionContainer.setAssociation("column", oMDCColumn);
 
-			if (this._oPopover) {
-				this._oPopover.destroy();
-				this._oPopover = null;
-			}
+				Promise.all([
+					this._oQuickActionContainer.initializeQuickActions(),
+					this._oItemContainer.initializeItems()
+				]).then(function() {
+					if (this._oQuickActionContainer.hasQuickActions() || this._oItemContainer.hasItems()) {
+						this._oColumnHeaderMenu.openBy(oColumn);
+					}
+				}.bind(this));
+			} else {
+				var oResourceBundle = Core.getLibraryResourceBundle("sap.ui.mdc"),
+					bResizeButton = this._bMobileTable && this.getEnableColumnResize();
 
-			if (this.isSortingEnabled() && oProperty) {
-				var aAscendItems = [];
-				var aDescendItems = [];
+				if (this._oPopover) {
+					this._oPopover.destroy();
+					this._oPopover = null;
+				}
+				if (this.isSortingEnabled()) {
+					var aAscendItems = [] , aDescendItems = [];
+					var aSortableProperties = this.getPropertyHelper().getProperty(oMDCColumn.getDataProperty()).getSortableProperties();
+					aSortableProperties.forEach(function(oProperty) {
+						aAscendItems.push(new Item({
+							text: oProperty.label,
+							key: oProperty.name
+						}));
+						aDescendItems.push(new Item({
+							text: oProperty.label,
+							key: oProperty.name
+						}));
+					});
 
-				oProperty.getSortableProperties().forEach(function(oProperty) {
-					aAscendItems.push(new Item({
-						text: oProperty.label,
-						key: oProperty.name
-					}));
-					aDescendItems.push(new Item({
+					// create ColumnHeaderPopover
+					if (aAscendItems.length > 0) {
+						this._oPopover = new ColumnHeaderPopover({
+							items: [
+								new ColumnPopoverSelectListItem({
+									items: aAscendItems,
+									label: oResourceBundle.getText("table.SETTINGS_ASCENDING"),
+									icon: "sap-icon://sort-ascending",
+									action: [SortOrder.Ascending, this._onCustomSort, this]
+								}),
+								new ColumnPopoverSelectListItem({
+									items: aDescendItems,
+									label: oResourceBundle.getText("table.SETTINGS_DESCENDING"),
+									icon: "sap-icon://sort-descending",
+									action: [SortOrder.Descending, this._onCustomSort, this]
+								})
+							]
+						});
+						oColumn.addDependent(this._oPopover);
+					}
+				}
+
+				var aFilterable = [];
+				var oDelegate = this.getControlDelegate();
+				var aHeaderItems = (oDelegate.addColumnMenuItems && oDelegate.addColumnMenuItems(this, oMDCColumn)) || [];
+
+				this.getPropertyHelper().getFilterableProperties(oMDCColumn.getDataProperty()).forEach(function(oProperty) {
+					aFilterable.push(new Item({
 						text: oProperty.label,
 						key: oProperty.name
 					}));
 				});
 
-				// create ColumnHeaderPopover
-				if (aAscendItems.length > 0) {
-					this._oPopover = new ColumnHeaderPopover({
-						items: [
-							new ColumnPopoverSelectListItem({
-								items: aAscendItems,
-								label: oResourceBundle.getText("table.SETTINGS_ASCENDING"),
-								icon: "sap-icon://sort-ascending",
-								action: [false, this._onCustomSort, this]
-							}),
-							new ColumnPopoverSelectListItem({
-								items: aDescendItems,
-								label: oResourceBundle.getText("table.SETTINGS_DESCENDING"),
-								icon: "sap-icon://sort-descending",
-								action: [true, this._onCustomSort, this]
-							})
-						]
+				if (this.isFilteringEnabled() && aFilterable.length) {
+					var oFilter = new ColumnPopoverSelectListItem({
+						label: oResourceBundle.getText("table.SETTINGS_FILTER"),
+						icon: "sap-icon://filter",
+						action: [onShowFilterDialog, this]
 					});
-					oColumn.addDependent(this._oPopover);
+					aHeaderItems.unshift(oFilter);
 				}
-			}
-			var oDelegate = this.getControlDelegate();
-			var aHeaderItems = (oDelegate.addColumnMenuItems && oDelegate.addColumnMenuItems(this, oMDCColumn)) || [];
 
-			if (this.isFilteringEnabled() && oProperty && oProperty.getFilterableProperties().length > 0) {
-				aHeaderItems.unshift(new ColumnPopoverSelectListItem({
-					label: oResourceBundle.getText("table.SETTINGS_FILTER"),
-					icon: "sap-icon://filter",
-					action: [onShowFilterDialog, this]
-				}));
-			}
+				if (bResizeButton) {
+					var oColumnResize = ResponsiveTableType.startColumnResize(this._oTable, oColumn);
+					oColumnResize && aHeaderItems.push(oColumnResize);
+				}
 
-			if (bResizeButton) {
-				var oColumnResize = ResponsiveTableType.startColumnResize(this._oTable, oColumn);
-				oColumnResize && aHeaderItems.push(oColumnResize);
-			}
-
-			aHeaderItems.forEach(function(oItem) {
-				this._createPopover(oItem, oColumn);
-			}, this);
-
-			if (this._oPopover) {
-				this._oPopover.openBy(oColumn);
-				this._oPopover.getAggregation("_popover").attachAfterClose(function() {
-					this._bSuppressOpenMenu = false;
+				aHeaderItems.forEach(function(oItem) {
+					this._createPopover(oItem, oColumn);
 				}, this);
-				this._bSuppressOpenMenu = true;
+				this._oPopover && this._oPopover.openBy(oColumn);
 			}
-
 		}.bind(this));
 	};
 
@@ -2125,10 +2074,18 @@ sap.ui.define([
 		}
 	};
 
-	Table.prototype._onCustomSort = function(oEvent, bDescending) {
+	Table.prototype._onCustomSort = function(oEvent, sSortOrder) {
 		var sSortProperty = oEvent.getParameter("property");
 
-		TableSettings.createSort(this, sSortProperty, bDescending, true);
+		this.getCurrentState().sorters.forEach(function(oProp) {
+			if (oProp.name === sSortProperty) {
+				if (oProp.descending && sSortOrder === SortOrder.Descending || !oProp.descending && sSortOrder === SortOrder.Ascending) {
+					sSortOrder = SortOrder.None;
+				}
+			}
+		});
+
+		TableSettings.createSort(this, sSortProperty, sSortOrder, true);
 	};
 
 	Table.prototype._onColumnResize = function(oEvent) {
@@ -2149,34 +2106,20 @@ sap.ui.define([
 		TableSettings.createAggregation(this, sSortProperty);
 	};
 
-	Table.prototype._setColumnWidth = function(oMDCColumn) {
-		if (!this.getEnableAutoColumnWidth() || oMDCColumn.getWidth() || oMDCColumn.isBound("width")) {
-			return;
-		}
-
-		var oPropertyHelper = this._oPropertyHelper;
-		if (oPropertyHelper) {
-			oPropertyHelper.setColumnWidth(oMDCColumn);
-		} else {
-			this.awaitPropertyHelper().then(this._setColumnWidth.bind(this, oMDCColumn));
-		}
-	};
-
-	Table.prototype._insertInnerColumn = function(oMDCColumn, iIndex) {
+	Table.prototype._insertInnerColumn = function(oColumn, iIndex) {
 		if (!this._oTable) {
 			return;
 		}
 
-		this._setColumnWidth(oMDCColumn);
+		var oInnerColumn = oColumn.getInnerColumn();
 
-		var oColumn = this._createColumn(oMDCColumn);
-		setColumnTemplate(this, oMDCColumn, oColumn, iIndex);
+		this._setMobileColumnTemplate(oColumn, iIndex);
 		this._bForceRebind = true;
 
 		if (iIndex === undefined) {
-			this._oTable.addColumn(oColumn);
+			this._oTable.addColumn(oInnerColumn);
 		} else {
-			this._oTable.insertColumn(oColumn, iIndex);
+			this._oTable.insertColumn(oInnerColumn, iIndex);
 		}
 	};
 
@@ -2201,143 +2144,82 @@ sap.ui.define([
 		}, this);
 	};
 
-	function setColumnTemplate(oTable, oColumn, oInnerColumn, iIndex) {
-		var oCellTemplate = oColumn.getTemplate(true);
+	/**
+	 * Runtime API for JS flex change to avoid rebind.
+	 *
+	 * @param {object} oColumn - the mdc column instance which should be moved
+	 * @param {int} iIndex - the index to which the column should be moved to
+	 * @private
+	 */
+	Table.prototype.moveColumn = function(oColumn, iIndex) {
+		oColumn._bIsBeingMoved = true;
+		this.removeAggregation("columns", oColumn, true);
+		this.insertAggregation("columns", oColumn, iIndex, true);
+		delete oColumn._bIsBeingMoved;
 
-		if (!oTable._bMobileTable) {
-			var oCreationTemplateClone = oColumn.getCreationTemplate(true);
+		if (this._oTable) {
+			var oInnerColumn = oColumn.getInnerColumn();
 
-			// Grid Table content cannot be wrapped!
-			[oCellTemplate, oCreationTemplateClone].forEach(function(oTemplate) {
-				if (!oTemplate) {
-					return;
-				}
+			// move column in inner table
+			this._oTable.removeColumn(oInnerColumn);
+			this._oTable.insertColumn(oInnerColumn, iIndex);
 
-				if (oTemplate.setWrapping) {
-					oTemplate.setWrapping(false);
-				}
+			this._setMobileColumnOrder();
+			this._updateMobileColumnTemplate(oColumn, iIndex);
+		}
+	};
 
-				if (oTemplate.setRenderWhitespace) {
-					oTemplate.setRenderWhitespace(false);
-				}
-			});
+	Table.prototype.removeColumn = function(oColumn) {
+		oColumn = this.removeAggregation("columns", oColumn, true);
+		this._updateMobileColumnTemplate(oColumn, -1);
+		return oColumn;
+	};
 
-			oInnerColumn.setTemplate(oCellTemplate);
-			oInnerColumn.setCreationTemplate(oCreationTemplateClone);
-		} else if (iIndex >= 0) {
-			oTable._oTemplate.insertCell(oCellTemplate, iIndex);
-			oTable._oTable.getItems().forEach(function(oItem) {
+	Table.prototype.addColumn = function(oColumn) {
+		this.addAggregation("columns", oColumn, true);
+		this._insertInnerColumn(oColumn);
+		return this;
+	};
+
+	Table.prototype.insertColumn = function(oColumn, iIndex) {
+		this.insertAggregation("columns", oColumn, iIndex, true);
+		this._insertInnerColumn(oColumn, iIndex);
+		return this;
+	};
+
+	Table.prototype._setMobileColumnTemplate = function(oColumn, iIndex) {
+		if (!this._bMobileTable) {
+			return;
+		}
+
+		var oCellTemplate = oColumn.getTemplateClone();
+
+		if (iIndex >= 0) {
+			this._oTemplate.insertCell(oCellTemplate, iIndex);
+			this._oTable.getItems().forEach(function(oItem) {
 				// Add lightweight placeholders that can be rendered - if they cannot be rendered, there will be errors in the console.
 				// The actual cells are created after rebind.
 				oItem.insertAggregation("cells", new InvisibleText(), iIndex, true);
 			});
 		} else {
-			oTable._oTemplate.addCell(oCellTemplate);
-		}
-	}
-
-	/**
-	 * Creates and returns a Column that can be added to the grid table, based on the provided MDCColumn
-	 *
-	 * @param {object} oMDCColumn - the mdc column instance using which the GridTable column will be created
-	 * @private
-	 * @returns {object} the column that is created
-	 */
-	Table.prototype._createColumn = function(oMDCColumn) {
-		return GridTableType.createColumn(oMDCColumn.getId() + "-innerColumn", {
-			width: oMDCColumn.getWidth(),
-			minWidth: Math.round(oMDCColumn.getMinWidth() * parseFloat(MLibrary.BaseFontSize)),
-			hAlign: oMDCColumn.getHAlign(),
-			label: oMDCColumn.getColumnHeaderControl(this._bMobileTable, this.getEnableColumnResize()),
-			resizable: this.getEnableColumnResize(),
-			autoResizable: this.getEnableColumnResize()
-		});
-	};
-
-	/**
-	 * Creates and returns a MobileColumn that can be added to the mobile table, based on the provided MDCColumn
-	 *
-	 * @param {object} oMDCColumn - the mdc column instance using which the ResponsiveTable column will be created
-	 * @private
-	 * @returns {object} the column that is created
-	 */
-	Table.prototype._createMobileColumn = function(oMDCColumn) {
-		return ResponsiveTableType.createColumn(oMDCColumn.getId() + "-innerColumn", {
-			width: oMDCColumn.getWidth(),
-			autoPopinWidth: oMDCColumn.getMinWidth(),
-			hAlign: oMDCColumn.getHAlign(),
-			header: oMDCColumn.getColumnHeaderControl(this._bMobileTable, this.getEnableColumnResize()),
-			importance: oMDCColumn.getImportance(),
-			popinDisplay: "Inline"
-		});
-	};
-
-	/**
-	 * Runtime API for JS flex change to avoid rebind.
-	 *
-	 * @param {object} oMDCColumn - the mdc column instance which should be moved
-	 * @param {int} iIndex - the index to which the column should be moved to
-	 * @private
-	 */
-	Table.prototype.moveColumn = function(oMDCColumn, iIndex) {
-		var oColumn;
-		// move column in mdc Table
-		this.removeAggregation("columns", oMDCColumn, true);
-		this.insertAggregation("columns", oMDCColumn, iIndex, true);
-		if (this._oTable) {
-			// move column in inner table
-			oColumn = this._oTable.removeColumn(oMDCColumn.getId() + "-innerColumn");
-			this._oTable.insertColumn(oColumn, iIndex);
-
-			// update template for ResponsiveTable
-			if (this._bMobileTable) {
-				this._updateColumnTemplate(oMDCColumn, iIndex);
-			}
+			this._oTemplate.addCell(oCellTemplate);
 		}
 	};
 
-	Table.prototype.removeColumn = function(oMDCColumn) {
-		oMDCColumn = this.removeAggregation("columns", oMDCColumn, true);
-		if (this._oTable) {
-			var oColumn = this._oTable.removeColumn(oMDCColumn.getId() + "-innerColumn");
-			oColumn.destroy("KeepDom");
-
-			// update template for ResponsiveTable
-			if (this._bMobileTable) {
-				this._updateColumnTemplate(oMDCColumn, -1);
-			}
-			this._onModifications();
+	Table.prototype._updateMobileColumnTemplate = function(oMDCColumn, iIndex) {
+		if (!this._bMobileTable) {
+			return;
 		}
-		return oMDCColumn;
-	};
 
-	Table.prototype.addColumn = function(oMDCColumn) {
-		this.addAggregation("columns", oMDCColumn, true);
-
-		this._insertInnerColumn(oMDCColumn);
-
-		return this;
-	};
-
-	Table.prototype.insertColumn = function(oMDCColumn, iIndex) {
-		this.insertAggregation("columns", oMDCColumn, iIndex, true);
-
-		this._insertInnerColumn(oMDCColumn, iIndex);
-		this._onModifications();
-		return this;
-	};
-
-	// ResponsiveTable
-	Table.prototype._updateColumnTemplate = function(oMDCColumn, iIndex) {
 		var oCellTemplate, iCellIndex;
 		// TODO: Check if this can be moved inside the m.Table.
 
 		// Remove cell template when column is hidden
 		// Remove template cell from ColumnListItem (template)
 		if (this._oTemplate) {
-			oCellTemplate = oMDCColumn.getTemplate(true);
+			oCellTemplate = oMDCColumn.getTemplateClone();
 			iCellIndex = this._oTemplate.indexOfCell(oCellTemplate);
-			Table._removeItemCell(this._oTemplate, iCellIndex, iIndex);
+			removeMobileItemCell(this._oTemplate, iCellIndex, iIndex);
 		}
 
 		// Remove cells from actual rendered items, as this is not done automatically
@@ -2345,14 +2227,36 @@ sap.ui.define([
 			this._oTable.getItems().forEach(function(oItem) {
 				// Grouping row (when enabled) will not have cells
 				if (oItem.removeCell) {
-					Table._removeItemCell(oItem, iCellIndex, iIndex);
+					removeMobileItemCell(oItem, iCellIndex, iIndex);
 				}
 			});
 		}
 	};
 
-	Table._removeItemCell = function(oItem, iRemoveIndex, iInsertIndex) {
-		// remove cell from index
+	/**
+	 * Sets the column order for the responsive table. The order is set according to the index of the mdc columns.
+	 * Updating the responsive table's column order and invalidating avoid rebinds.
+	 * @private
+	 */
+	Table.prototype._setMobileColumnOrder = function() {
+		if (!this._bMobileTable) {
+			return;
+		}
+
+		this.getColumns().forEach(function(oColumn) {
+			var oInnerColumn = oColumn.getInnerColumn();
+			if (!oInnerColumn) {
+				return;
+			}
+			// since we ensure correct index of the mdcColumn control we can set the same order to the inner responsive table columns
+			oInnerColumn.setOrder(this.indexOfColumn(oColumn));
+		}, this);
+
+		// invalidate the inner table to apply the correct order on the UI. See sap.m.Column#setOrder
+		this._oTable.invalidate();
+	};
+
+	function removeMobileItemCell(oItem, iRemoveIndex, iInsertIndex) {
 		var oCell = oItem.removeCell(iRemoveIndex);
 		if (oCell) {
 			// -1 index destroys the inner content
@@ -2362,7 +2266,7 @@ sap.ui.define([
 				oCell.destroy();
 			}
 		}
-	};
+	}
 
 	Table.prototype._onItemPress = function(oEvent) {
 		this.fireRowPress({
@@ -2511,7 +2415,7 @@ sap.ui.define([
 			Table._addBindingListener(oBindingInfo, "dataReceived", this._onDataReceived.bind(this));
 			Table._addBindingListener(oBindingInfo, "change", this._onBindingChange.bind(this));
 
-			this._updateColumnsBeforeBinding(oBindingInfo);
+			this._updateColumnsBeforeBinding();
 			this.getControlDelegate().updateBinding(this, oBindingInfo, this._bForceRebind ? null : this.getRowBinding());
 			this._updateInnerTableNoDataText();
 			this._bForceRebind = false;
@@ -2605,32 +2509,27 @@ sap.ui.define([
 		}
 	};
 
-	Table.prototype._updateColumnsBeforeBinding = function(oBindingInfo) {
-		var aSorters = [].concat(oBindingInfo.sorter || []);
-		var aMDCColumns = this.getColumns();
-		var bMobileTable = this._bMobileTable;
+	Table.prototype._updateColumnsBeforeBinding = function() {
+		var aColumns = this.getColumns();
 		var oPropertyHelper = this.getPropertyHelper();
 
-		aMDCColumns.forEach(function(oMDCColumn) {
-			var oInnerColumn = Core.byId(oMDCColumn.getId() + "-innerColumn");
-			var oProperty = oPropertyHelper.getProperty(oMDCColumn.getDataProperty());
-			var aSortablePaths = oProperty ? oProperty.getSortableProperties().map(function(oProperty) {
-				return oProperty.path;
+		aColumns.forEach(function(oColumn) {
+			var oInnerColumn = oColumn.getInnerColumn();
+			var oProperty = oPropertyHelper.getProperty(oColumn.getDataProperty());
+			var aSortableProperties = oProperty ? oProperty.getSortableProperties().map(function(oProperty) {
+				return oProperty.name;
 			}) : [];
+			var oSortCondition = this._getSortedProperties().find(function(oSortCondition) {
+				return aSortableProperties.includes(oSortCondition.name);
+			});
+			var sSortOrder = oSortCondition && oSortCondition.descending ? SortOrder.Descending : SortOrder.Ascending;
 
-			if (aSortablePaths.length > 0) {
-				var oSorter = aSorters.find(function(oSorter) {
-					return aSortablePaths.indexOf(oSorter.sPath) > -1;
-				});
-				var sSortOrder = oSorter && oSorter.bDescending ? "Descending" : "Ascending";
-
-				if (bMobileTable) {
-					oInnerColumn.setSortIndicator(oSorter ? sSortOrder : "None");
-				} else {
-					oInnerColumn.setSorted(!!oSorter).setSortOrder(sSortOrder);
-				}
+			if (this._bMobileTable) {
+				oInnerColumn.setSortIndicator(oSortCondition ? sSortOrder : SortOrder.None);
+			} else {
+				oInnerColumn.setSorted(!!oSortCondition).setSortOrder(sSortOrder);
 			}
-		});
+		}, this);
 	};
 
 	/**
@@ -2649,8 +2548,7 @@ sap.ui.define([
 		var iRowCount;
 		if (!bConsiderTotal) {
 			iRowCount = oRowBinding.getLength();
-		} else {
-			if (typeof oRowBinding.getCount === 'function') {
+		} else if (typeof oRowBinding.getCount === 'function') {
 				iRowCount = oRowBinding.getCount();
 			} else if (oRowBinding.isLengthFinal()) {
 				// This branch is only fallback and for TreeBindings (TreeBindings should be excluded when MDCTable will support TreeBinding,
@@ -2658,7 +2556,6 @@ sap.ui.define([
 				// ListBindings should in general get a getCount function in nearer future (5341464)
 				iRowCount = oRowBinding.getLength();
 			}
-		}
 
 		if (iRowCount < 0 || iRowCount === "0") {
 			iRowCount = 0;
@@ -2811,5 +2708,4 @@ sap.ui.define([
 	};
 
 	return Table;
-
 });

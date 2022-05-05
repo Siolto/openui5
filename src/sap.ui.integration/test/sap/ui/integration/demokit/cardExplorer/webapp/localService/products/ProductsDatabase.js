@@ -1,6 +1,7 @@
 sap.ui.define([
-	"sap/base/util/deepExtend"
-], function(deepExtend) {
+	"sap/base/util/deepExtend",
+	"sap/ui/thirdparty/jquery"
+], function(deepExtend, jQuery) {
 	"use strict";
 
 	var aInitialData, aData;
@@ -53,9 +54,7 @@ sap.ui.define([
 				return false;
 			}
 
-			// TODO: IsFavorite should become "true"
-			// this is temporary solution until expression binding is supported in action definitions
-			aData[index].IsFavorite = false;
+			aData[index].IsFavorite = true;
 			return true;
 		},
 

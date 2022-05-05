@@ -3,10 +3,11 @@
  */
 //Provides control sap.ui.unified.Calendar.
 sap.ui.define([
+	'sap/ui/core/CalendarType',
 	'sap/ui/core/Control',
+	'sap/ui/core/Core',
 	'sap/ui/core/LocaleData',
 	'sap/ui/unified/calendar/CalendarUtils',
-	'sap/ui/unified/DateRange',
 	'sap/ui/unified/DateTypeRange',
 	'./calendar/Header',
 	'./calendar/Month',
@@ -26,10 +27,11 @@ sap.ui.define([
 	"sap/base/util/deepEqual",
 	"sap/base/Log"
 ], function(
+	CalendarType,
 	Control,
+	oCore,
 	LocaleData,
 	CalendarUtils,
-	DateRange,
 	DateTypeRange,
 	Header,
 	Month,
@@ -51,8 +53,6 @@ sap.ui.define([
 ) {
 	"use strict";
 
-	var oCore = sap.ui.getCore(),
-		CalendarType = sap.ui.core.CalendarType;
 	/*
 	 * Inside the Calendar CalendarDate objects are used. But in the API JS dates are used.
 	 * So conversion must be done on API functions.
@@ -302,7 +302,7 @@ sap.ui.define([
 				}
 			}
 		}
-	}});
+	}, renderer: CalendarRenderer});
 
 	/*
 	 * There are different modes (stored in this._iMode)
@@ -561,6 +561,13 @@ sap.ui.define([
 			}
 			this._bInitMonth = undefined;
 		}
+
+		var oSecondMonthHeader = this.getAggregation("secondMonthHeader");
+		if (oSecondMonthHeader.getDomRef()) {
+			// Second month header buttons are unreachable via keyboard
+			oSecondMonthHeader.getDomRef("B1").setAttribute("tabindex", "-1");
+			oSecondMonthHeader.getDomRef("B2").setAttribute("tabindex", "-1");
+		}
 	};
 
 	Calendar.prototype.removeSelectedDate = function(oSelectedDate) {
@@ -766,22 +773,6 @@ sap.ui.define([
 		oStartDate.setDate(1);
 
 		return oStartDate.toLocalJSDate();
-
-	};
-
-	/**
-	 * sets the Popup mode
-	 * e.G. Tab-chain should not leave calendar
-	 * only for internal use
-	 * @param {boolean} bPoupupMode <code>PopupMode</code>
-	 * @returns {this} <code>this</code> to allow method chaining
-	 * @private
-	 */
-	Calendar.prototype.setPopupMode = function(bPoupupMode){
-
-		this._bPoupupMode = bPoupupMode;
-
-		return this;
 
 	};
 
@@ -1194,238 +1185,6 @@ sap.ui.define([
 
 
 	Calendar.prototype.onsaphide = Calendar.prototype.onsapshow;
-
-	Calendar.prototype.onsaptabnext = function(oEvent){
-		var oHeader = this.getAggregation("header");
-
-		if (containsOrEquals(this.getDomRef("content"), oEvent.target)) {
-			if (oHeader.getVisibleButton1()) {
-				oHeader.getDomRef("B1").focus();
-				oEvent.preventDefault();
-			} else if (oHeader.getVisibleButton2()) {
-				oHeader.getDomRef("B2").focus();
-				oEvent.preventDefault();
-			} else if (oHeader.getVisibleCurrentDateButton()) {
-				oHeader.getDomRef("today").focus();
-				oEvent.preventDefault();
-			} else if (!this._bPoupupMode) {
-				// remove Tabindex from day, month, year - to break cycle
-				this._clearTabindex0();
-			} else {
-				this._clearTabindex0();
-				oEvent.preventDefault();
-			}
-		} else if (oEvent.target.id === oHeader.getId() + "-B1") {
-			oHeader.getVisibleButton2() && oHeader.getDomRef("B2").focus();
-			oEvent.preventDefault();
-		} else if (oEvent.target.id === oHeader.getId() + "-B2") {
-			if (oHeader.getVisibleCurrentDateButton()) {
-				oHeader.getDomRef("today").focus();
-				oEvent.preventDefault();
-			} else {
-				this._tabNextFinalize(this._bPoupupMode, oEvent);
-			}
-		} else if (oEvent.target.id === oHeader.getId() + "-today") {
-			this._tabNextFinalize(this._bPoupupMode, oEvent);
-		}
-
-	};
-
-	Calendar.prototype._tabNextFinalize = function(bPopupMode, oEvent) {
-		if (bPopupMode) {
-			this._moveFocusToCalContent();
-			oEvent.preventDefault();
-		} else {
-			// remove Tabindex from day, month, year - to break cycle
-			this._clearTabindex0();
-		}
-	};
-
-	Calendar.prototype.onsaptabprevious = function(oEvent){
-		var oHeader = this.getAggregation("header");
-		if (containsOrEquals(this.getDomRef("content"), oEvent.target)) {
-			if (this._bPoupupMode) {
-				if (oHeader.getVisibleCurrentDateButton()) {
-					oHeader.getDomRef("today").focus();
-				} else if (oHeader.getVisibleButton2()) {
-					oHeader.getDomRef("B2").focus();
-				} else {
-					oHeader.getVisibleButton1() && oHeader.getDomRef("B1").focus();
-				}
-				oEvent.preventDefault();
-			} else {
-				// remove Tabindex from day, month, year - to break cycle
-				this._clearTabindex0();
-			}
-		} else if (oEvent.target.id === oHeader.getId() + "-B1") {
-			this._moveFocusToCalContent();
-			oEvent.preventDefault();
-		} else if (oEvent.target.id === oHeader.getId() + "-B2") {
-			if (oHeader.getVisibleButton1()) {
-				oHeader.getDomRef("B1").focus();
-			} else {
-				this._moveFocusToCalContent();
-			}
-
-			oEvent.preventDefault();
-		} else if (oEvent.target.id === oHeader.getId() + "-today") {
-			if (oHeader.getVisibleButton2()) {
-				oHeader.getDomRef("B2").focus();
-			} else if (oHeader.getVisibleButton1()){
-				oHeader.getDomRef("B1").focus();
-			} else {
-				this._moveFocusToCalContent();
-			}
-
-			oEvent.preventDefault();
-		}
-	};
-
-	Calendar.prototype._clearTabindex0 = function() {
-		var aMonths = this.getAggregation("month"),
-			oMonthPicker = this._getMonthPicker(),
-			oYearPicker = this.getAggregation("yearPicker"),
-			oYearRangePicker = this.getAggregation("yearRangePicker"),
-			oMonth, i;
-
-		// remove Tabindex from day, month, year - to break cycle
-		for (i = 0; i < aMonths.length; i++) {
-			oMonth = aMonths[i];
-			if (oMonth._oItemNavigation) {
-				oMonth._oItemNavigation.getItemDomRefs()[oMonth._oItemNavigation.getFocusedIndex()].setAttribute("tabindex", "-1");
-			}
-		}
-		if (!this._getSucessorsPickerPopup()) {
-			if (oMonthPicker.getDomRef()) {
-				oMonthPicker._oItemNavigation.getItemDomRefs()[oMonthPicker._oItemNavigation.getFocusedIndex()].setAttribute("tabindex", "-1");
-			}
-			if (oYearPicker.getDomRef()) {
-				oYearPicker._oItemNavigation.getItemDomRefs()[oYearPicker._oItemNavigation.getFocusedIndex()].setAttribute("tabindex", "-1");
-			}
-			if (oYearRangePicker.getDomRef()) {
-				oYearRangePicker._oItemNavigation.getItemDomRefs()[oYearRangePicker._oItemNavigation.getFocusedIndex()].setAttribute("tabindex", "-1");
-			}
-		}
-	};
-
-	Calendar.prototype._moveFocusToCalContent = function() {
-		var oYearPicker = this.getAggregation("yearPicker"),
-			oYearRangePicker = this.getAggregation("yearRangePicker"),
-			oMonthPicker = this._getMonthPicker(),
-			aMonths = this.getAggregation("month"),
-			oMonth, oMonthDate,
-			oFocusedDate, i;
-
-		switch (this._iMode) {
-			case 0: // day picker
-				oFocusedDate = this._getFocusedDate();
-				for (i = 0; i < aMonths.length; i++) {
-					oMonth = aMonths[i];
-					oMonthDate = CalendarDate.fromLocalJSDate(oMonth.getDate(), this.getPrimaryCalendarType());
-					if (oFocusedDate.isSame(oMonthDate)) {
-						oMonth.focus();
-					} else {
-						oMonth._oItemNavigation.getItemDomRefs()[oMonth._oItemNavigation.getFocusedIndex()].setAttribute("tabindex", "0");
-					}
-				}
-				break;
-
-			case 1: // month picker
-				if (!this._getSucessorsPickerPopup()) {
-					oMonthPicker.focus();
-				}
-				break;
-
-			case 2: // year picker
-				if (!this._getSucessorsPickerPopup()) {
-					oYearPicker.focus();
-				}
-				break;
-
-			case 3: // year range picker
-				if (!this._getSucessorsPickerPopup()) {
-					oYearRangePicker.focus();
-				}
-				break;
-
-			// no default
-		}
-	};
-
-	Calendar.prototype.onfocusin = function(oEvent){
-
-		if (oEvent.target.id == this.getId() + "-end") {
-			// focus via tab+shift (otherwise not possible to go to this element)
-			this._focusOnShiftTab();
-
-			if (!this._bPoupupMode) {
-				// remove Tabindex from day, month, year - to break cycle
-				this._clearTabindex0();
-			}
-		}
-
-		// remove tabindex of dummy element if focus is inside calendar
-		this.$("end").attr("tabindex", "-1");
-
-	};
-
-	Calendar.prototype._focusOnShiftTab = function() {
-		var oHeader = this.getAggregation("header"),
-			oDomRefB2 = oHeader.getDomRef("B2"),
-			oDomRefToday = oHeader.getDomRef("today");
-
-		if (oDomRefToday) {
-			oDomRefToday.focus();
-		} else if (oDomRefB2) {
-			oDomRefB2.focus();
-		} else {
-			this.focus();
-		}
-	};
-
-	Calendar.prototype.onsapfocusleave = function(oEvent){
-		var aMonths,
-			oMonth,
-			oMonthPicker,
-			oYearPicker;
-
-		if (!oEvent.relatedControlId || !containsOrEquals(this.getDomRef(), sap.ui.getCore().byId(oEvent.relatedControlId).getFocusDomRef())) {
-			// put dummy element back to tab-chain
-			this.$("end").attr("tabindex", "0");
-
-			if (!this._bPoupupMode) {
-				// restore Tabindex from day, month, year
-				aMonths = this.getAggregation("month");
-
-				switch (this._iMode) {
-				case 0: // day picker
-					for (var i = 0; i < aMonths.length; i++) {
-						oMonth = aMonths[i];
-						if (oMonth._oItemNavigation) {
-							oMonth._oItemNavigation.getItemDomRefs()[oMonth._oItemNavigation.getFocusedIndex()].setAttribute("tabindex", "0");
-						}
-					}
-					break;
-
-				case 1: // month picker
-					if (!this._getSucessorsPickerPopup()) {
-						oMonthPicker = this._getMonthPicker();
-						oMonthPicker._oItemNavigation.getItemDomRefs()[oMonthPicker._oItemNavigation.getFocusedIndex()].setAttribute("tabindex", "0");
-					}
-					break;
-
-				case 2: // year picker
-					if (!this._getSucessorsPickerPopup()) {
-						oYearPicker = this._getYearPicker();
-						oYearPicker._oItemNavigation.getItemDomRefs()[oYearPicker._oItemNavigation.getFocusedIndex()].setAttribute("tabindex", "0");
-					}
-					break;
-					// no default
-				}
-			}
-		}
-
-	};
 
 	Calendar.prototype.getFocusDomRef = function(){
 
@@ -2326,6 +2085,11 @@ sap.ui.define([
 
 		oFocusedDate.setYear(oStartDate.getYear() + iRangeSize / 2);
 		oStartDate.setMonth(0, 1); // always use the first of the month to have stable year in Japanese calendar
+		if (oFocusedDate.isBefore(this._oMinDate)) {
+			oFocusedDate = new CalendarDate(this._oMinDate, this.getPrimaryCalendarType());
+		} else if (oFocusedDate.isAfter(this._oMaxDate)){
+			oFocusedDate = new CalendarDate(this._oMaxDate, this.getPrimaryCalendarType());
+		}
 		this._setFocusedDate(oFocusedDate);
 
 		this._showYearPicker();
@@ -2531,13 +2295,19 @@ sap.ui.define([
 
 			var oDate = oYearPicker.getProperty("_middleDate") ? oYearPicker.getProperty("_middleDate") : oYearPicker._getDate(),
 				oFirstDate = new CalendarDate(oDate, sPrimaryCalendarType),
+				oMinYear = CalendarUtils._minDate(this.getPrimaryCalendarType()).getYear(),
+				oMaxYear = CalendarUtils._maxDate(this.getPrimaryCalendarType()).getYear(),
 				oSecondDate,
 				sFirstYear,
 				sSecondYear;
 
 				oFirstDate.setDate(1); // always use the first of the month to have stable year in Japanese calendar
 				oFirstDate.setYear(oFirstDate.getYear() - Math.floor(oYearPicker.getYears() / 2));
-				oFirstDate = oYearPicker._checkFirstDate(oFirstDate);
+				if (oFirstDate.getYear() < oMinYear) {
+					oFirstDate.setYear(oMinYear);
+				} else if (oFirstDate.getYear() + oYearPicker.getYears() > oMaxYear) {
+					oFirstDate.setYear(oMaxYear - oYearPicker.getYears() + 1);
+				}
 
 				oSecondDate = new CalendarDate(oFirstDate, sPrimaryCalendarType);
 				oSecondDate.setYear(oSecondDate.getYear() + oYearPicker.getYears() - 1);

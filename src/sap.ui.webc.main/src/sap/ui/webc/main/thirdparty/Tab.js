@@ -1,4 +1,4 @@
-sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/common/thirdparty/base/renderer/LitRenderer', 'sap/ui/webc/common/thirdparty/base/renderer/executeTemplate', './types/SemanticColor', './TabContainer', './Icon', './CustomListItem', './generated/templates/TabTemplate.lit', './generated/templates/TabInStripTemplate.lit', './generated/templates/TabInOverflowTemplate.lit', './generated/themes/Tab.css', './generated/themes/TabInStrip.css', './generated/themes/TabInOverflow.css'], function (UI5Element, litRender, executeTemplate, SemanticColor, TabContainer, Icon, CustomListItem, TabTemplate_lit, TabInStripTemplate_lit, TabInOverflowTemplate_lit, Tab_css, TabInStrip_css, TabInOverflow_css) { 'use strict';
+sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/common/thirdparty/base/renderer/LitRenderer', 'sap/ui/webc/common/thirdparty/base/renderer/executeTemplate', 'sap/ui/webc/common/thirdparty/icons/error', 'sap/ui/webc/common/thirdparty/icons/alert', 'sap/ui/webc/common/thirdparty/icons/sys-enter-2', './types/SemanticColor', './types/ListItemType', './TabContainer', './Icon', './Button', './CustomListItem', './generated/templates/TabTemplate.lit', './generated/templates/TabInStripTemplate.lit', './generated/templates/TabInOverflowTemplate.lit', './generated/themes/Tab.css', './generated/themes/TabInStrip.css', './generated/themes/TabInOverflow.css'], function (UI5Element, litRender, executeTemplate, error, alert, sysEnter2, SemanticColor, ListItemType, TabContainer, Icon, Button, CustomListItem, TabTemplate_lit, TabInStripTemplate_lit, TabInOverflowTemplate_lit, Tab_css, TabInStrip_css, TabInOverflow_css) { 'use strict';
 
 	function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e['default'] : e; }
 
@@ -8,9 +8,24 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 
 	const metadata = {
 		tag: "ui5-tab",
+		managedSlots: true,
+		languageAware: true,
 		slots:  {
 			"default": {
 				type: Node,
+				propertyName: "content",
+				invalidateOnChildChange: {
+					properties: true,
+					slots: false,
+				},
+			},
+			subTabs: {
+				type: HTMLElement,
+				individualSlots: true,
+				invalidateOnChildChange: {
+					properties: true,
+					slots: false,
+				},
 			},
 		},
 		properties:  {
@@ -41,6 +56,12 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 			_selected: {
 				type: Boolean,
 			},
+			_realTab: {
+				type: Object,
+			},
+			_isTopLevelTab: {
+				type: Boolean,
+			},
 		},
 		events:  {
 		},
@@ -67,6 +88,7 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 		static get dependencies() {
 			return [
 				Icon,
+				Button,
 				CustomListItem,
 			];
 		}
@@ -89,8 +111,27 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 		get stableDomRef() {
 			return this.getAttribute("stable-dom-ref") || `${this._id}-stable-dom-ref`;
 		}
+		get requiresExpandButton() {
+			return this.subTabs.length > 0 && this._isTopLevelTab && this._hasOwnContent;
+		}
+		get isSingleClickArea() {
+			return this.subTabs.length > 0 && this._isTopLevelTab && !this._hasOwnContent;
+		}
+		get isOnSelectedTabPath() {
+			return this._realTab === this || this.tabs.some(subTab => subTab.isOnSelectedTabPath);
+		}
+		get _effectiveSlotName() {
+			return this.isOnSelectedTabPath ? this._individualSlot : "disabled-slot";
+		}
+		get _defaultSlotName() {
+			return this._realTab === this ? "" : "disabled-slot";
+		}
+		get _hasOwnContent() {
+			return this.content.some(node => (node.nodeType !== Node.COMMENT_NODE
+					&& (node.nodeType !== Node.TEXT_NODE || node.nodeValue.trim().length !== 0)));
+		}
 		getTabInStripDomRef() {
-			return this._getTabInStripDomRef;
+			return this._tabInStripDomRef;
 		}
 		getFocusDomRef() {
 			let focusedDomRef = super.getFocusDomRef();
@@ -112,10 +153,14 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 			return this.disabled || undefined;
 		}
 		get effectiveSelected() {
-			return this.selected || this._selected;
+			const subItemSelected = this.tabs.some(elem => elem.effectiveSelected);
+			return this.selected || this._selected || subItemSelected;
 		}
 		get effectiveHidden() {
 			return !this.effectiveSelected;
+		}
+		get tabs() {
+			return this.subTabs.filter(tab => !tab.isSeparator);
 		}
 		get ariaLabelledBy() {
 			const labels = [];
@@ -156,27 +201,45 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 			if (this.design !== SemanticColor.Default) {
 				classes.push(`ui5-tab-strip-item--${this.design.toLowerCase()}`);
 			}
+			if (this.isSingleClickArea) {
+				classes.push(`ui5-tab-strip-item--singleClickArea`);
+			}
 			return classes.join(" ");
 		}
-		get headerSemanticIconClasses() {
-			const classes = ["ui5-tab-strip-item-semanticIcon"];
-			if (this.design !== SemanticColor.Default) {
-				classes.push(`ui5-tab-strip-item-semanticIcon--${this.design.toLowerCase()}`);
+		get semanticIconName() {
+			switch (this.design) {
+			case SemanticColor.Positive:
+				return "sys-enter-2";
+			case SemanticColor.Negative:
+				return "error";
+			case SemanticColor.Critical:
+				return "alert";
+			default:
+				return null;
+			}
+		}
+		get semanticIconClasses() {
+			const classes = ["ui5-tab-semantic-icon"];
+			if (this.design !== SemanticColor.Default && this.design !== SemanticColor.Neutral) {
+				classes.push(`ui5-tab-semantic-icon--${this.design.toLowerCase()}`);
 			}
 			return classes.join(" ");
 		}
 		get overflowClasses() {
 			const classes = ["ui5-tab-overflow-item"];
-			if (this.design !== SemanticColor.Default) {
+			if (this.design !== SemanticColor.Default && this.design !== SemanticColor.Neutral) {
 				classes.push(`ui5-tab-overflow-item--${this.design.toLowerCase()}`);
 			}
 			if (this.disabled) {
 				classes.push("ui5-tab-overflow-item--disabled");
 			}
+			if (this.selected) {
+				classes.push("ui5-tab-overflow-item--selectedSubTab");
+			}
 			return classes.join(" ");
 		}
 		get overflowState() {
-			return this.disabled ? "Inactive" : "Active";
+			return (this.disabled || this.isSingleClickArea) ? ListItemType.Inactive : ListItemType.Active;
 		}
 	}
 	Tab.define();

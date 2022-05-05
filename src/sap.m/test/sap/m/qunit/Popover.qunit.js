@@ -2395,12 +2395,13 @@ sap.ui.define([
 
 	QUnit.test("Do not fire close events when already closed.", function (assert) {
 		// Setup
+		this.stub(Popup.prototype, "touchEnabled").value(true);
+
 		var oPopover = new Popover(),
 			oButton = new Button(),
 			beforeCloseSpy = this.spy(),
 			afterCloseSpy = this.spy();
 
-		oPopover.oPopup.touchEnabled = true;
 		oButton.addDependent(oPopover);
 		oButton.placeAt("content");
 		oCore.applyChanges();

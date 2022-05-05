@@ -6,8 +6,9 @@
 sap.ui.define([
 	"sap/ui/webc/common/WebComponent",
 	"./library",
+	"sap/ui/core/EnabledPropagator",
 	"./thirdparty/Tab"
-], function(WebComponent, library) {
+], function(WebComponent, library, EnabledPropagator) {
 	"use strict";
 
 	var SemanticColor = library.SemanticColor;
@@ -75,11 +76,16 @@ sap.ui.define([
 				},
 
 				/**
-				 * Enabled items can be selected.
+				 * Defines whether the control is enabled. A disabled control can't be interacted with, and it is not in the tab chain.
 				 */
-				disabled: {
+				enabled: {
 					type: "boolean",
-					defaultValue: false
+					defaultValue: true,
+					mapping: {
+						type: "attribute",
+						to: "disabled",
+						formatter: "_mapEnabled"
+					}
 				},
 
 				/**
@@ -110,14 +116,26 @@ sap.ui.define([
 			aggregations: {
 
 				/**
-				 * Defines the tab content.
+				 * Holds the content associated with this tab.
 				 */
 				content: {
 					type: "sap.ui.core.Control",
 					multiple: true
+				},
+
+				/**
+				 * Defines hierarchies with nested sub tabs. <br>
+				 * <br>
+				 * <b>Note:</b> Use <code>sap.ui.webc.main.Tab</code> and <code>sap.ui.webc.main.TabSeparator</code> for the intended design.
+				 */
+				subTabs: {
+					type: "sap.ui.webc.main.ITab",
+					multiple: true,
+					slot: "subTabs"
 				}
 			},
-			methods: ["getTabInStripDomRef"]
+			methods: ["getTabInStripDomRef"],
+			designtime: "sap/ui/webc/main/designtime/Tab.designtime"
 		}
 	});
 
@@ -127,6 +145,8 @@ sap.ui.define([
 	 * @name sap.ui.webc.main.Tab#getTabInStripDomRef
 	 * @function
 	 */
+
+	EnabledPropagator.call(Tab.prototype);
 
 	/* CUSTOM CODE START */
 	/* CUSTOM CODE END */

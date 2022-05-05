@@ -245,7 +245,9 @@ sap.ui.define([
 	 * Returns a promise that is resolved without data when the entity represented by this context
 	 * has been created in the back end and all selected properties of this entity are available.
 	 * Expanded navigation properties are only available if the context's binding is refreshable.
-	 * {@link sap.ui.model.odata.v4.ODataBinding#refresh} describes which bindings are refreshable.
+	 * {@link sap.ui.model.odata.v4.ODataContextBinding#refresh} and
+	 * {@link sap.ui.model.odata.v4.ODataListBinding#refresh} describe which bindings are
+	 * refreshable.
 	 *
 	 * As long as the promise is not yet resolved or rejected, the entity represented by this
 	 * context is transient.
@@ -375,6 +377,10 @@ sap.ui.define([
 			oDependentBinding.setContext(undefined);
 		});
 		this.oBinding = undefined;
+		this.oCreatedPromise = undefined;
+		this.oSyncCreatePromise = undefined;
+		this.bInactive = undefined;
+		this.bKeepAlive = undefined;
 		// When removing oModel, ManagedObject#getBindingContext does not return the destroyed
 		// context although the control still refers to it
 		this.oModel = undefined;
@@ -402,8 +408,26 @@ sap.ui.define([
 	 */
 	Context.prototype.doSetProperty = function (sPath, vValue, oGroupLock, bSkipRetry) {
 		var oMetaModel = this.oModel.getMetaModel(),
+			oPromise,
 			that = this;
 
+		if (oGroupLock && this.isTransient() && !this.isInactive()) {
+			oPromise = _Helper.getPrivateAnnotation(this.getValue(), "transient");
+			if (oPromise instanceof Promise) {
+				oGroupLock.unlock();
+				oGroupLock = oGroupLock.getUnlockedCopy();
+				this.doSetProperty(sPath, vValue, null, true) // early UI update
+					.catch(this.oModel.getReporter());
+
+				return oPromise.then(function (bSuccess) {
+					// in case of success, wait until creation is completed because context path's
+					// key predicate is adjusted
+					return bSuccess && that.created();
+				}).then(function () {
+					return that.doSetProperty(sPath, vValue, oGroupLock, bSkipRetry);
+				});
+			}
+		}
 		if (this.oModel.bAutoExpandSelect) {
 			sPath = oMetaModel.getReducedPath(
 				this.oModel.resolve(sPath, this),
@@ -642,7 +666,7 @@ sap.ui.define([
 	 * new entity is added via {@link sap.ui.model.odata.v4.ODataListBinding#create} without
 	 * <code>bAtEnd</code>, and when a context representing a created entity is deleted again.
 	 *
-	 * @returns {number}
+	 * @returns {number|undefined}
 	 *   The context's index within the binding's collection. It is <code>undefined</code> if
 	 *   <ul>
 	 *     <li> it does not belong to a list binding,
@@ -653,7 +677,10 @@ sap.ui.define([
 	 * @since 1.39.0
 	 */
 	Context.prototype.getIndex = function () {
-		if (this.oBinding.bCreatedAtEnd) {
+		if (this.iIndex === undefined) {
+			return undefined;
+		}
+		if (this.oBinding.isFirstCreateAtEnd()) {
 			if (this.iIndex < 0) { // this does not include undefined for a kept-alive context
 				return this.oBinding.bLengthFinal
 					? this.oBinding.iMaxLength - this.iIndex - 1
@@ -1012,7 +1039,6 @@ sap.ui.define([
 	 *   <ul>
 	 *     <li> this context's root binding is suspended,
 	 *     <li> this context is transient (see {@link #isTransient}),
-	 *     <li> this context is not in the collection (has no index, see {@link #getIndex}),
 	 *     <li> the given other context does not belong to the same list binding as this context, or
 	 *       is already in the collection (has an index, see {@link #getIndex}).
 	 *   </ul>
@@ -1024,7 +1050,7 @@ sap.ui.define([
 		var oElement;
 
 		this.oBinding.checkSuspended();
-		if (this.iIndex === undefined || this.isTransient()) {
+		if (this.isTransient()) {
 			throw new Error("Cannot replace " + this);
 		}
 		if (oOtherContext.oBinding !== this.oBinding || oOtherContext.iIndex !== undefined) {
@@ -1493,8 +1519,10 @@ sap.ui.define([
 	 *   destroyed, see {@link #destroy}. Supported since 1.84.0
 	 * @param {boolean} [bRequestMessages]
 	 *   Whether to request messages for this entity. Only used if <code>bKeepAlive</code> is
-	 *   <code>true</code>. The binding keeps requesting messages until it is destroyed. Supported
-	 *   since 1.92.0
+	 *   <code>true</code>. Determines the messages property from the annotation
+	 *   "com.sap.vocabularies.Common.v1.Messages" at the entity type. If found, the binding keeps
+	 *   requesting messages until it is destroyed. Otherwise an error is logged in the console and
+	 *   no messages are requested. Supported since 1.92.0
 	 * @throws {Error} If
 	 *   <ul>
 	 *     <li> this context is not a list binding's context,
@@ -1509,7 +1537,7 @@ sap.ui.define([
 	 *     <li> the list binding uses data aggregation
 	 *       (see {@link sap.ui.model.odata.v4.ODataListBinding#setAggregation}),
 	 *     <li> messages are requested, but the model does not use the <code>autoExpandSelect</code>
-	 *       parameter or the annotation "com.sap.vocabularies.Common.v1.Messages" is missing.
+	 *       parameter.
 	 *   </ul>
 	 *
 	 * @public
@@ -1517,32 +1545,29 @@ sap.ui.define([
 	 * @since 1.81.0
 	 */
 	Context.prototype.setKeepAlive = function (bKeepAlive, fnOnBeforeDestroy, bRequestMessages) {
-		var sMessagesPath,
-			that = this;
+		var that = this;
 
 		if (this.isTransient()) {
 			throw new Error("Unsupported transient context " + this);
 		}
-		if (!_Helper.getPrivateAnnotation(this.getValue(), "predicate")) {
-			throw new Error("No key predicate known at " + this);
-		}
+		this.oModel.getPredicateIndex(this.sPath);
 		this.oBinding.checkKeepAlive(this);
 
 		if (bKeepAlive && bRequestMessages) {
 			if (!this.oModel.bAutoExpandSelect) {
 				throw new Error("Missing parameter autoExpandSelect at model");
 			}
-			// the metadata is already known because we have a predicate
-			sMessagesPath = this.oModel.getMetaModel().getObject(_Helper.getMetaPath(this.sPath)
-				+ "/@com.sap.vocabularies.Common.v1.Messages/$Path");
-			if (!sMessagesPath) {
-				throw new Error("Missing @com.sap.vocabularies.Common.v1.Messages");
-			}
-			this.oBinding.fetchIfChildCanUseCache(this, sMessagesPath, {})
-				.then(function (sReducedPath) {
-					return that.fetchValue(sReducedPath);
-				})
-				.catch(this.oModel.getReporter());
+			this.bKeepAlive = bKeepAlive; // must be set before calling fetchIfChildCanUseCache
+			this.oModel.getMetaModel().fetchObject(
+				_Helper.getMetaPath(this.sPath) + "/@com.sap.vocabularies.Common.v1.Messages/$Path"
+			).then(function (sMessagesPath) {
+				if (!sMessagesPath) {
+					throw new Error("Missing @com.sap.vocabularies.Common.v1.Messages");
+				}
+				return that.oBinding.fetchIfChildCanUseCache(that, sMessagesPath, {});
+			}).then(function (sReducedPath) {
+				return that.fetchValue(sReducedPath);
+			}).catch(this.oModel.getReporter());
 		}
 
 		this.bKeepAlive = bKeepAlive;

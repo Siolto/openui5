@@ -13544,6 +13544,61 @@ sap.ui.define([
 		oComboBox.destroy();
 	});
 
+	QUnit.test("'handleClearIconPress' should fire selectionChange and change event when changing the selected item", function(assert) {
+
+		// Arrange
+		var oItem1 = new Item({
+			text: "Lorem ipsum dolor sit amet, duo ut soleat insolens, commodo vidisse intellegam ne usu"
+		}), oItem2 = new Item({
+			text: "Lorem ipsum dolor sit amet, duo ut soleat insolens, commodo vidisse intellegam ne usu"
+		}),
+		oComboBox = new ComboBox({
+			showClearIcon: true,
+			items: [
+				oItem1,
+				oItem2
+			]
+		}),
+		oSelectionChangeEventSpy, oChangeEventSpy;
+
+		oComboBox.placeAt("content");
+		oCore.applyChanges();
+
+		// Act
+		oComboBox.setSelectedItem(oItem1);
+		oCore.applyChanges();
+
+		oSelectionChangeEventSpy = this.spy(oComboBox, "fireSelectionChange");
+		oChangeEventSpy = this.spy(oComboBox, "fireChange");
+
+		oComboBox.handleClearIconPress();
+		oCore.applyChanges();
+
+		// Assert
+		assert.strictEqual(oSelectionChangeEventSpy.callCount, 1, "selectionChange event is triggered");
+		assert.strictEqual(oChangeEventSpy.callCount, 1, "change event is triggered");
+
+		// Act
+		oComboBox.getFocusDomRef().blur();
+		this.clock.tick(0);
+
+		oComboBox.setValue("test");
+		oComboBox.focus();
+		oCore.applyChanges();
+
+		oComboBox.handleClearIconPress();
+		oCore.applyChanges();
+
+		// Assert
+		assert.strictEqual(oSelectionChangeEventSpy.callCount, 1, "selectionChange event is not triggered when there is no selected item");
+		assert.strictEqual(oChangeEventSpy.callCount, 1, "change event is not triggered when there is no selected item");
+
+		// Clean
+		oSelectionChangeEventSpy.restore();
+		oSelectionChangeEventSpy.restore();
+		oComboBox.destroy();
+	});
+
 	QUnit.test("'handleClearIconPress' should not do anything when control is disabled", function(assert) {
 		// Arrange
 		var oComboBox = new ComboBox({
@@ -13586,5 +13641,139 @@ sap.ui.define([
 		oClearSelectionSpy.restore();
 		oSetPropertySpy.restore();
 		oComboBox.destroy();
+	});
+
+	QUnit.test("Clear icon should clear the filter and close the suggestions dropdown when open while entering value", function(assert) {
+		// Arrange
+		var oComboBox = new ComboBox({
+			showClearIcon: true,
+			items: [
+				new Item({
+					text: "Algeria"
+				}),
+
+				new Item({
+					text: "Argentina"
+				}),
+
+				new Item({
+					text: "Australia"
+				}),
+
+				new Item({
+					text: "Germany"
+				})
+			]
+		});
+
+		oComboBox.placeAt("content");
+		oCore.applyChanges();
+
+		// Act
+		oComboBox.focus();
+		oComboBox.getFocusDomRef().value = "A";
+		qutils.triggerEvent("input", oComboBox.getFocusDomRef());
+
+
+		// Assert
+		assert.ok(oComboBox.isOpen(), "ComboBox is open");
+		assert.strictEqual(ListHelpers.getVisibleItems(oComboBox.getItems()).length, 3, "The items are filtered");
+
+		// Act
+		oComboBox.handleClearIconPress();
+		oCore.applyChanges();
+
+		// Assert
+		assert.notOk(oComboBox.isOpen(), "ComboBox is closed");
+		assert.strictEqual(ListHelpers.getVisibleItems(oComboBox.getItems()).length, 4, "The items are not filtered");
+
+		// Clean
+		oComboBox.destroy();
+	});
+
+	QUnit.test("Clear icon should clear the filter but not close the suggestions dropdown when open explicitly", function(assert) {
+		// Arrange
+		var oComboBox = new ComboBox({
+			showClearIcon: true,
+			items: [
+				new Item({
+					text: "Algeria"
+				}),
+
+				new Item({
+					text: "Argentina"
+				}),
+
+				new Item({
+					text: "Australia"
+				}),
+
+				new Item({
+					text: "Germany"
+				})
+			]
+		});
+
+		oComboBox.placeAt("content");
+		oCore.applyChanges();
+
+		// Act
+		oComboBox.focus();
+		qutils.triggerKeydown(oComboBox.getFocusDomRef(), KeyCodes.F4);
+		oComboBox.getFocusDomRef().value = "A";
+		qutils.triggerEvent("input", oComboBox.getFocusDomRef());
+
+
+		// Assert
+		assert.ok(oComboBox.isOpen(), "ComboBox is open");
+		assert.strictEqual(ListHelpers.getVisibleItems(oComboBox.getItems()).length, 3, "The items are filtered");
+
+		// Act
+		oComboBox.handleClearIconPress();
+		oCore.applyChanges();
+
+		// Assert
+		assert.ok(oComboBox.isOpen(), "ComboBox remains open");
+		assert.strictEqual(ListHelpers.getVisibleItems(oComboBox.getItems()).length, 4, "The items are not filtered");
+
+		// Clean
+		oComboBox.destroy();
+	});
+
+	QUnit.module("List item styles");
+
+	QUnit.test(".sapMLIBFocused should not be applied on second typein", function (assert) {
+		// Arrange
+		var oComboBox = new ComboBox({
+			items: [
+				new SeparatorItem({text: "Group1"}),
+				new Item({text: "item11", key: "key11"}),
+				new Item({text: "item12", key: "key12"}),
+				new SeparatorItem({text: "Group2"}),
+				new Item({text: "item21", key: "key21"}),
+				new Item({text: "item22", key: "key22"})
+			]
+		});
+		oComboBox.placeAt("content");
+		oCore.applyChanges();
+
+		var oFirstMatchingItem;
+
+		// Act - first typein
+		oComboBox._$input.trigger("focus").val("i").trigger("input");
+		this.clock.tick();
+
+		// Assert
+		assert.ok(oComboBox.isOpen(), "ComboBox is open");
+		oFirstMatchingItem = oComboBox._getList().getItems()[1];
+		assert.notOk(oFirstMatchingItem.hasStyleClass("sapMLIBFocused"), "First matching item should not include .sapMLIBFocused");
+
+		// Act - second typein
+		oComboBox._$input.val("it").trigger("input");
+		this.clock.tick(1000);
+
+		// Assert
+		oFirstMatchingItem = oComboBox._getList().getItems()[1];
+		assert.notOk(oFirstMatchingItem.hasStyleClass("sapMLIBFocused"), "First matching item should not include .sapMLIBFocused on second typein");
 	});
 });

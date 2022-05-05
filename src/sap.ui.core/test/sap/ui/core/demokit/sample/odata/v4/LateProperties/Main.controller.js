@@ -12,15 +12,54 @@ sap.ui.define([
 	"sap/m/Text",
 	"sap/ui/core/sample/common/Controller",
 	"sap/ui/core/Title",
-	"sap/ui/layout/form/SimpleForm"
+	"sap/ui/layout/form/SimpleForm",
+	"sap/ui/model/Sorter",
+	"sap/ui/model/odata/v4/ODataModel",
+	"sap/ui/test/TestUtils"
 ], function (Button, mobileLibrary, Dialog, Input, Label, MessageToast, Text, Controller, Title,
-		SimpleForm) {
+		 SimpleForm, Sorter, ODataModel, TestUtils) {
 	"use strict";
 
 	// shortcut for sap.m.ButtonType
 	var ButtonType = mobileLibrary.ButtonType;
 
 	return Controller.extend("sap.ui.core.sample.odata.v4.LateProperties.Main", {
+		onCleanUpOptimisticBatchCache : function (oEvent) {
+			var oTimeStamp = new Date(Date.now()
+				- parseInt(oEvent.getParameter("id").split("days")[1]) * 864000);
+
+			ODataModel.cleanUpOptimisticBatch(oTimeStamp).then(function () {
+				MessageToast.show("Optimistic batch cache entries deleted");
+			}, function (oError) {
+				MessageToast.show("Cache cleanup failed: " + oError);
+			}).catch();
+		},
+		onInit : function () {
+			var bOptimisticBatch = TestUtils.isOptimisticBatch(),
+				that = this;
+
+			if (bOptimisticBatch === undefined) {
+				// optimistic batch enabled via OPA
+				bOptimisticBatch = TestUtils.retrieveData("optimisticBatch");
+				if (TestUtils.retrieveData("addSorter")) {
+					// this changes the payload for the current 1st batch
+					this.byId("SalesOrderList").getBinding("items").sort(
+						new Sorter("SalesOrderID", true));
+				}
+			}
+
+			if (bOptimisticBatch !== undefined) {
+				this.oView.getModel().setOptimisticBatchEnabler(function () {
+					return Promise.resolve(bOptimisticBatch);
+				});
+			}
+
+			// simulate some UI initialization work in order to prevent failing OPA because of
+			// error log: "#sendBatch called before optimistic batch payload could be read"
+			setTimeout(function () {
+				that.oView.byId("SalesOrderList").getBinding("items").resume();
+			}, 20);
+		},
 		onOpenEditDeliveryDate : function (oEvent) {
 			var oDialog = new Dialog({
 					title : "Edit Delivery Date",
@@ -41,13 +80,13 @@ sap.ui.define([
 								tooltip : "CompanyName reused from Sales Orders->SO_2_BP"}),
 							new Label({text : "Buyer WEB Address"}),
 							new Text({id : "WebAddress", text : "{SCHDL_2_SO/SO_2_BP/WebAddress}",
-								tooltip : "WebAddress fetched as late property within already " +
-									"expanded Sales Orders->SO_2_BP"}),
+								tooltip : "WebAddress fetched as late property within already "
+									+ "expanded Sales Orders->SO_2_BP"}),
 							new Label({text : "Buyer EMail Address"}),
 							new Text({id : "EmailAddress",
 								text : "{SCHDL_2_SO/SO_2_BP/EmailAddress}",
-								tooltip : "EmailAddress fetched as late property within already " +
-									"expanded Sales Orders->SO_2_BP"}),
+								tooltip : "EmailAddress fetched as late property within already "
+									+ "expanded Sales Orders->SO_2_BP"}),
 							new Title({text : "Schedule"}),
 							new Label({text : "Schedule Key"}),
 							new Text({id : "ScheduleKey", text : "{ScheduleKey}",

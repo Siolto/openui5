@@ -1,4 +1,4 @@
-sap.ui.define(['sap/ui/webc/common/thirdparty/base/delegate/ItemNavigation', 'sap/ui/webc/common/thirdparty/base/renderer/LitRenderer', 'sap/ui/webc/common/thirdparty/base/Keys', 'sap/ui/webc/common/thirdparty/base/types/Integer', 'sap/ui/webc/common/thirdparty/base/i18nBundle', 'sap/ui/webc/common/thirdparty/base/delegate/ResizeHandler', 'sap/ui/webc/common/thirdparty/base/types/NavigationMode', 'sap/ui/webc/common/thirdparty/base/UI5Element', './types/BreadcrumbsDesign', './types/BreadcrumbsSeparatorStyle', './BreadcrumbsItem', './generated/i18n/i18n-defaults', './Link', './Label', './ResponsivePopover', './List', './StandardListItem', './Icon', './generated/templates/BreadcrumbsTemplate.lit', './generated/templates/BreadcrumbsPopoverTemplate.lit', './generated/themes/Breadcrumbs.css', './generated/themes/BreadcrumbsPopover.css'], function (ItemNavigation, litRender, Keys, Integer, i18nBundle, ResizeHandler, NavigationMode, UI5Element, BreadcrumbsDesign, BreadcrumbsSeparatorStyle, BreadcrumbsItem, i18nDefaults, Link, Label, ResponsivePopover, List, StandardListItem, Icon, BreadcrumbsTemplate_lit, BreadcrumbsPopoverTemplate_lit, Breadcrumbs_css, BreadcrumbsPopover_css) { 'use strict';
+sap.ui.define(['sap/ui/webc/common/thirdparty/base/delegate/ItemNavigation', 'sap/ui/webc/common/thirdparty/base/renderer/LitRenderer', 'sap/ui/webc/common/thirdparty/base/Keys', 'sap/ui/webc/common/thirdparty/base/types/Integer', 'sap/ui/webc/common/thirdparty/base/i18nBundle', 'sap/ui/webc/common/thirdparty/base/delegate/ResizeHandler', 'sap/ui/webc/common/thirdparty/base/types/NavigationMode', 'sap/ui/webc/common/thirdparty/base/UI5Element', './types/BreadcrumbsDesign', './types/BreadcrumbsSeparatorStyle', './BreadcrumbsItem', './generated/i18n/i18n-defaults', './Link', './Label', './ResponsivePopover', './List', './StandardListItem', './Icon', './Button', './generated/templates/BreadcrumbsTemplate.lit', './generated/templates/BreadcrumbsPopoverTemplate.lit', './generated/themes/Breadcrumbs.css', './generated/themes/BreadcrumbsPopover.css'], function (ItemNavigation, litRender, Keys, Integer, i18nBundle, ResizeHandler, NavigationMode, UI5Element, BreadcrumbsDesign, BreadcrumbsSeparatorStyle, BreadcrumbsItem, i18nDefaults, Link, Label, ResponsivePopover, List, StandardListItem, Icon, Button, BreadcrumbsTemplate_lit, BreadcrumbsPopoverTemplate_lit, Breadcrumbs_css, BreadcrumbsPopover_css) { 'use strict';
 
 	function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e['default'] : e; }
 
@@ -255,8 +255,26 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/delegate/ItemNavigation', 'sa
 				item._getRealDomRef = () => this.getDomRef().querySelector(`[data-ui5-stable*=${item.stableDomRef}]`);
 			});
 		}
+		_getItemPositionText(position, size) {
+			return Breadcrumbs.i18nBundle.getText(i18nDefaults.BREADCRUMB_ITEM_POS, position, size);
+		}
+		_getItemAccessibleName(item, position, size) {
+			const positionText = this._getItemPositionText(position, size);
+			let text = "";
+			if (item.accessibleName) {
+				text = `${item.textContent.trim()} ${item.accessibleName} ${positionText}`;
+			} else {
+				text = `${item.textContent.trim()} ${positionText}`;
+			}
+			return text;
+		}
 		getCurrentLocationLabelWrapper() {
 			return this.shadowRoot.querySelector(".ui5-breadcrumbs-current-location > span");
+		}
+		get _visibleItems() {
+			return this.getSlottedNodes("items")
+				.slice(this._overflowSize)
+				.filter(i => this._isItemVisible(i));
 		}
 		get _endsWithCurrentLocationLabel() {
 			return this.design === BreadcrumbsDesign.Standard;
@@ -272,7 +290,7 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/delegate/ItemNavigation', 'sa
 			return "";
 		}
 		get _currentLocationLabel() {
-			return this.shadowRoot.querySelector(".ui5-breadcrumbs-current-location ui5-label");
+			return this.shadowRoot.querySelector(".ui5-breadcrumbs-current-location [ui5-label]");
 		}
 		get _isDropdownArrowFocused() {
 			return this._dropdownArrowLink._tabIndex === "0";
@@ -286,7 +304,7 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/delegate/ItemNavigation', 'sa
 			return items.length - 1;
 		}
 		get _dropdownArrowLink() {
-			return this.shadowRoot.querySelector(".ui5-breadcrumbs-dropdown-arrow-link-wrapper ui5-link");
+			return this.shadowRoot.querySelector(".ui5-breadcrumbs-dropdown-arrow-link-wrapper [ui5-link]");
 		}
 		get _overflowItemsData() {
 			return this.getSlottedNodes("items")
@@ -295,14 +313,31 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/delegate/ItemNavigation', 'sa
 				.reverse();
 		}
 		get _linksData() {
-			const items = this.getSlottedNodes("items").slice(this._overflowSize);
+			const items = this._visibleItems;
+			const itemsCount = items.length;
 			if (this._endsWithCurrentLocationLabel) {
 				items.pop();
 			}
-			return items.filter(item => this._isItemVisible(item));
+			return items
+				.map((item, index) => {
+					item._accessibleNameText = this._getItemAccessibleName(item, index + 1, itemsCount);
+					return item;
+				});
+		}
+		get _currentLocationAccName() {
+			const items = this._visibleItems;
+			const positionText = this._getItemPositionText(items.length, items.length);
+			const lastItem = items[items.length - 1];
+			if (!lastItem) {
+				return positionText;
+			}
+			if (lastItem.accessibleName) {
+				return `${lastItem.textContent.trim()} ${lastItem.accessibleName} ${positionText}`;
+			}
+			return `${lastItem.textContent.trim()} ${positionText}`;
 		}
 		get _links() {
-			return Array.from(this.shadowRoot.querySelectorAll(".ui5-breadcrumbs-link-wrapper ui5-link"));
+			return Array.from(this.shadowRoot.querySelectorAll(".ui5-breadcrumbs-link-wrapper [ui5-link]"));
 		}
 		get _isOverflowEmpty() {
 			return this._overflowItemsData.length === 0;
@@ -334,6 +369,7 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/delegate/ItemNavigation', 'sa
 				List,
 				StandardListItem,
 				Icon,
+				Button,
 			];
 		}
 		static async onDefine() {

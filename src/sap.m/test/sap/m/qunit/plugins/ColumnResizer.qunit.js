@@ -12,6 +12,7 @@ sap.ui.define([
 	'sap/m/plugins/ColumnResizer',
 	'sap/m/Table',
 	'sap/m/Column',
+	'sap/m/table/columnmenu/Menu',
 	'sap/m/ColumnListItem',
 	'sap/m/Text'
 ], function(
@@ -22,6 +23,7 @@ sap.ui.define([
 	ColumnResizer,
 	Table,
 	Column,
+	Menu,
 	ColumnListItem,
 	Text
 ) {
@@ -102,7 +104,7 @@ sap.ui.define([
 			this.iDirectionFactor = bRTL ? -1 : 1;
 		},
 		afterEach: function() {
-			this.oTable.destroy();
+			this.oTable.destroy(true);
 			this.sBeginDirection = null;
 			this.sEndDirection = null;
 			this.iDirectionFactor = null;
@@ -134,7 +136,7 @@ sap.ui.define([
 		this.oTable.addDependent(oColumnResizer);
 		Core.applyChanges();
 		assert.ok(oTableDomRef.classList.contains("sapMPluginsColumnResizerContainer"), "ColumnResizer container style class added");
-		assert.notOk(oTableDomRef.children[oTableDomRef.children.length - 1].classList.contains("sapMPluginsColumnResizerHandle"), "ColumnResizer handle created");
+		assert.notOk(oTableDomRef.children[oTableDomRef.children.length - 1].classList.contains("sapMPluginsColumnResizerHandle"), "ColumnResizer handle not yet created");
 
 		// get resizable <th> elements
 		var aResizableColumns = jQuery(oColumnResizer.getConfig("resizable")).get();
@@ -213,8 +215,7 @@ sap.ui.define([
 			this.oColumnResizer = new ColumnResizer();
 			this.oTable.addDependent(this.oColumnResizer);
 			this.oTable.placeAt("qunit-fixture");
-			Core.applyChanges();
-			this.clock.tick(1);
+			this.clock.tick(20);
 			var bRTL = Core.getConfiguration().getRTL();
 			this.sBeginDirection = bRTL ? "right" : "left";
 			this.sEndDirection = bRTL ? "left" : "right";
@@ -222,8 +223,8 @@ sap.ui.define([
 		},
 		afterEach: function() {
 			this.clock.restore();
-			this.oTable.destroy();
-			this.oColumnResizer.destroy();
+			this.oTable.destroy(true);
+			this.oColumnResizer.destroy(true);
 			this.sBeginDirection = null;
 			this.sEndDirection = null;
 			this.iDirectionFactor = null;
@@ -247,10 +248,15 @@ sap.ui.define([
 		assert.ok(fnDisplayHandle.calledWith(0), "_displayHandle called for column index 0");
 		assert.ok(this.oColumnResizer._oHandle.classList.contains("sapMPluginsColumnResizerHandle"), "Column resizing handle created");
 		assert.ok(this.oColumnResizer._oHandle.style[this.sBeginDirection], "left position applied, resizer handle is visible");
+		assert.ok(this.oColumnResizer._oHandle.onmouseleave, "onmouseleave event is registered for the handle");
 
 		QUtils.triggerEvent("mouseleave", oTableDomRef);
 		this.clock.tick(1);
 		assert.ok(this.oColumnResizer._bPositionsInvalid, "Handle positions are invalidated");
+		assert.ok(this.oColumnResizer._oHandle.style[this.sBeginDirection], "Handle positions are not changed after leaving the table");
+
+		QUtils.triggerEvent("mouseleave", this.oColumnResizer._oHandle);
+		assert.notOk(this.oColumnResizer._oHandle.style[this.sBeginDirection], "Handle is not visible after mouse leave");
 	});
 
 	QUnit.test("Resize handle should have a circle in mobile device", function(assert) {
@@ -262,7 +268,6 @@ sap.ui.define([
 		});
 
 		this.oColumnResizer.startResizing(oColumnDomRef);
-		this.clock.tick(1);
 		assert.strictEqual(this.oColumnResizer._oHandle.childElementCount, 1, "Resize handle circle child element is visible since its a tablet/phone device");
 		assert.ok(this.oColumnResizer._oHandle.firstChild.classList.contains("sapMPluginsColumnResizerHandleCircle"), "Correct style class added to the resize handle circle");
 
@@ -343,7 +348,6 @@ sap.ui.define([
 		assert.ok(iDummyColumnWidth > 0, "Dummy column is visible");
 
 		var iClientX = oCurrentColumnDom.getBoundingClientRect()[this.sEndDirection];
-		this.clock.tick(1);
 		QUtils.triggerEvent("mousemove", oCurrentColumnDom, {
 			clientX: iClientX
 		});
@@ -368,7 +372,6 @@ sap.ui.define([
 
 	QUnit.test("Resize session should not start if valid resizable DOM is not found", function(assert) {
 		var oColumnDom = this.oTable.getColumns()[1].getDomRef();
-		this.clock.tick(1);
 		var oTouchStart = createTouchEvent("touchstart", oColumnDom, 0, this.oColumnResizer);
 		var fnStartResizeSession = sinon.spy(this.oColumnResizer, "_startResizeSession");
 		this.oColumnResizer.ontouchstart(oTouchStart);
@@ -390,7 +393,6 @@ sap.ui.define([
 			oCurrentColumnDom = oCurrentColumn.getDomRef(),
 			fnFireColumnResie = sinon.spy(this.oColumnResizer, "_fireColumnResize");
 
-		this.clock.tick(1);
 		this.oColumnResizer.attachColumnResize(function(oEvent) {
 			oEvent.preventDefault();
 		});
@@ -419,7 +421,6 @@ sap.ui.define([
 
 		oColumn.setWidth("100px");
 		Core.applyChanges();
-		this.clock.tick(1);
 
 		assert.strictEqual(oColumn.getWidth(), "100px", "Column width is set to 100px initially");
 		var iClientX = oColumnDomRef.getBoundingClientRect()[this.sEndDirection],
@@ -442,7 +443,7 @@ sap.ui.define([
 
 		oColumn.setWidth("300px");
 		Core.applyChanges();
-		this.clock.tick(1);
+
 		var oColumnDomRef = oColumn.getDomRef();
 		assert.strictEqual(oColumn.getWidth(), "300px", "Column width is set to 100px initially (bigger than necessary");
 
@@ -468,7 +469,7 @@ sap.ui.define([
 			this.oColumnResizer = new ColumnResizer();
 			this.oTable.addDependent(this.oColumnResizer);
 			this.oTable.placeAt("qunit-fixture");
-			Core.applyChanges();
+			this.clock.tick(20);
 			var bRTL = Core.getConfiguration().getRTL();
 			this.sBeginDirection = bRTL ? "right" : "left";
 			this.sEndDirection = bRTL ? "left" : "right";
@@ -476,8 +477,8 @@ sap.ui.define([
 		},
 		afterEach: function() {
 			this.clock.restore();
-			this.oTable.destroy();
-			this.oColumnResizer.destroy();
+			this.oTable.destroy(true);
+			this.oColumnResizer.destroy(true);
 			this.sBeginDirection = null;
 			this.sEndDirection = null;
 			this.iDirectionFactor = null;
@@ -585,8 +586,7 @@ sap.ui.define([
 			this.oColumnResizer = new ColumnResizer();
 			this.oTable.addDependent(this.oColumnResizer);
 			this.oTable.placeAt("qunit-fixture");
-			Core.applyChanges();
-			this.clock.tick(1);
+			this.clock.tick(20);
 			var bRTL = Core.getConfiguration().getRTL();
 			this.sBeginDirection = bRTL ? "right" : "left";
 			this.sEndDirection = bRTL ? "left" : "right";
@@ -594,8 +594,8 @@ sap.ui.define([
 		},
 		afterEach: function() {
 			this.clock.restore();
-			this.oTable.destroy();
-			this.oColumnResizer.destroy();
+			this.oTable.destroy(true);
+			this.oColumnResizer.destroy(true);
 			this.sBeginDirection = null;
 			this.sEndDirection = null;
 			this.iDirectionFactor = null;
@@ -658,6 +658,32 @@ sap.ui.define([
 
 		oResizerButton.firePress(oColumn);
 
+		assert.ok(fnStartResizingSpy.calledOnce, "startResizing called once");
+		assert.ok(fnStartResizingSpy.calledWith(oColumn.getDomRef()), "startResizing called with correct args");
+
+		oMatchMediaStub.restore();
+	});
+
+	QUnit.test("getColumnResizeQuickAction", function(assert) {
+		var oColumn = this.oTable.getColumns()[0],
+			oColumnMenu = new Menu(),
+			fnMenuCloseSpy = sinon.spy(oColumnMenu, "close"),
+			fnStartResizingSpy = sinon.spy(this.oColumnResizer, "startResizing");
+
+		var oMatchMediaStub = sinon.stub(window, "matchMedia");
+		oMatchMediaStub.withArgs("(hover:none)").returns({
+			matches: true
+		});
+
+		var oResizerQuickAction = this.oColumnResizer.getColumnResizeQuickAction(oColumn, oColumnMenu);
+		assert.ok(oResizerQuickAction.isA("sap.m.table.columnmenu.QuickAction"), "sap.m.table.columnmenu.QuickAction instance returned");
+		assert.strictEqual(oResizerQuickAction.getLabel(), Core.getLibraryResourceBundle("sap.m").getText("table.COLUMN_MENU_RESIZE"), "correct label set");
+		assert.strictEqual(oResizerQuickAction.getContent()[0].getIcon(), "sap-icon://resize-horizontal", "correct icon set");
+		assert.ok(oResizerQuickAction.getContent()[0].hasListeners("press"), "press event registered");
+
+		oResizerQuickAction.getContent()[0].firePress(oColumn);
+
+		assert.ok(fnMenuCloseSpy.calledOnce, "menu close called once");
 		assert.ok(fnStartResizingSpy.calledOnce, "startResizing called once");
 		assert.ok(fnStartResizingSpy.calledWith(oColumn.getDomRef()), "startResizing called with correct args");
 

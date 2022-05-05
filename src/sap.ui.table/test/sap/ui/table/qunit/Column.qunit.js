@@ -11,9 +11,9 @@ sap.ui.define([
 	"sap/m/table/columnmenu/Menu",
 	"sap/m/table/columnmenu/QuickAction",
 	"sap/m/table/columnmenu/Item",
-	"sap/m/Text",
+	"sap/m/Button",
 	"sap/ui/core/Core"
-], function(TableQUnitUtils, qutils, Column, Table, CreationRow, JSONModel, Menu, ColumnMenu, QuickAction, Item, Text, oCore) {
+], function(TableQUnitUtils, qutils, Column, Table, CreationRow, JSONModel, Menu, ColumnMenu, QuickAction, Item, Button, oCore) {
 	"use strict";
 
 	QUnit.module("Basics");
@@ -343,7 +343,7 @@ sap.ui.define([
 		// check column without parent
 		this._oTable.setEnableGrouping(true);
 		this._oColumn.setSortProperty("mySortPropertyName");
-		assert.ok(!this._oColumn.isGroupable(),
+		assert.ok(!this._oColumn.isGroupableByMenu(),
 			"Not groupable by menu:"
 			+ " parent: '" + (this._oColumn.getParent() ? "Has parent" : "No Parent") + "'"
 			+ ", sortProperty: '" + (this._oColumn.getSortProperty() ? this._oColumn.getSortProperty() : "") + "'"
@@ -354,28 +354,28 @@ sap.ui.define([
 
 		this._oTable.setEnableGrouping(true);
 		this._oColumn.setSortProperty("");
-		assert.ok(!this._oColumn.isGroupable(),
+		assert.ok(!this._oColumn.isGroupableByMenu(),
 			"Not groupable by menu:"
 			+ " parent: '" + (this._oColumn.getParent() ? "Has parent" : "No Parent") + "'"
 			+ ", sortProperty: '" + (this._oColumn.getSortProperty() ? this._oColumn.getSortProperty() : "") + "'"
 			+ ", enableGrouping: " + this._oTable.getEnableGrouping());
 
 		this._oTable.setEnableGrouping(false);
-		assert.ok(!this._oColumn.isGroupable(),
+		assert.ok(!this._oColumn.isGroupableByMenu(),
 			"Not groupable by menu:"
 			+ " parent: '" + (this._oColumn.getParent() ? "Has parent" : "No Parent") + "'"
 			+ ", sortProperty: '" + (this._oColumn.getSortProperty() ? this._oColumn.getSortProperty() : "") + "'"
 			+ ", enableGrouping: " + this._oTable.getEnableGrouping());
 
 		this._oColumn.setSortProperty("mySortPropertyName");
-		assert.ok(!this._oColumn.isGroupable(),
+		assert.ok(!this._oColumn.isGroupableByMenu(),
 			"Not groupable by menu:"
 			+ " parent: '" + (this._oColumn.getParent() ? "Has parent" : "No Parent") + "'"
 			+ ", sortProperty: '" + (this._oColumn.getSortProperty() ? this._oColumn.getSortProperty() : "") + "'"
 			+ ", enableGrouping: " + this._oTable.getEnableGrouping());
 
 		this._oTable.setEnableGrouping(true);
-		assert.ok(this._oColumn.isGroupable(),
+		assert.ok(this._oColumn.isGroupableByMenu(),
 			"Not groupable by menu:"
 			+ " parent: '" + (this._oColumn.getParent() ? "Has parent" : "No Parent") + "'"
 			+ ", sortProperty: '" + (this._oColumn.getSortProperty() ? this._oColumn.getSortProperty() : "") + "'"
@@ -444,6 +444,19 @@ sap.ui.define([
 		assert.ok(oColumnMenu._bInvalidated, "ColumnMenu invalidated");
 		this._oColumnWithColumnMenu._openMenu();
 		assert.ok(!oColumnMenu._bInvalidated, "ColumnMenu not invalidated");
+
+		this._oColumnWithColumnMenu.setFilterProperty("myFilterPropertyName");
+		assert.ok(oColumnMenu._bInvalidated, "ColumnMenu invalidated");
+		this._oColumnWithColumnMenu._openMenu();
+		this._oColumnWithColumnMenu.setShowFilterMenuEntry(false);
+		assert.ok(oColumnMenu._bInvalidated, "ColumnMenu invalidated");
+
+		this._oColumnWithColumnMenu._openMenu();
+		this._oColumnWithColumnMenu.setSortProperty("mySortPropertyName");
+		assert.ok(oColumnMenu._bInvalidated, "ColumnMenu invalidated");
+		this._oColumnWithColumnMenu._openMenu();
+		this._oColumnWithColumnMenu.setShowSortMenuEntry(false);
+		assert.ok(oColumnMenu._bInvalidated, "ColumnMenu invalidated");
 	});
 
 	QUnit.module("Changes that affect rows", {
@@ -1152,8 +1165,8 @@ sap.ui.define([
 	QUnit.module("ColumnHeaderMenu Association", {
 		beforeEach: function() {
 			this.oMenu = new ColumnMenu({
-				quickActions: [new QuickAction({label: "Quick Action A", content: new sap.m.Button({text: "Execute"})})],
-				items: [new Item({label: "Item A", icon: "sap-icon://sort", content: new sap.m.Button({text: "Execute"})})]
+				quickActions: [new QuickAction({label: "Quick Action A", content: new Button({text: "Execute"})})],
+				items: [new Item({label: "Item A", icon: "sap-icon://sort", content: new Button({text: "Execute"})})]
 			});
 			this.oTable = TableQUnitUtils.createTable({
 				columns: [TableQUnitUtils.createTextColumn().setAssociation("columnHeaderMenu", this.oMenu)]

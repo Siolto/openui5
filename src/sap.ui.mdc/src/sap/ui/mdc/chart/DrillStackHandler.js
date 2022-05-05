@@ -51,7 +51,7 @@ sap.ui.define([
 
 	/**
 	 * Handles all drill-stack operations on a mdc.Chart instance
-	 * inlcuding drill-downs, drill-ups and updating of depending controls
+	 * including drill-downs, drill-ups and updating of depending controls
 	 * @constructor
 	 */
 	var DrillStackHandler = function() {
@@ -60,7 +60,7 @@ sap.ui.define([
 
 	/**
 	 * Creates a drill down popover
-	 * @param oChart
+	 * @param oMDCChart
 	 * @returns the popover object
 	 *
 	 * @private
@@ -88,7 +88,7 @@ sap.ui.define([
 						control: oMDCChart,
 						key: "Item",
 						state: [{
-							name: oListItem.data("dim").name,
+							name: oListItem.data("dim").dim.name,
 							position: oMDCChart.getItems().length
 						}]
 					});
@@ -133,8 +133,8 @@ sap.ui.define([
 
 	/**
 	 * Shows the drill-down popover on the toolbar button of an mdc.Chart instance
-	 * @param {sap.ui.mdc.Chart} oChart
-     * @param {sap.m.Button}
+	 * @param {sap.ui.mdc.Chart} oMDCChart
+     * @param {sap.m.Button} oDrillBtn
 	 *
 	 * @experimental
 	 * @private
@@ -179,7 +179,7 @@ sap.ui.define([
 					type: ListType.Active
 				});
 
-				oListItem.data("dim", oDimension);
+				oListItem.data("dim", {dim: oDimension});
 
 				/*sTooltip = this._getFieldTooltip(oDimension.name);
 				if (sTooltip) {

@@ -15,8 +15,18 @@ sap.ui.define([
 
 		"use strict";
 
-		// delegate further initialization of this library to the Core
-		sap.ui.getCore().initLibrary({
+		/**
+		 * SAPUI5 library with controls based on UI5 Web Components
+		 *
+		 * @namespace
+		 * @alias sap.ui.webc.fiori
+		 * @author SAP SE
+		 * @version ${version}
+		 * @public
+		 * @since 1.92.0
+		 * @experimental Since 1.92.0 This API is experimental and might change significantly.
+		 */
+		var thisLib = sap.ui.getCore().initLibrary({
 			name: "sap.ui.webc.fiori",
 			version: "${version}",
 			dependencies: ["sap.ui.core", "sap.ui.webc.common"],
@@ -86,26 +96,29 @@ sap.ui.define([
 			elements: [],
 			extensions: {
 				flChangeHandlers: {
+					"sap.ui.webc.fiori.NotificationListItem": {
+						"hideControl": "default",
+						"unhideControl": "default",
+						"moveControls": "default"
+					},
 					"sap.ui.webc.fiori.Page": {
 						"moveControls": "default"
-					}
+					},
+					"sap.ui.webc.fiori.SideNavigation": {
+						"hideControl": "default",
+						"unhideControl": "default"
+					},
+					"sap.ui.webc.fiori.SideNavigationItem": "sap/ui/webc/fiori/flexibility/SideNavigationItem",
+					"sap.ui.webc.fiori.SideNavigationSubItem": "sap/ui/webc/fiori/flexibility/SideNavigationSubItem",
+					"sap.ui.webc.fiori.UploadCollection": {
+						"hideControl": "default",
+						"unhideControl": "default",
+						"moveControls": "default"
+					},
+					"sap.ui.webc.fiori.UploadCollectionItem": "sap/ui/webc/fiori/flexibility/UploadCollectionItem"
 				}
 			}
 		});
-
-		/**
-		 * SAPUI5 library with controls based on UI5 Web Components
-		 *
-		 * @namespace
-		 * @alias sap.ui.webc.fiori
-		 * @author SAP SE
-		 * @version ${version}
-		 * @public
-		 * @since 1.92.0
-		 * @experimental Since 1.92.0 This API is experimental and might change significantly.
-		 */
-		var thisLib = sap.ui.webc.fiori;
-
 
 		/**
 		 * Interface for components that may be slotted inside <code>ui5-page</code> as header and footer.
@@ -687,6 +700,66 @@ Use to display both a master and a detail page when the user should focus on the
 			Tent: "Tent",
 
 			/**
+			 * "TntChartArea" illustration type.
+			 * @public
+			 */
+			TntChartArea: "TntChartArea",
+
+			/**
+			 * "TntChartArea2" illustration type.
+			 * @public
+			 */
+			TntChartArea2: "TntChartArea2",
+
+			/**
+			 * "TntChartBar" illustration type.
+			 * @public
+			 */
+			TntChartBar: "TntChartBar",
+
+			/**
+			 * "TntChartBPMNFlow" illustration type.
+			 * @public
+			 */
+			TntChartBPMNFlow: "TntChartBPMNFlow",
+
+			/**
+			 * "TntChartBullet" illustration type.
+			 * @public
+			 */
+			TntChartBullet: "TntChartBullet",
+
+			/**
+			 * "TntChartDoughnut" illustration type.
+			 * @public
+			 */
+			TntChartDoughnut: "TntChartDoughnut",
+
+			/**
+			 * "TntChartFlow" illustration type.
+			 * @public
+			 */
+			TntChartFlow: "TntChartFlow",
+
+			/**
+			 * "TntChartGantt" illustration type.
+			 * @public
+			 */
+			TntChartGantt: "TntChartGantt",
+
+			/**
+			 * "TntChartOrg" illustration type.
+			 * @public
+			 */
+			TntChartOrg: "TntChartOrg",
+
+			/**
+			 * "TntChartPie" illustration type.
+			 * @public
+			 */
+			TntChartPie: "TntChartPie",
+
+			/**
 			 * "TntCodePlaceholder" illustration type.
 			 * @public
 			 */
@@ -697,6 +770,12 @@ Use to display both a master and a detail page when the user should focus on the
 			 * @public
 			 */
 			TntCompany: "TntCompany",
+
+			/**
+			 * "TntComponents" illustration type.
+			 * @public
+			 */
+			TntComponents: "TntComponents",
 
 			/**
 			 * "TntExternalLink" illustration type.
@@ -753,6 +832,12 @@ Use to display both a master and a detail page when the user should focus on the
 			TntRadar: "TntRadar",
 
 			/**
+			 * "TntSecrets" illustration type.
+			 * @public
+			 */
+			TntSecrets: "TntSecrets",
+
+			/**
 			 * "TntServices" illustration type.
 			 * @public
 			 */
@@ -783,6 +868,30 @@ Use to display both a master and a detail page when the user should focus on the
 			TntSuccessfulAuth: "TntSuccessfulAuth",
 
 			/**
+			 * "TntSystems" illustration type.
+			 * @public
+			 */
+			TntSystems: "TntSystems",
+
+			/**
+			 * "TntTeams" illustration type.
+			 * @public
+			 */
+			TntTeams: "TntTeams",
+
+			/**
+			 * "TntTools" illustration type.
+			 * @public
+			 */
+			TntTools: "TntTools",
+
+			/**
+			 * "TntUnableToLoad" illustration type.
+			 * @public
+			 */
+			TntUnableToLoad: "TntUnableToLoad",
+
+			/**
 			 * "TntUnlock" illustration type.
 			 * @public
 			 */
@@ -793,6 +902,12 @@ Use to display both a master and a detail page when the user should focus on the
 			 * @public
 			 */
 			TntUnsuccessfulAuth: "TntUnsuccessfulAuth",
+
+			/**
+			 * "TntUser2" illustration type.
+			 * @public
+			 */
+			TntUser2: "TntUser2",
 
 			/**
 			 * "Unable To Load" illustration type.

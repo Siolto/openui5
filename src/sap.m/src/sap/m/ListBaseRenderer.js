@@ -44,12 +44,10 @@ sap.ui.define(["sap/m/library", "sap/ui/Device", "sap/ui/core/InvisibleText", ".
 	 * Renders the HTML for the given control, using the provided
 	 * {@link sap.ui.core.RenderManager}.
 	 *
-	 * @param {sap.ui.core.RenderManager}
-	 *          oRenderManager the RenderManager that can be used for writing to the
-	 *          Render-Output-Buffer
-	 * @param {sap.m.ListBase}
-	 *          oControl an object representation of the control that should be
-	 *          rendered
+	 * @param {sap.ui.core.RenderManager} rm
+	 *          RenderManager that can be used to render the control's DOM
+	 * @param {sap.m.ListBase} oControl
+	 *          The list to be rendered
 	 */
 	ListBaseRenderer.render = function(rm, oControl) {
 		// container
@@ -336,11 +334,27 @@ sap.ui.define(["sap/m/library", "sap/ui/Device", "sap/ui/core/InvisibleText", ".
 		ListItemBaseRenderer.addFocusableClasses.call(ListItemBaseRenderer, rm);
 		rm.openEnd();
 
-		rm.openStart("div", oControl.getId("nodata-text")).class("sapMListNoDataText").openEnd();
-		rm.text(oControl.getNoDataText(true));
-		rm.close("div");
+		rm.openStart("div", oControl.getId("nodata-text")).class("sapMListNoDataText");
 
+		var vNoData = oControl.getNoData();
+		if (vNoData && typeof vNoData !== "string") {
+			rm.class("sapMListNoDataContent");
+		}
+		rm.openEnd();
+
+		this.renderNoDataArea(rm, oControl);
+
+		rm.close("div");
 		rm.close("li");
+	};
+
+	ListBaseRenderer.renderNoDataArea = function (rm, oControl) {
+		var vNoData = oControl.getNoData() || oControl.getNoDataText();
+		if (typeof vNoData === "string") {
+			rm.text(vNoData);
+		} else {
+			rm.renderControl(vNoData);
+		}
 	};
 
 	ListBaseRenderer.renderDummyArea = function(rm, oControl, sAreaId, iTabIndex) {

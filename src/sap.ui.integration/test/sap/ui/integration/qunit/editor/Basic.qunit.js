@@ -3,6 +3,7 @@ sap.ui.define([
 	"sap/base/util/merge",
 	"sap-ui-integration-editor",
 	"sap/ui/integration/editor/Editor",
+	"sap/ui/integration/designtime/editor/CardEditor",
 	"sap/ui/integration/Designtime",
 	"sap/ui/integration/Host",
 	"sap/ui/thirdparty/sinon-4",
@@ -15,6 +16,7 @@ sap.ui.define([
 	merge,
 	x,
 	Editor,
+	CardEditor,
 	Designtime,
 	Host,
 	sinon,
@@ -322,6 +324,45 @@ sap.ui.define([
 			}.bind(this));
 		});
 
+		QUnit.test("1 string parameter using TextArea", function (assert) {
+			this.oEditor.setJson({
+				baseUrl: sBaseUrl,
+				manifest: {
+					"sap.app": {
+						"id": "test.sample",
+						"i18n": "../i18n/i18n.properties"
+					},
+					"sap.card": {
+						"designtime": "designtime/1stringUsingTextArea",
+						"type": "List",
+						"configuration": {
+							"parameters": {
+								"stringWithTextArea": {
+									"value": "stringWithTextArea Value"
+								}
+							}
+						}
+					}
+				}
+			});
+			return new Promise(function (resolve, reject) {
+				this.oEditor.attachReady(function () {
+					assert.ok(this.oEditor.isReady(), "Editor is ready");
+					var oLabel = this.oEditor.getAggregation("_formContent")[1];
+					var oField = this.oEditor.getAggregation("_formContent")[2];
+					var oControl = oField.getAggregation("_field");
+					assert.ok(oLabel.isA("sap.m.Label"), "Label: Form content contains a Label");
+					assert.ok(oLabel.getText() === "Use TextArea for a string field", "Label: Has label text");
+					assert.ok(oField.isA("sap.ui.integration.editor.fields.StringField"), "Field: String Field");
+					assert.ok(oControl.isA("sap.m.TextArea"), "Content of Form contains: TextArea ");
+					assert.ok(oControl.getValue() === "stringWithTextArea Value", "Field: String Value");
+					oControl.setValue("stringWithTextArea new Value");
+					assert.ok(oField._getCurrentProperty("value") === "stringWithTextArea new Value", "Field: String Value updated");
+					resolve();
+				}.bind(this));
+			}.bind(this));
+		});
+
 		QUnit.test("1 hint below a group (as json)", function (assert) {
 			this.oEditor.setJson({ baseUrl: sBaseUrl, manifest: {
 				"sap.app": {
@@ -484,7 +525,7 @@ sap.ui.define([
 					setTimeout(function () {
 						assert.ok(oLabel.isA("sap.m.Label"), "Label: Form content contains a Label");
 						assert.ok(oLabel.getText() === "stringArrayParameter", "Label: Has static label text");
-						assert.ok(oField.isA("sap.ui.integration.editor.fields.ListField"), "Field: List Field");
+						assert.ok(oField.isA("sap.ui.integration.editor.fields.StringListField"), "Field: List Field");
 						assert.ok(oField.getAggregation("_field").isA("sap.m.MultiComboBox"), "Field: Editor is MultiComboBox");
 						assert.ok(oField.getAggregation("_field").getItems().length === 5, "Field: MultiComboBox items lenght is OK");
 						resolve();
@@ -522,7 +563,7 @@ sap.ui.define([
 					setTimeout(function () {
 						assert.ok(oLabel.isA("sap.m.Label"), "Label: Form content contains a Label");
 						assert.ok(oLabel.getText() === "stringArrayParameter", "Label: Has static label text");
-						assert.ok(oField.isA("sap.ui.integration.editor.fields.ListField"), "Field: List Field");
+						assert.ok(oField.isA("sap.ui.integration.editor.fields.StringListField"), "Field: List Field");
 						var oMultiComboBox = oField.getAggregation("_field");
 						assert.ok(oMultiComboBox.isA("sap.m.MultiComboBox"), "Field: Editor is MultiComboBox");
 						assert.ok(oMultiComboBox.getItems().length === 5, "Field: MultiComboBox items lenght is OK");
@@ -564,14 +605,14 @@ sap.ui.define([
 					var oField = this.oEditor.getAggregation("_formContent")[2];
 					assert.ok(oLabel.isA("sap.m.Label"), "Label: Form content contains a Label");
 					assert.ok(oLabel.getText() === "stringArrayParameterNoValues", "Label: Has static label text");
-					assert.ok(oField.isA("sap.ui.integration.editor.fields.ListField"), "Field: List Field");
+					assert.ok(oField.isA("sap.ui.integration.editor.fields.StringListField"), "Field: List Field");
 					assert.ok(oField.getAggregation("_field").isA("sap.m.Input"), "Field: Editor is Input");
 					assert.ok(oField.getAggregation("_field").getValue() === "", "Field: Input value is OK");
 					oLabel = this.oEditor.getAggregation("_formContent")[3];
 					oField = this.oEditor.getAggregation("_formContent")[4];
 					assert.ok(oLabel.isA("sap.m.Label"), "Label: Form content contains a Label");
 					assert.ok(oLabel.getText() === "stringArrayParameterNoValuesNotEditable", "Label: Has static label text");
-					assert.ok(oField.isA("sap.ui.integration.editor.fields.ListField"), "Field: List Field");
+					assert.ok(oField.isA("sap.ui.integration.editor.fields.StringListField"), "Field: List Field");
 					assert.ok(oField.getAggregation("_field").isA("sap.m.Input"), "Field: Editor is Input");
 					assert.ok(oField.getAggregation("_field").getValue() === "", "Field: Input value is OK");
 					assert.ok(!oField.getAggregation("_field").getEditable(), "Field: Input editable is OK");
@@ -609,7 +650,7 @@ sap.ui.define([
 					setTimeout(function () {
 						assert.ok(oLabel.isA("sap.m.Label"), "Label: Form content contains a Label");
 						assert.ok(oLabel.getText() === "stringArrayParameter", "Label: Has static label text");
-						assert.ok(oField.isA("sap.ui.integration.editor.fields.ListField"), "Field: List Field");
+						assert.ok(oField.isA("sap.ui.integration.editor.fields.StringListField"), "Field: List Field");
 						assert.ok(oField.getAggregation("_field").isA("sap.m.MultiComboBox"), "Field: Editor is MultiComboBox");
 						assert.ok(oField.getAggregation("_field").getItems().length === 6, "Field: MultiComboBox items lenght is OK");
 						resolve();
@@ -5165,7 +5206,7 @@ sap.ui.define([
 		}
 	}, function () {
 
-		QUnit.test("Slider is created from  dt json inline", function (assert) {
+		QUnit.test("Slider is created from dt json inline", function (assert) {
 
 			var dt = {
 				"form": {
@@ -5203,7 +5244,7 @@ sap.ui.define([
 			}.bind(this));
 		});
 
-		QUnit.test("Slider is created from  dt class inline", function (assert) {
+		QUnit.test("Slider is created from dt class inline", function (assert) {
 			var dt = function () {
 				return new Designtime(
 					{
@@ -5238,6 +5279,46 @@ sap.ui.define([
 				this.oEditor.attachReady(function () {
 					assert.ok(this.oEditor.isReady(), "Editor is ready");
 					assert.ok(this.oEditor.getAggregation("_formContent")[2].getAggregation("_field").isA("sap.m.Slider"), "Content of Form contains: Slider ");
+					resolve();
+				}.bind(this));
+			}.bind(this));
+		});
+
+		QUnit.test("TextArea is created from dt class inline", function (assert) {
+			var dt = function () {
+				return new Designtime(
+					{
+						"form": {
+							"items": {
+								"string": {
+									"manifestpath": "/sap.card/configuration/parameters/string/value",
+									"type": "string",
+									"visualization": {
+										"type": "TextArea", //NO CLASS ANYMORE
+										"settings": {
+											"value": "{currentSettings>value}",
+											"width": "100%",
+											"editable": "{config/editable}",
+											"placeholder": "{currentSettings>placeholder}",
+											"rows": 7
+										}
+									}
+								}
+							}
+						}
+					});
+			};
+
+			this.oEditor.setDesigntime(dt);
+			this.oEditor.setJson({ baseUrl: sBaseUrl, manifest: { "sap.app": { "id": "test.sample", "i18n": "../i18n/i18n.properties" }, "sap.card": { "designtime": "designtime/noconfig", "type": "List", "header": {} } } });
+			return new Promise(function (resolve, reject) {
+				this.oEditor.attachReady(function () {
+					assert.ok(this.oEditor.isReady(), "Editor is ready");
+					var oField = this.oEditor.getAggregation("_formContent")[2];
+					var oControl = oField.getAggregation("_field");
+					assert.ok(oControl.isA("sap.m.TextArea"), "Content of Form contains: TextArea ");
+					oControl.setValue("stringWithTextArea new Value");
+					assert.ok(oField._getCurrentProperty("value") === "stringWithTextArea new Value", "Field: String Value updated");
 					resolve();
 				}.bind(this));
 			}.bind(this));
@@ -5548,6 +5629,33 @@ sap.ui.define([
 			}.bind(this));
 		});
 
+		QUnit.test("Check the error message strip of sub tab", function (assert) {
+			this.oEditor.setJson({ baseUrl: sBaseUrl, manifest: sBaseUrl + "subTabsWithErrorMessageStrip.json" });
+			return new Promise(function (resolve, reject) {
+				this.oEditor.attachReady(function () {
+					wait().then(function () {
+						assert.ok(this.oEditor.isReady(), "Editor is ready");
+						var oPanel = this.oEditor.getAggregation("_formContent")[0];
+						assert.ok(oPanel.isA("sap.m.Panel"), "Field: Form content contains a Panel");
+						assert.ok(oPanel.getHeaderText() === "no default group", "Group text");
+						var oSubTab = oPanel.getContent()[1];
+						assert.ok(oSubTab.isA("sap.m.IconTabBar"), "Item 1 of Default Panel is sub tab bar");
+						assert.ok(oSubTab.getExpanded(), "Sub group expanded by default");
+						var oMessageStripOfSubTab = oPanel.getContent()[0];
+						assert.ok(!oMessageStripOfSubTab.getVisible(), "Message strip of sub tab is not visible since sub tab is expanded");
+						var oSubTabFilter = oSubTab.getItems()[0];
+						oSubTab.setExpanded(false);
+						wait(500).then(function () {
+							var expandedBtn = oSubTabFilter._getExpandButton();
+							assert.ok(expandedBtn.getVisible(), "Error icon appeared.");
+							resolve();
+							//TBD
+						});
+					}.bind(this));
+				}.bind(this));
+			}.bind(this));
+		});
+
 		QUnit.test("Check the error message strip of group", function (assert) {
 			this.oEditor.setJson({ baseUrl: sBaseUrl, manifest: sBaseUrl + "groupsWithErrorMessageStrip.json" });
 			return new Promise(function (resolve, reject) {
@@ -5567,7 +5675,7 @@ sap.ui.define([
 						var oField1 = oSubPanel.getContent()[1].getAggregation("_field");
 						var oField2 = oSubPanel.getContent()[3].getAggregation("_field");
 						oPanel.setExpanded(false);
-						wait(500).then(function () {
+						wait().then(function () {
 							assert.ok(oMessageStripOfPanel.getVisible(), "Message strip of group is visible since group is collapsed and has error");
 							assert.ok(oMessageStripOfPanel.getText() === oDefaultBundle.getText("EDITOR_GROUP_ERRORS"), "Message strip error text correct");
 							oPanel.setExpanded(true);
@@ -5577,7 +5685,7 @@ sap.ui.define([
 								oField2.setValue("aa");
 								wait(500).then(function () {
 									oPanel.setExpanded(false);
-									wait(500).then(function () {
+									wait().then(function () {
 										assert.ok(oMessageStripOfPanel.getVisible(), "Message strip of group is visible since has warning");
 										assert.ok(oMessageStripOfPanel.getText() === oDefaultBundle.getText("EDITOR_GROUP_WARNINGS"), "Message strip warning text correct");
 										oPanel.setExpanded(true);
@@ -5597,7 +5705,7 @@ sap.ui.define([
 		});
 	});
 
-	QUnit.module("Sub groups", {
+	QUnit.module("Sub groups (Panel)", {
 		beforeEach: function () {
 			this.oHost = new Host("host");
 			this.oContextHost = new ContextHost("contexthost");
@@ -5726,6 +5834,138 @@ sap.ui.define([
 						assert.ok(oSubPanel2.getContent()[1].getAggregation("_field").getValue() === "stringParameter2 Value", "Value of item 3 of Sub Group 3 correct");
 						assert.ok(oSubPanel2.getContent()[2].isA("sap.m.MessageStrip"), "Item 3 of Sub Group 3 is a message strip");
 						assert.ok(oPanel.getContent()[5].isA("sap.m.MessageStrip"), "Item 6 of Default Panel is a message strip");
+						resolve();
+					}.bind(this));
+				}.bind(this));
+			}.bind(this));
+		});
+	});
+
+	QUnit.module("Sub groups (Tab)", {
+		beforeEach: function () {
+			this.oHost = new Host("host");
+			this.oContextHost = new ContextHost("contexthost");
+
+			this.oEditor = new Editor();
+			var oContent = document.getElementById("content");
+			if (!oContent) {
+				oContent = document.createElement("div");
+				oContent.style.position = "absolute";
+				oContent.style.top = "200px";
+
+				oContent.setAttribute("id", "content");
+				document.body.appendChild(oContent);
+				document.body.style.zIndex = 1000;
+			}
+			this.oEditor.placeAt(oContent);
+		},
+		afterEach: function () {
+			this.oEditor.destroy();
+			this.oHost.destroy();
+			this.oContextHost.destroy();
+			sandbox.restore();
+			var oContent = document.getElementById("content");
+			if (oContent) {
+				oContent.innerHTML = "";
+				document.body.style.zIndex = "unset";
+			}
+		}
+	}, function () {
+		QUnit.test("2 Sub Tabs in default group with one is empty", function (assert) {
+			this.oEditor.setJson({ baseUrl: sBaseUrl, manifest: sBaseUrl + "subTabsInDefaultGroup.json" });
+			return new Promise(function (resolve, reject) {
+				this.oEditor.attachReady(function () {
+					assert.ok(this.oEditor.isReady(), "Editor is ready");
+					wait().then(function () {
+						var oPanel = this.oEditor.getAggregation("_formContent")[0];
+						assert.ok(oPanel.isA("sap.m.Panel"), "Field: Form content contains a Panel");
+						var oDefaultBundle = Core.getLibraryResourceBundle("sap.ui.integration");
+						assert.ok(oDefaultBundle.getText("EDITOR_PARAMETERS_GENERALSETTINGS") === oPanel.getHeaderText(), "Default group text");
+						assert.ok(oPanel.getExpanded(), "Group expanded by default");
+						assert.ok(oPanel.getContent().length === 3, "Default Panel contains 3 items");
+						var oSubGroup = oPanel.getContent()[1];
+						assert.ok(oSubGroup.isA("sap.m.IconTabBar"), "Item 1 of Default Panel is sub Tab");
+						assert.ok(!oSubGroup.getExpanded(), "Group collapsed by setting");
+						assert.ok(oSubGroup.getItems().length === 1, "Icon tab bar contains 1 icon tab filter.");
+						assert.ok(oSubGroup.getItems()[0].getText() === "Sub group", "Find 'Sub group' tab filter.");
+						assert.ok(oSubGroup.getItems()[0].getContent().length === 2, "Icon tab filter contains 2 elements.");
+						assert.ok(oSubGroup.getItems()[0].getContent()[0].getItems()[0].getText() === "stringParameter", "Lable of item 1 of Sub Group correct");
+						assert.ok(oSubGroup.getItems()[0].getContent()[1].isA("sap.ui.integration.editor.fields.StringField"), "Item 2 of Sub Group is a String field");
+						assert.ok(oSubGroup.getItems()[0].getContent()[1].getAggregation("_field").getValue() === "stringParameter Value", "Value of item 2 of Sub Group correct");
+						assert.ok(oPanel.getContent()[0].isA("sap.m.MessageStrip"), "Item 2 of Default Panel is a message strip");
+						resolve();
+					}.bind(this));
+				}.bind(this));
+			}.bind(this));
+		});
+
+		QUnit.test("Multi Sub tabs in default group with one is empty", function (assert) {
+			this.oEditor.setJson({ baseUrl: sBaseUrl, manifest: sBaseUrl + "multiSubTabsInDefaultGroup.json" });
+			return new Promise(function (resolve, reject) {
+				this.oEditor.attachReady(function () {
+					assert.ok(this.oEditor.isReady(), "Editor is ready");
+					wait().then(function () {
+						var oPanel = this.oEditor.getAggregation("_formContent")[0];
+						assert.ok(oPanel.isA("sap.m.Panel"), "Field: Form content contains a Panel");
+						var oDefaultBundle = Core.getLibraryResourceBundle("sap.ui.integration");
+						assert.ok(oDefaultBundle.getText("EDITOR_PARAMETERS_GENERALSETTINGS") === oPanel.getHeaderText(), "Default group text");
+						assert.ok(oPanel.getExpanded(), "Group expanded by default");
+						assert.ok(oPanel.getContent().length === 3, "Default Panel contains 4 items");
+						var oSubTab = oPanel.getContent()[1];
+						assert.ok(oSubTab.isA("sap.m.IconTabBar"), "Item 1 of Default Panel is sub tab");
+						assert.ok(oSubTab.getExpanded(), "Tab expanded by setting");
+						assert.ok(oSubTab.getItems().length === 3, "Icon tab bar contains 1 icon tab filter.");
+						var oSubTabFilter = oSubTab.getItems()[0];
+						assert.ok(oSubTabFilter.getText() === "Sub group 1", "Find 'Sub group 1' tab filter.");
+						assert.ok(oSubTabFilter.getContent().length === 2, "Icon tab filter contains 2 elements.");
+						assert.ok(oSubTabFilter.getContent()[0].getItems()[0].getText() === "stringParameter1", "Lable of item 1 of Sub Group correct");
+						assert.ok(oSubTabFilter.getContent()[1].isA("sap.ui.integration.editor.fields.StringField"), "Item 2 of Sub Group is a String field");
+						assert.ok(oSubTabFilter.getContent()[1].getAggregation("_field").getValue() === "stringParameter1 Value", "Value of item 2 of Sub Group correct");
+						var oSubTabFilter3 = oSubTab.getItems()[2];
+						assert.ok(oSubTabFilter3.getText() === "Sub group 3", "Find 'Sub group 3' tab filter.");
+						assert.ok(oSubTabFilter3.getContent().length === 2, "Icon tab filter contains 2 elements.");
+						assert.ok(oSubTabFilter3.getContent()[0].getItems()[0].getText() === "stringParameter2", "Lable of item 1 of Sub Group correct");
+						assert.ok(oSubTabFilter3.getContent()[1].isA("sap.ui.integration.editor.fields.StringField"), "Item 2 of Sub Group is a String field");
+						assert.ok(oSubTabFilter3.getContent()[1].getAggregation("_field").getValue() === "stringParameter2 Value", "Value of item 2 of Sub Group correct");
+						assert.ok(oPanel.getContent()[0].isA("sap.m.MessageStrip"), "Item 2 of Default Panel is a message strip");
+						resolve();
+					}.bind(this));
+				}.bind(this));
+			}.bind(this));
+		});
+
+		QUnit.test("Multi Sub tabs with one is empty", function (assert) {
+			this.oEditor.setJson({ baseUrl: sBaseUrl, manifest: sBaseUrl + "multiSubTabs.json" });
+			return new Promise(function (resolve, reject) {
+				this.oEditor.attachReady(function () {
+					assert.ok(this.oEditor.isReady(), "Editor is ready");
+					wait().then(function () {
+						var oPanel = this.oEditor.getAggregation("_formContent")[0];
+						assert.ok(oPanel.isA("sap.m.Panel"), "Field: Form content contains a Panel");
+						var oDefaultBundle = Core.getLibraryResourceBundle("sap.ui.integration");
+						assert.ok(oDefaultBundle.getText("EDITOR_PARAMETERS_GENERALSETTINGS") === oPanel.getHeaderText(), "Default group text");
+						assert.ok(oPanel.getExpanded(), "Group expanded by default");
+						assert.ok(oPanel.getContent().length === 5, "Default Panel contains 6 items");
+						assert.ok(oPanel.getContent()[0].getItems()[0].getText() === "stringParameter", "Lable of item 1 of Group correct");
+						assert.ok(oPanel.getContent()[1].isA("sap.ui.integration.editor.fields.StringField"), "Item 2 of Group is a String field");
+						assert.ok(oPanel.getContent()[1].getAggregation("_field").getValue() === "stringParameter Value", "Value of item 2 of Group correct");
+						var oSubTab = oPanel.getContent()[3];
+						assert.ok(oSubTab.isA("sap.m.IconTabBar"), "Item 3 of Default Panel is sub panel");
+						assert.ok(oSubTab.getExpanded(), "Group collapsed by setting");
+						assert.ok(oSubTab.getItems().length === 2, "Icon tab bar contains 1 icon tab filter.");
+						var oSubTabFilter = oSubTab.getItems()[0];
+						assert.ok(oSubTabFilter.getText() === "Sub group 2", "Find 'Sub group 1' tab filter.");
+						assert.ok(oSubTabFilter.getContent().length === 2, "Icon tab filter contains 2 elements.");
+						assert.ok(oSubTabFilter.getContent()[0].getItems()[0].getText() === "stringParameter1", "Lable of item 1 of Sub Group correct");
+						assert.ok(oSubTabFilter.getContent()[1].isA("sap.ui.integration.editor.fields.StringField"), "Item 2 of Sub Group is a String field");
+						assert.ok(oSubTabFilter.getContent()[1].getAggregation("_field").getValue() === "stringParameter1 Value", "Value of item 2 of Sub Group correct");
+						var oSubTabFilter3 = oSubTab.getItems()[1];
+						assert.ok(oSubTabFilter3.getText() === "Sub group 3", "Find 'Sub group 3' tab filter.");
+						assert.ok(oSubTabFilter3.getContent().length === 2, "Icon tab filter contains 2 elements.");
+						assert.ok(oSubTabFilter3.getContent()[0].getItems()[0].getText() === "stringParameter2", "Lable of item 1 of Sub Group correct");
+						assert.ok(oSubTabFilter3.getContent()[1].isA("sap.ui.integration.editor.fields.StringField"), "Item 2 of Sub Group is a String field");
+						assert.ok(oSubTabFilter3.getContent()[1].getAggregation("_field").getValue() === "stringParameter2 Value", "Value of item 2 of Sub Group correct");
+						assert.ok(oPanel.getContent()[2].isA("sap.m.MessageStrip"), "Item 2 of Default Panel is a message strip");
 						resolve();
 					}.bind(this));
 				}.bind(this));

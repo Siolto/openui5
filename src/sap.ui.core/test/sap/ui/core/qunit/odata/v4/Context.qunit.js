@@ -146,17 +146,28 @@ sap.ui.define([
 
 	//*********************************************************************************************
 	QUnit.test("getIndex()", function (assert) {
-		var oBinding = {},
-			oContext = Context.create(null/*oModel*/, oBinding, "/foo", 42),
+		var oBinding = {
+				isFirstCreateAtEnd : function () {}
+			},
+			oBindingMock = this.mock(oBinding),
+			oContext0 = Context.create(null/*oModel*/, oBinding, "/foo", 42),
+			oContext1 = Context.create(null/*oModel*/, {/*ODCB*/}, "/foo"),
 			iResult = {/*a number*/};
 
-		this.mock(oContext).expects("getModelIndex").returns(iResult);
+		oBindingMock.expects("isFirstCreateAtEnd").withExactArgs().returns(undefined);
+		this.mock(oContext0).expects("getModelIndex").returns(iResult);
 
 		// code under test
-		assert.strictEqual(oContext.getIndex(), iResult);
+		assert.strictEqual(oContext0.getIndex(), iResult);
 
+		this.mock(oContext1).expects("getModelIndex").never();
+
+		// code under test
+		assert.strictEqual(oContext1.getIndex(), undefined);
+
+		oBindingMock.expects("isFirstCreateAtEnd").exactly(6).withExactArgs().returns(true);
 		// simulate ODataListBinding#create (4x at the end)
-		oBinding.bCreatedAtEnd = true;
+		oBinding.bFirstCreateAtEnd = true;
 		oBinding.iCreatedContexts = 4;
 
 		// code under test
@@ -1353,12 +1364,14 @@ sap.ui.define([
 				setContext : function () {}
 			},
 			bCallbackCalled,
+			iGeneration,
 			oGetDependentBindingsCall,
 			oModel = {
 				getDependentBindings : function () {}
 			},
 			oParentBinding = {},
-			oContext = Context.create(oModel, oParentBinding, "/EMPLOYEES/42", 42);
+			oContext = Context.create(oModel, oParentBinding, "/EMPLOYEES/42", 42,
+				SyncPromise.resolve(), "~bInactive~");
 
 		if (bfnOnBeforeDestroy) {
 			oContext.fnOnBeforeDestroy = function () {
@@ -1369,6 +1382,9 @@ sap.ui.define([
 				assert.strictEqual(oContext.fnOnBeforeDestroy, undefined);
 			};
 		}
+		oContext.bKeepAlive = "~bKeepAlive~";
+		oContext.setNewGeneration();
+		iGeneration = oContext.getGeneration(true);
 
 		oGetDependentBindingsCall = this.mock(oModel).expects("getDependentBindings")
 			.withExactArgs(sinon.match.same(oContext))
@@ -1381,9 +1397,15 @@ sap.ui.define([
 		oContext.destroy();
 
 		assert.strictEqual(oContext.oBinding, undefined);
-		assert.strictEqual(oContext.oModel, undefined/*TODO oModel*/);
+		assert.strictEqual(oContext.oModel, undefined);
 		assert.strictEqual(oContext.sPath, "/EMPLOYEES/42");
-		assert.strictEqual(oContext.iIndex, 42);
+		assert.strictEqual(oContext.iIndex, 42); // Note: sPath and iIndex mainly define #toString
+		assert.strictEqual(oContext.bKeepAlive, undefined);
+		assert.strictEqual(oContext.created(), undefined);
+		assert.strictEqual(oContext.getGeneration(true), iGeneration, "generation is kept");
+		assert.strictEqual(oContext.isInactive(), undefined);
+		assert.strictEqual(oContext.isTransient(), undefined);
+		assert.strictEqual(oContext.toString(), "/EMPLOYEES/42[42]");
 
 		if (bfnOnBeforeDestroy) {
 			assert.ok(bCallbackCalled);
@@ -1528,18 +1550,12 @@ sap.ui.define([
 	});
 
 	//*********************************************************************************************
-[false, true].forEach(function (bTransient) {
-	var sTitle = "replaceWith: "
-			+ (bTransient ? "transient context" : "not in the collection");
-
-	QUnit.test(sTitle, function (assert) {
+	QUnit.test("replaceWith: transient context", function (assert) {
 		var oBinding = {
 				checkSuspended : function () {}
 			},
-			oContext = bTransient
-				? Context.create({/*oModel*/}, oBinding, "/EMPLOYEES($uid=1)", 0,
-					SyncPromise.resolve(Promise.resolve()))
-				: Context.create({/*oModel*/}, oBinding, "/EMPLOYEES('1')", undefined);
+			oContext = Context.create({/*oModel*/}, oBinding, "/EMPLOYEES($uid=1)", 0,
+					SyncPromise.resolve(Promise.resolve()));
 
 		this.mock(oBinding).expects("checkSuspended").withExactArgs();
 		// #toString calls #isTransient, mock neither of them
@@ -1549,7 +1565,6 @@ sap.ui.define([
 			oContext.replaceWith();
 		}, new Error("Cannot replace " + oContext));
 	});
-});
 
 	//*********************************************************************************************
 [false, true].forEach(function (bWrongBinding) {
@@ -2573,6 +2588,7 @@ sap.ui.define([
 				fetchUpdateData : function () {}
 			},
 			oModel = {
+				bAutoExpandSelect : false,
 				getMetaModel : function () {
 					return oMetaModel;
 				}
@@ -2581,20 +2597,23 @@ sap.ui.define([
 			oError = new Error("This call intentionally failed"),
 		that = this;
 
+		this.mock(oContext).expects("isTransient").withExactArgs().returns(true);
+		this.mock(oContext).expects("isInactive").withExactArgs().returns(true);
+		this.mock(oContext).expects("getValue").never();
 		this.mock(oContext).expects("withCache")
-			.withExactArgs(sinon.match.func, "some/relative/path", false, true)
+			.withExactArgs(sinon.match.func, "~sPath~", false, true)
 			.callsFake(function (fnProcessor) {
 				that.mock(oBinding).expects("doSetProperty")
-					.withExactArgs("some/relative/path", undefined, undefined);
+					.withExactArgs("~sPath~", "~vValue~", "~oGroupLock~");
 				that.mock(oMetaModel).expects("fetchUpdateData")
-					.withExactArgs("some/relative/path", sinon.match.same(oContext), true)
+					.withExactArgs("~sPath~", sinon.match.same(oContext), false)
 					.returns(SyncPromise.resolve(Promise.reject(oError)));
 
-				return fnProcessor({/*oCache*/}, "some/relative/path", oBinding);
+				return fnProcessor({/*oCache*/}, "~sPath~", oBinding);
 			});
 
 		// code under test
-		return oContext.doSetProperty("some/relative/path").then(function () {
+		return oContext.doSetProperty("~sPath~", "~vValue~", "~oGroupLock~").then(function () {
 			assert.ok(false, "Unexpected success");
 		}, function (oError0) {
 			assert.strictEqual(oError0, oError);
@@ -2604,21 +2623,26 @@ sap.ui.define([
 	//*********************************************************************************************
 	QUnit.test("doSetProperty: withCache fails", function (assert) {
 		var oBinding = {},
-			oMetaModel = {},
 			oModel = {
+				bAutoExpandSelect : false,
 				getMetaModel : function () {
-					return oMetaModel;
+					return {}; // do not use
 				}
 			},
 			oContext = Context.create(oModel, oBinding, "/ProductList('HT-1000')"),
 			oError = new Error("This call intentionally failed");
 
+		this.mock(oContext).expects("isTransient").withExactArgs().returns(true);
+		this.mock(oContext).expects("isInactive").withExactArgs().returns(false);
+		this.mock(oContext).expects("getValue").withExactArgs().returns("~getValue~");
+		this.mock(_Helper).expects("getPrivateAnnotation").withExactArgs("~getValue~", "transient")
+			.returns("group"); // POST is not in flight
 		this.mock(oContext).expects("withCache").withExactArgs(sinon.match.func,
-			"some/relative/path", /*bSync*/false, /*bWithOrWithoutCache*/true)
+				"~sPath~", /*bSync*/false, /*bWithOrWithoutCache*/true)
 			.returns(SyncPromise.reject(oError));
 
 		// code under test
-		return oContext.doSetProperty("some/relative/path").then(function () {
+		return oContext.doSetProperty("~sPath~", "~vValue~", "~oGroupLock~").then(function () {
 			assert.ok(false, "Unexpected success");
 		}, function (oError0) {
 			assert.strictEqual(oError0, oError);
@@ -2707,6 +2731,7 @@ sap.ui.define([
 			vWithCacheResult = {},
 			that = this;
 
+		this.mock(oContext).expects("getValue").never();
 		this.mock(oContext).expects("isKeepAlive").withExactArgs().on(oContext)
 			.exactly(i === 1 ? 1 : 0).returns("~bKeepAlive~");
 		this.mock(oContext).expects("withCache").withExactArgs(sinon.match.func,
@@ -2904,6 +2929,7 @@ sap.ui.define([
 			},
 			that = this;
 
+		this.mock(oContext).expects("getValue").never();
 		oModelMock.expects("resolve")
 			.withExactArgs("some/relative/path", sinon.match.same(oContext))
 			.returns("/~");
@@ -2982,6 +3008,7 @@ sap.ui.define([
 			oContext = Context.create(oModel, oBinding, "/BusinessPartnerList('0100000000')"),
 			that = this;
 
+		this.mock(oContext).expects("isTransient").never();
 		this.mock(oContext).expects("withCache")
 			.withExactArgs(sinon.match.func, "/some/absolute/path", /*bSync*/false,
 				/*bWithOrWithoutCache*/true)
@@ -3010,7 +3037,7 @@ sap.ui.define([
 				return fnProcessor(oCache, "/cache/path", oBinding);
 			});
 
-		// code under test
+		// code under test (no group lock!)
 		return oContext.doSetProperty("/some/absolute/path", "new value");
 	});
 
@@ -3092,6 +3119,68 @@ sap.ui.define([
 
 		// code under test
 		return oContext.doSetProperty("/some/absolute/path", "new value", oGroupLock, bSkipRetry);
+	});
+});
+
+	//*********************************************************************************************
+[undefined, true].forEach(function (bSuccess) {
+	var sTitle = "doSetProperty: repeat while POST is in flight; bSuccess=" + bSuccess;
+
+	QUnit.test(sTitle, function (assert) {
+		var oModel = {
+				bAutoExpandSelect : true,
+				getMetaModel : function () {
+					return {}; // do not use
+				},
+				getReporter : function () {}
+			},
+			oPostPromise = Promise.resolve(bSuccess),
+			oContext = Context.create(oModel, /*oBinding*/null, "/ProductList($uid=123)", 0,
+				SyncPromise.resolve(oPostPromise)), // transient while POST is in flight
+			oContextMock = this.mock(oContext),
+			oError = new Error("catch me if you can"),
+			oExpectation,
+			oGroupLock = {
+				getUnlockedCopy : function () {},
+				unlock : function () {}
+			},
+			fnReporter = sinon.spy();
+
+		oContextMock.expects("isTransient").withExactArgs().returns(true);
+		oContextMock.expects("doSetProperty")
+			.withExactArgs("~sPath~", "~vValue~", sinon.match.same(oGroupLock), "~bSkipRetry~")
+			.callThrough(); // start the recursion
+		oContextMock.expects("getValue").withExactArgs().returns("~getValue~");
+		this.mock(_Helper).expects("getPrivateAnnotation").withExactArgs("~getValue~", "transient")
+			.returns(oPostPromise);
+		this.mock(oGroupLock).expects("unlock").withExactArgs();
+		this.mock(oGroupLock).expects("getUnlockedCopy").withExactArgs().returns("~unlockedCopy~");
+		oContextMock.expects("doSetProperty").withExactArgs("~sPath~", "~vValue~", null, true)
+			.rejects(oError); // to prove error handling
+		this.mock(oModel).expects("getReporter").withExactArgs().returns(fnReporter);
+		oExpectation = oContextMock.expects("doSetProperty")
+			.withExactArgs("~sPath~", "~vValue~", "~unlockedCopy~", "~bSkipRetry~")
+			.returns("~result~"); // to prove timing and error handling
+		oPostPromise.then(function () {
+			var oCreatedPromise = new Promise(function (resolve) {
+					setTimeout(resolve, 0); // to prove timing
+				});
+
+			assert.notOk(oExpectation.called);
+			oContextMock.expects("created").exactly(bSuccess ? 1 : 0).withExactArgs()
+				.returns(oCreatedPromise);
+			oCreatedPromise.then(function () {
+				assert.strictEqual(oExpectation.called, !bSuccess);
+			});
+		});
+
+		// code under test
+		return oContext.doSetProperty("~sPath~", "~vValue~", oGroupLock, "~bSkipRetry~")
+			.then(function (vResult) {
+				assert.strictEqual(vResult, "~result~");
+				sinon.assert.calledOnce(fnReporter);
+				sinon.assert.calledWithExactly(fnReporter, oError);
+			});
 	});
 });
 
@@ -3396,13 +3485,14 @@ sap.ui.define([
 			},
 			oError = new Error(),
 			oMetaModel = {
-				getObject : function () {
+				fetchObject : function () {
 					assert.ok(false); // use only when mocked
 				}
 			},
 			oModel = {
 				bAutoExpandSelect : true,
 				getMetaModel : function () { return oMetaModel; },
+				getPredicateIndex : function () {},
 				getReporter : function () {
 					return function (oError0) {
 						assert.strictEqual(oError0, oError);
@@ -3413,10 +3503,7 @@ sap.ui.define([
 			oContext = Context.create(oModel, oBinding, "/path");
 
 		this.mock(oContext).expects("isTransient").exactly(3).withExactArgs().returns(false);
-		this.mock(oContext).expects("getValue").exactly(3).withExactArgs().returns("~value~");
-		this.mock(_Helper).expects("getPrivateAnnotation").exactly(3)
-			.withExactArgs("~value~", "predicate")
-			.returns("('foo')");
+		this.mock(oModel).expects("getPredicateIndex").exactly(3).withExactArgs("/path");
 		this.mock(oBinding).expects("checkKeepAlive").exactly(3)
 			.withExactArgs(sinon.match.same(oContext));
 
@@ -3425,10 +3512,17 @@ sap.ui.define([
 		assert.strictEqual(oContext.isKeepAlive(), "bTrueOrFalse");
 		assert.strictEqual(oContext.fnOnBeforeDestroy, undefined);
 
+		oContext.fnOnBeforeDestroy = "foo";
+
+		// code under test
+		oContext.setKeepAlive(false, "fnOnBeforeDestroy", true);
+		assert.strictEqual(oContext.isKeepAlive(), false);
+		assert.strictEqual(oContext.fnOnBeforeDestroy, undefined);
+
 		this.mock(_Helper).expects("getMetaPath").withExactArgs("/path").returns("/meta/path");
-		this.mock(oMetaModel).expects("getObject")
+		this.mock(oMetaModel).expects("fetchObject")
 			.withExactArgs("/meta/path/@com.sap.vocabularies.Common.v1.Messages/$Path")
-			.returns("path/to/messages");
+			.resolves("path/to/messages");
 		this.mock(oBinding).expects("fetchIfChildCanUseCache")
 			.withExactArgs(sinon.match.same(oContext), "path/to/messages", {})
 			.resolves("/reduced/path");
@@ -3439,11 +3533,6 @@ sap.ui.define([
 		oContext.setKeepAlive(true, "fnOnBeforeDestroy", true);
 		assert.strictEqual(oContext.isKeepAlive(), true);
 		assert.strictEqual(oContext.fnOnBeforeDestroy, "fnOnBeforeDestroy");
-
-		// code under test
-		oContext.setKeepAlive(false, "fnOnBeforeDestroy", true);
-		assert.strictEqual(oContext.isKeepAlive(), false);
-		assert.strictEqual(oContext.fnOnBeforeDestroy, undefined);
 	});
 
 	//*********************************************************************************************
@@ -3451,13 +3540,14 @@ sap.ui.define([
 		var oBinding = {
 				checkKeepAlive : function () {}
 			},
-			oContext = Context.create({/*oModel*/}, oBinding, "/path"),
+			oModel = {
+				getPredicateIndex : function () {}
+			},
+			oContext = Context.create(oModel, oBinding, "/path"),
 			oError = new Error();
 
 		this.mock(oContext).expects("isTransient").withExactArgs().returns(false);
-		this.mock(oContext).expects("getValue").withExactArgs().returns("~value~");
-		this.mock(_Helper).expects("getPrivateAnnotation").withExactArgs("~value~", "predicate")
-			.returns("('foo')");
+		this.mock(oModel).expects("getPredicateIndex").withExactArgs("/path");
 		this.mock(oBinding).expects("checkKeepAlive")
 			.withExactArgs(sinon.match.same(oContext)).throws(oError);
 
@@ -3484,37 +3574,18 @@ sap.ui.define([
 	});
 
 	//*********************************************************************************************
-	QUnit.test("setKeepAlive: no predicate", function (assert) {
-		var oContext = Context.create({/*oModel*/}, {/*oBinding*/}, "/path");
-
-		this.mock(oContext).expects("isTransient").withExactArgs().returns(false);
-		this.mock(oContext).expects("getValue").withExactArgs().returns("~value~");
-		this.mock(_Helper).expects("getPrivateAnnotation").withExactArgs("~value~", "predicate")
-			.returns(undefined);
-
-		assert.throws(function () {
-			// code under test
-			oContext.setKeepAlive(true);
-		}, new Error("No key predicate known at /path"));
-
-		assert.strictEqual(oContext.isKeepAlive(), false);
-	});
-
-	//*********************************************************************************************
 	QUnit.test("setKeepAlive: bRequestMessages w/o autoExpandSelect", function (assert) {
 		var oBinding = {
 				checkKeepAlive : function () {}
 			},
 			oModel = {
-				bAutoExpandSelect : false
+				bAutoExpandSelect : false,
+				getPredicateIndex : function () {}
 			},
 			oContext = Context.create(oModel, oBinding, "/path");
 
 		this.mock(oContext).expects("isTransient").withExactArgs().returns(false);
-		this.mock(oContext).expects("getValue").withExactArgs().returns("~value~");
-		this.mock(_Helper).expects("getPrivateAnnotation")
-			.withExactArgs("~value~", "predicate")
-			.returns("('foo')");
+		this.mock(oModel).expects("getPredicateIndex").withExactArgs("/path");
 		this.mock(oBinding).expects("checkKeepAlive").withExactArgs(sinon.match.same(oContext));
 		this.mock(_Helper).expects("getMetaPath").never();
 
@@ -3528,35 +3599,37 @@ sap.ui.define([
 
 	//*********************************************************************************************
 	QUnit.test("setKeepAlive: missing messages annotation", function (assert) {
-		var oBinding = {
+		var done = assert.async(),
+			oBinding = {
 				checkKeepAlive : function () {}
 			},
 			oMetaModel = {
-				getObject : function () {}
+				fetchObject : function () {}
 			},
 			oModel = {
 				bAutoExpandSelect : true,
-				getMetaModel : function () { return oMetaModel; }
+				getPredicateIndex : function () {},
+				getMetaModel : function () { return oMetaModel; },
+				getReporter : function () {
+					return function (oError) {
+						assert.strictEqual(oError.message,
+							"Missing @com.sap.vocabularies.Common.v1.Messages");
+						done();
+					};
+				}
 			},
 			oContext = Context.create(oModel, oBinding, "/path");
 
 		this.mock(oContext).expects("isTransient").withExactArgs().returns(false);
-		this.mock(oContext).expects("getValue").withExactArgs().returns("~value~");
-		this.mock(_Helper).expects("getPrivateAnnotation")
-			.withExactArgs("~value~", "predicate")
-			.returns("('foo')");
+		this.mock(oModel).expects("getPredicateIndex").withExactArgs("/path");
 		this.mock(oBinding).expects("checkKeepAlive").withExactArgs(sinon.match.same(oContext));
 		this.mock(_Helper).expects("getMetaPath").withExactArgs("/path").returns("/meta/path");
-		this.mock(oMetaModel).expects("getObject")
+		this.mock(oMetaModel).expects("fetchObject")
 			.withExactArgs("/meta/path/@com.sap.vocabularies.Common.v1.Messages/$Path")
-			.returns(undefined);
+			.resolves(undefined);
 
-		assert.throws(function () {
-			// code under test
-			oContext.setKeepAlive(true, "fnOnBeforeDestroy", true);
-		}, new Error("Missing @com.sap.vocabularies.Common.v1.Messages"));
-
-		assert.strictEqual(oContext.isKeepAlive(), false);
+		// code under test
+		oContext.setKeepAlive(true, "fnOnBeforeDestroy", true);
 	});
 
 	//*********************************************************************************************
@@ -3568,11 +3641,12 @@ sap.ui.define([
 			},
 			oError = new Error(),
 			oMetaModel = {
-				getObject : function () {}
+				fetchObject : function () {}
 			},
 			oModel = {
 				bAutoExpandSelect : true,
 				getMetaModel : function () { return oMetaModel; },
+				getPredicateIndex : function () {},
 				getReporter : function () {
 					return function (oError0) {
 						assert.strictEqual(oError0, oError);
@@ -3583,15 +3657,12 @@ sap.ui.define([
 			oContext = Context.create(oModel, oBinding, "/path");
 
 		this.mock(oContext).expects("isTransient").withExactArgs().returns(false);
-		this.mock(oContext).expects("getValue").withExactArgs().returns("~value~");
-		this.mock(_Helper).expects("getPrivateAnnotation")
-			.withExactArgs("~value~", "predicate")
-			.returns("('foo')");
+		this.mock(oModel).expects("getPredicateIndex").withExactArgs("/path");
 		this.mock(oBinding).expects("checkKeepAlive").withExactArgs(sinon.match.same(oContext));
 		this.mock(_Helper).expects("getMetaPath").withExactArgs("/path").returns("/meta/path");
-		this.mock(oMetaModel).expects("getObject")
+		this.mock(oMetaModel).expects("fetchObject")
 			.withExactArgs("/meta/path/@com.sap.vocabularies.Common.v1.Messages/$Path")
-			.returns("path/to/messages");
+			.resolves("path/to/messages");
 		this.mock(oBinding).expects("fetchIfChildCanUseCache")
 			.withExactArgs(sinon.match.same(oContext), "path/to/messages", {})
 			.rejects(oError);

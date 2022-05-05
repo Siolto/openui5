@@ -182,7 +182,10 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/delegate/ItemNavigation', 'sa
 		_getOverflowSize(columnHeight, columnsCount) {
 			const maxAlowedThumbnailsInColumn = this._getMaxAllowedThumbnailsInColumn(columnHeight),
 				overflowSize = Math.max(0, this.items.length - maxAlowedThumbnailsInColumn * columnsCount);
-			return (overflowSize > 0) ? overflowSize + 1 : 0;
+			if (overflowSize === this.items.length || overflowSize === 0) {
+				return overflowSize;
+			}
+			return overflowSize + 1;
 		}
 		_getFocusableItems() {
 			if (!this._showThumbnails) {
@@ -233,7 +236,7 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/delegate/ItemNavigation', 'sa
 			}
 		}
 		_onThumbnailClick(event) {
-			const item = event.target.closest("ui5-media-gallery-item");
+			const item = event.target.closest("[ui5-media-gallery-item]");
 			if (item.disabled) {
 				return;
 			}

@@ -11,23 +11,21 @@ sap.ui.define([
 	"use strict";
 
 	var oMockData = {
+			sFilterBase : "/sap/opu/odata4/sap/zrc_rap_sticky/srvd/sap/zrc_rap_sticky/0001/",
 			mFixture : {
-				"$metadata?sap-language=EN" : {
-					source : "metadata.xml"
-				},
 				"GET Sticky?$count=true&$select=Content,Id&$skip=0&$top=5" : {
 					message : {
 						"@odata.count" : "1",
-						"value" : [{
-							"Id" : "10",
-							"Content" : "Test Data 10"
+						value : [{
+							Id : "10",
+							Content : "Test Data 10"
 						}]
 					}
 				},
 				"GET Sticky('10')?$select=Content,Id" : {
 					message : {
-						"Id" : "10",
-						"Content" : "Test Data 10"
+						Id : "10",
+						Content : "Test Data 10"
 					}
 				},
 				"PATCH Sticky('10')" : [{
@@ -36,8 +34,8 @@ sap.ui.define([
 						return oRequest.requestHeaders["SAP-ContextId"] === "session1";
 					},
 					message : {
-						"Id" : "10",
-						"Content" : "returned from server"
+						Id : "10",
+						Content : "returned from server"
 					}
 				}, {
 					code : 400,
@@ -47,12 +45,11 @@ sap.ui.define([
 				"POST Sticky('10')/com.sap.gateway.srvd.zrc_rap_sticky.v0001.PrepareForEdit" : {
 					headers : {"SAP-ContextId" : "session1"},
 					message : {
-						"Id" : "10",
-						"Content" : "prepared for edit"
+						Id : "10",
+						Content : "prepared for edit"
 					}
 				}
 			},
-			sFilterBase : "/sap/opu/odata4/sap/zrc_rap_sticky/srvd/sap/zrc_rap_sticky/0001/",
 			sSourceBase : "sap/ui/core/sample/odata/v4/Sticky/data"
 		};
 

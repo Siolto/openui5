@@ -8,7 +8,8 @@ sap.ui.define(
 		"sap/ui/mdc/filterbar/FilterBarBaseRenderer",
 		"sap/ui/mdc/filterbar/aligned/FilterItemLayout",
 		"sap/ui/mdc/filterbar/vh/FilterContainer",
-		"sap/m/Button"
+		"sap/m/Button",
+		"sap/ui/mdc/enum/PersistenceMode"
 	],
 	function (
 		mLibrary,
@@ -16,9 +17,31 @@ sap.ui.define(
 		FilterBarBaseRenderer,
 		FilterItemLayout,
 		FilterContainer,
-		Button
+		Button,
+		PersistenceMode
 	) {
 		"use strict";
+		/**
+		 * Modules for different filterbars
+		 * @namespace
+		 * @name sap.ui.mdc.filterbar
+		 * @since 1.80.0
+		 * @private
+		 * @experimental As of version 1.80
+		 * @ui5-restricted sap.ui.mdc
+		 */
+
+		/**
+		 * Base-modules for {@link sap.ui.mdc.filterbar.vh.FiterBar FilterBar}
+		 *
+		 * These modules are not to be used stand-alone.
+		 * @namespace
+		 * @name sap.ui.mdc.filterbar.vh
+		 * @since 1.84.0
+		 * @private
+		 * @experimental As of version 1.84
+		 * @ui5-restricted sap.ui.mdc
+		 */
 
 		/**
 		 * Constructor for a new FilterBar.
@@ -34,6 +57,8 @@ sap.ui.define(
 		 * @version ${version}
 		 * @constructor
 		 * @private
+		 * @ui5-restricted sap.fe
+		 * @MDC_PUBLIC_CANDIDATE
 		 * @since 1.84.0
 		 * @alias sap.ui.mdc.filterbar.vh.FilterBar
 		 * @ui5-metamodel This control/element also will be described in the UI5 (legacy) designtime metamodel
@@ -57,23 +82,8 @@ sap.ui.define(
 							type: "int",
 							defaultValue: 8
 						}
-
-						// delegate: {
-						// 	type: "object",
-						// 	group: "Data",
-						// 	defaultValue: {name: 'sap/ui/mdc/filterbar/vh/GenericFilterBarDelegate'}
-						// }
 					},
 					aggregations : {
-						/**
-						 * <code>collectiveSearch</code> control of the filterbar.
-						 *
-						 * @since 1.87.0
-						 */
-						collectiveSearch: {
-							type: "sap.ui.mdc.filterbar.vh.CollectiveSearchSelect",
-							multiple: false
-						}
 					}
 				},
 
@@ -134,7 +144,6 @@ sap.ui.define(
 				press: this._onShowAllFilters.bind(this),
 				text: this._oRb.getText("valuehelp.SHOWALLFILTERS")
 			});
-
 			this._oFilterBarLayout.addEndContent(this._oShowAllFiltersBtn);
 		};
 
@@ -143,11 +152,26 @@ sap.ui.define(
 			this._waitForMetadata();
 		};
 
+		FilterBar.prototype._handleConditionModelPropertyChange = function() {
+			FilterBarBase.prototype._handleConditionModelPropertyChange.apply(this, arguments);
+			this.fireFiltersChanged({conditionsBased: true});
+		};
+
+
+		FilterBar.prototype.init = function() {
+			FilterBarBase.prototype.init.apply(this, arguments);
+			this._bPersistValues = true;
+			this.getEngine().defaultProviderRegistry.attach(this, PersistenceMode.Transient);
+		};
 
 		FilterBar.prototype.exit = function() {
+			this.getEngine().defaultProviderRegistry.detach(this);
+			if (this._oCollectiveSearch) { // do not destroy CollectiveSearch as it is owned by value help and might be reused there
+				this._oFilterBarLayout.removeControl(this._oCollectiveSearch);
+				this._oCollectiveSearch = null;
+			}
 			FilterBarBase.prototype.exit.apply(this, arguments);
 			this._oBasicSearchField = null;
-			this._oCollectiveSearch = null;
 			this._oBtnFilters = null;
 			this._oShowAllFiltersBtn = null;
 		};
@@ -160,6 +184,15 @@ sap.ui.define(
 			this._oFilterBarLayout._updateFilterBarLayout(true);
 		};
 
+		/**
+		 * Sets the <code>CollectiveSearch</code> control
+		 *
+		 * <b>Note:</b> This must only be done by the corresponding value help, not from outside.
+		 *
+		 * @param {sap.ui.mdc.filterbar.vh.CollectiveSearchSelect} oCollectiveSearch <code>CollectiveSearch</code> control
+		 * @returns {this} Reference to <code>this</code> to allow method chaining
+		 * @protected
+		 */
 		FilterBar.prototype.setCollectiveSearch = function (oCollectiveSearch) {
 			if (this._oCollectiveSearch) {
 				if (this._oFilterBarLayout) {
@@ -174,11 +207,27 @@ sap.ui.define(
 			return this;
 		};
 
+		/**
+		 * Gets the <code>CollectiveSearch</code> control
+		 *
+		 * <b>Note:</b> This must only be used by the corresponding value help, not from outside.
+		 *
+		 * @returns {sap.ui.mdc.filterbar.vh.CollectiveSearchSelect} <code>CollectiveSearch</code> control
+		 * @protected
+		 */
 		FilterBar.prototype.getCollectiveSearch = function () {
 			return this._oCollectiveSearch;
 		};
 
-		FilterBar.prototype.destroyCollectiveSearch = function () {
+		/**
+		 * Destroyes the <code>CollectiveSearch</code> control
+		 *
+		 * <b>Note:</b> This must only be used by the corresponding value help, not from outside.
+		 *
+		 * @returns {this} Reference to <code>this</code> to allow method chaining
+		 * @protected
+		 */
+		 FilterBar.prototype.destroyCollectiveSearch = function () {
 			if (this._oCollectiveSearch && this._oFilterBarLayout) {
 				this._oFilterBarLayout.removeControl(this._oCollectiveSearch);
 				this._oCollectiveSearch.destroy();
@@ -187,7 +236,6 @@ sap.ui.define(
 
 			return this;
 		};
-
 
 		FilterBar.prototype.setBasicSearchField = function (oBasicSearchField) {
 			if (this._oBasicSearchField) {
@@ -199,7 +247,9 @@ sap.ui.define(
 			this._oBasicSearchField = oBasicSearchField;
 
 			if (oBasicSearchField) {
-				this.setExpandFilterFields(false);
+				if (this.isPropertyInitial("expandFilterFields")) {
+					this.setExpandFilterFields(false);
+				}
 
 				if (this._oFilterBarLayout) {
 					this._oFilterBarLayout.insertControl(oBasicSearchField, this._oCollectiveSearch ? 1 : 0);

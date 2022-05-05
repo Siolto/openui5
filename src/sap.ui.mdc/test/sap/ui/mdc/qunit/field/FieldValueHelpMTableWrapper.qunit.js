@@ -1795,12 +1795,36 @@ sap.ui.define([
 			oFocusedElement = document.activeElement;
 			assert.equal(iNavigate, 0, "Navigate event not fired");
 			assert.notOk(oField.focus.called, "focus not set on Field");
-			assert.ok(jQuery(oFocusedElement).hasClass("sapMListTblHeader"), "Focus is set on table-header");
+			assert.ok(oFocusedElement && oFocusedElement.classList.contains("sapMListTblHeader"), "Focus is set on table-header");
 
 			oFieldHelp.close();
 			oClock.tick(iDialogDuration); // fake closing time
 		}
 
+	});
+
+	QUnit.test("_getTableItems always returns array", function (assert) {
+		sinon.spy(oWrapper, "_getTableItems");
+
+		oWrapper._getTableItems();
+		assert.equal(oWrapper._getTableItems.lastCall.returnValue.length, 3, "_getTableItems returns array");
+
+		oWrapper._getTableItems(true);
+		assert.equal(oWrapper._getTableItems.lastCall.returnValue.length, 0, "_getTableItems returns array");
+
+		// no table
+		sinon.stub(oWrapper,"_getWrappedTable").returns(undefined);
+
+		oWrapper._getTableItems();
+		assert.equal(oWrapper._getWrappedTable.getCalls().length, 1, "_getWrappedTable was called");
+		assert.ok(Array.isArray(oWrapper._getTableItems.lastCall.returnValue), "_getTableItems returns array without table");
+
+		oWrapper._getTableItems(true);
+		assert.equal(oWrapper._getWrappedTable.getCalls().length, 2, "_getWrappedTable was called");
+		assert.ok(Array.isArray(oWrapper._getTableItems.lastCall.returnValue), "_getTableItems(true) returns array without table");
+
+		oWrapper._getWrappedTable.restore();
+		oWrapper._getTableItems.restore();
 	});
 
 

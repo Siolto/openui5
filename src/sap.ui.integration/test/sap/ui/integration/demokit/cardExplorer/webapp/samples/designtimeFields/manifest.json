@@ -112,7 +112,17 @@
 				},
 				"dependentBoolean1": {
 					"value": "Editable changes depend on boolean1"
-				}
+				},
+				"object": {},
+				"objectWithPropertiesDefined": {},
+				"objectWithPropertiesDefinedAndValueFromJsonList": {},
+				"objectWithPropertiesDefinedAndValueFromRequestedFile": {},
+				"objectWithPropertiesDefinedAndValueFromODataRequest": {},
+				"objects": {},
+				"objectsWithPropertiesDefined": {},
+				"objectsWithPropertiesDefinedAndValueFromJsonList": {},
+				"objectsWithPropertiesDefinedAndValueFromRequestedFile": {},
+				"objectsWithPropertiesDefinedAndValueFromODataRequest": {}
 			},
 			"destinations": {
 				"local": {
@@ -130,7 +140,7 @@
 			}
 		},
 		"header": {
-			"title": "{{parameters.cardTitle}}",
+			"title": "{parameters>/cardTitle/value}",
 			"subTitle": "Card Sub Title",
 			"icon": {
 				"src": "sap-icon://accept",

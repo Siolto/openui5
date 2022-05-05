@@ -5,12 +5,14 @@ sap.ui.define([
 	"jquery.sap.global",
 	"sap/base/Log",
 	"sap/ui/base/SyncPromise",
+	"sap/ui/core/cache/CacheManager",
 	"sap/ui/model/odata/v4/lib/_Batch",
 	"sap/ui/model/odata/v4/lib/_GroupLock",
 	"sap/ui/model/odata/v4/lib/_Helper",
 	"sap/ui/model/odata/v4/lib/_Requestor",
 	"sap/ui/test/TestUtils"
-], function (jQuery, Log, SyncPromise, _Batch, _GroupLock, _Helper, _Requestor, TestUtils) {
+], function (jQuery, Log, SyncPromise, CacheManager, _Batch, _GroupLock, _Helper, _Requestor,
+		TestUtils) {
 	"use strict";
 
 	var sClassName = "sap.ui.model.odata.v4.lib._Requestor",
@@ -20,12 +22,13 @@ sap.ui.define([
 			},
 			fireSessionTimeout : function () {},
 			getGroupProperty : defaultGetGroupProperty,
+			getOptimisticBatchEnabler : function () {},
+			getReporter : function () {},
 			onCreateGroup : function () {},
 			reportStateMessages : function () {},
 			reportTransitionMessages : function () {}
 		},
-		sServiceUrl = "/sap/opu/odata4/IWBEP/TEA/default/IWBEP/TEA_BUSI/0001/",
-		sSampleServiceUrl = "/sap/opu/odata4/sap/zui5_testv4/default/sap/zui5_epm_sample/0002/";
+		sServiceUrl = "/sap/opu/odata4/IWBEP/TEA/default/IWBEP/TEA_BUSI/0001/";
 
 	/**
 	 * Creates a mock for jQuery's XHR wrapper.
@@ -152,7 +155,77 @@ sap.ui.define([
 
 			return oGroupLock;
 		}
-});
+	});
+
+	//*********************************************************************************************
+	QUnit.test("matchesOptimisticBatch", function (assert) {
+		var aActual = [],
+			aOptimistic = [],
+			oHelperMock = this.mock(_Helper);
+
+		// code under test
+		assert.ok(_Requestor.matchesOptimisticBatch(aActual, "", aOptimistic, ""));
+
+		// code under test
+		assert.notOk(_Requestor.matchesOptimisticBatch(aActual, "foo", aOptimistic, "bar"));
+
+		aActual = [{}];
+
+		// code under test
+		assert.notOk(_Requestor.matchesOptimisticBatch(aActual, "", aOptimistic, ""));
+
+		aActual = [{url : "foo"}];
+		aOptimistic = [{headers : {}, url : "foo"}];
+
+		// code under test
+		assert.ok(_Requestor.matchesOptimisticBatch(aActual, "", aOptimistic, ""));
+
+		aActual = [{url : "foo"}];
+		aOptimistic = [{headers : {}, url : "bar"}];
+
+		// code under test
+		assert.notOk(_Requestor.matchesOptimisticBatch(aActual, "", aOptimistic, ""));
+
+		aActual = [{url : "foo"}, {url : "bar"}];
+		aOptimistic = [
+			{headers : {}, url : "foo"},
+			{headers : {}, url : "bar"}
+		];
+
+		// code under test
+		assert.ok(_Requestor.matchesOptimisticBatch(aActual, "", aOptimistic, ""));
+
+		aActual = [{
+			headers : {foo : "actual0", "X-CSRF-Token" : "abc"}, url : "foo"
+		}, {
+			headers : {foo : "actual1", "X-CSRF-Token" : "xyz"}, url : "bar"
+		}];
+		aOptimistic = [{
+			headers : {foo : "optimistic0"}, url : "foo"
+		}, {
+			headers : {foo : "optimistic1"}, url : "bar"
+		}];
+
+		oHelperMock.expects("deepEqual")
+			.withExactArgs({foo : "actual0"}, aOptimistic[0].headers)
+			.returns(true);
+		oHelperMock.expects("deepEqual")
+			.withExactArgs({foo : "actual1"}, aOptimistic[1].headers)
+			.returns(true);
+
+		// code under test
+		assert.ok(_Requestor.matchesOptimisticBatch(aActual, "", aOptimistic, ""));
+
+		oHelperMock.expects("deepEqual")
+			.withExactArgs({foo : "actual0"}, aOptimistic[0].headers)
+			.returns(true);
+		oHelperMock.expects("deepEqual")
+			.withExactArgs({foo : "actual1"}, aOptimistic[1].headers)
+			.returns(false);
+
+		// code under test
+		assert.notOk(_Requestor.matchesOptimisticBatch(aActual, "", aOptimistic, ""));
+	});
 
 	//*********************************************************************************************
 [false, true].forEach(function (bStatistics) {
@@ -183,6 +256,8 @@ sap.ui.define([
 		assert.strictEqual(oRequestor.iSerialNumber, 0);
 		assert.strictEqual(oRequestor.sServiceUrl, sServiceUrl);
 		assert.strictEqual(oRequestor.vStatistics, bStatistics ? vStatistics : undefined);
+		assert.strictEqual(oRequestor.oOptimisticBatch, null);
+		assert.strictEqual(oRequestor.isBatchSent(), false);
 		assert.ok("vStatistics" in oRequestor);
 
 		oHelperMock.expects("buildQuery").withExactArgs(undefined).returns("");
@@ -214,6 +289,32 @@ sap.ui.define([
 		// code under test
 		assert.strictEqual(oRequestor.getServiceUrl(), sServiceUrl);
 	});
+
+	//*********************************************************************************************
+["API", "Auto", "Direct"].forEach(function (sSubmitMode) {
+	QUnit.test("getUnlockedAutoCopy: sSubmitMode=" + sSubmitMode, function (assert) {
+		var iCount = sSubmitMode === "API" ? 1 : 0, // call count in case new lock needed
+			oGroupLock = {
+				getGroupId : function () {},
+				getOwner : function () {},
+				getUnlockedCopy : function () {}
+			},
+			oRequestor = _Requestor.create(sServiceUrl, oModelInterface);
+
+		this.mock(oGroupLock).expects("getGroupId").withExactArgs().returns("myGroup");
+		this.mock(oRequestor).expects("getGroupSubmitMode").withExactArgs("myGroup")
+			.returns(sSubmitMode);
+		this.mock(oGroupLock).expects("getUnlockedCopy").exactly(1 - iCount).withExactArgs()
+			.returns("~result~");
+		this.mock(oGroupLock).expects("getOwner").exactly(iCount).withExactArgs()
+			.returns("~owner~");
+		this.mock(oRequestor).expects("lockGroup").exactly(iCount)
+			.withExactArgs("$auto", "~owner~").returns("~result~");
+
+		// code under test
+		assert.strictEqual(oRequestor.getUnlockedAutoCopy(oGroupLock), "~result~");
+	});
+});
 
 	//*********************************************************************************************
 	[{
@@ -318,7 +419,6 @@ sap.ui.define([
 		assert.strictEqual(oRequestor.getServiceUrl(), sServiceUrl, "parameter sServiceUrl");
 		assert.deepEqual(oRequestor.mHeaders, {}, "parameter mHeaders");
 		assert.strictEqual(oRequestor.sQueryParams, "", "parameter mQueryParams");
-		assert.strictEqual(oRequestor.onCreateGroup, undefined, "parameter onCreateGroup");
 		// OData version specific header maps
 		assert.deepEqual(oRequestor.mFinalHeaders, mFinalHeaders, "mFinalHeaders");
 		assert.deepEqual(oRequestor.mPredefinedPartHeaders, mPredefinedPartHeaders,
@@ -886,15 +986,12 @@ sap.ui.define([
 	//*********************************************************************************************
 	QUnit.test("request, getGroupProperty", function () {
 		var oGroupLock = this.createGroupLock(),
-			oModelInterface = {
-				getGroupProperty : defaultGetGroupProperty,
-				onCreateGroup : null // optional
-			},
 			oRequestor = _Requestor.create("/", oModelInterface);
 
 		this.mock(oModelInterface).expects("getGroupProperty")
 			.withExactArgs("groupId", "submit")
 			.returns("API");
+		this.mock(oModelInterface).expects("onCreateGroup").withExactArgs("groupId");
 
 		// code under test
 		oRequestor.request("GET", "SalesOrders", oGroupLock);
@@ -1697,11 +1794,12 @@ sap.ui.define([
 	});
 
 	//*********************************************************************************************
-	QUnit.test("processBatch(...): single GET", function () {
+	QUnit.test("processBatch(...): single GET", function (assert) {
 		var aExpectedRequests = [
 				// Note: no empty change set!
 				sinon.match({method : "GET", url : "Products"})
 			],
+			oPromise,
 			oRequestor = _Requestor.create("/", oModelInterface);
 
 		oRequestor.request("GET", "Products", this.createGroupLock());
@@ -1711,8 +1809,14 @@ sap.ui.define([
 				createResponse({})
 			]);
 
+		assert.notOk(oRequestor.isBatchSent());
+
 		// code under test
-		return oRequestor.processBatch("groupId");
+		oPromise = oRequestor.processBatch("groupId");
+
+		assert.ok(oRequestor.isBatchSent());
+
+		return oPromise;
 	});
 
 	//*********************************************************************************************
@@ -2213,6 +2317,8 @@ sap.ui.define([
 				.withExactArgs(sinon.match.same(aBatchRequests), sEpilogue)
 				.returns(oBatchRequest);
 
+			this.mock(oRequestor).expects("processOptimisticBatch")
+				.withExactArgs(sinon.match.same(aBatchRequests), sGroupId);
 			this.mock(oRequestor).expects("sendRequest")
 				.withExactArgs("POST", "$batch?sap-client=123", sinon.match({
 						"Content-Type" : oBatchRequest.headers["Content-Type"],
@@ -2238,6 +2344,31 @@ sap.ui.define([
 		});
 	});
 });
+
+	//*****************************************************************************************
+	QUnit.test("sendBatch(...), consume optimisticBatch result", function (assert) {
+		var aBatchRequests = {},
+			sGroupId = "foo",
+			oOptimisticBatchResult = {},
+			oRequestor = _Requestor.create("/Service/", oModelInterface);
+
+		this.mock(oRequestor).expects("getGroupSubmitMode")
+			.withExactArgs(sGroupId)
+			.returns("Auto");
+		this.mock(_Batch).expects("serializeBatchRequest")
+			.withExactArgs(sinon.match.same(aBatchRequests), "Group ID: foo")
+			.returns("~oBatchRequest~");
+
+		this.mock(oRequestor).expects("processOptimisticBatch")
+			.withExactArgs(sinon.match.same(aBatchRequests), sGroupId)
+			.resolves(oOptimisticBatchResult);
+		this.mock(oRequestor).expects("sendRequest").never();
+		this.mock(_Batch).expects("deserializeBatchResponse").never();
+
+		return oRequestor.sendBatch(aBatchRequests, sGroupId).then(function (oPayload) {
+			assert.strictEqual(oPayload, oOptimisticBatchResult);
+		});
+	});
 
 	//*****************************************************************************************
 	QUnit.test("hasPendingChanges, cancelChanges, waitForRunningChangeRequests", function (assert) {
@@ -3409,6 +3540,112 @@ sap.ui.define([
 	});
 
 	//*********************************************************************************************
+	QUnit.test("fetchType", function (assert) {
+		var oRequestor = _Requestor.create("/", oModelInterface),
+			oRequestorMock = this.mock(oRequestor),
+			mTypeForMetaPath = {},
+			oType = {};
+
+		oRequestorMock.expects("fetchTypeForPath")
+			.withExactArgs("/TEAMS").returns(SyncPromise.resolve(Promise.resolve(oType)));
+		this.mock(oRequestor.getModelInterface()).expects("fetchMetadata")
+			.withExactArgs("/TEAMS/@com.sap.vocabularies.Common.v1.Messages")
+			.returns(SyncPromise.resolve(undefined));
+
+		// code under test
+		return oRequestor.fetchType(mTypeForMetaPath, "/TEAMS").then(function (oResult) {
+			assert.strictEqual(oResult, oType);
+			assert.strictEqual(mTypeForMetaPath["/TEAMS"], oType);
+
+			// code under test (already there)
+			assert.strictEqual(oRequestor.fetchType(mTypeForMetaPath, "/TEAMS").getResult(), oType);
+		});
+	});
+
+	//*********************************************************************************************
+	QUnit.test("fetchType: no type", function (assert) {
+		var oRequestor = _Requestor.create("/", oModelInterface),
+			mTypeForMetaPath = {};
+
+		this.mock(oRequestor).expects("fetchTypeForPath")
+			.withExactArgs("/TEAMS/Unknown").returns(SyncPromise.resolve(undefined));
+		this.mock(oRequestor.getModelInterface()).expects("fetchMetadata").never();
+
+		// code under test
+		return oRequestor.fetchType(mTypeForMetaPath, "/TEAMS/Unknown").then(function (oResult) {
+			assert.strictEqual(oResult, undefined);
+			assert.notOk("/TEAMS/Unknown" in mTypeForMetaPath);
+		});
+	});
+
+	//*********************************************************************************************
+	QUnit.test("fetchType: message annotation", function (assert) {
+		var oRequestor = _Requestor.create("/", oModelInterface),
+			oMessageAnnotation = {},
+			mTypeForMetaPath = {},
+			oType = {};
+
+		this.mock(oRequestor).expects("fetchTypeForPath")
+			.withExactArgs("/TEAMS").returns(SyncPromise.resolve(Promise.resolve(oType)));
+		this.mock(oRequestor.getModelInterface()).expects("fetchMetadata")
+			.withExactArgs("/TEAMS/@com.sap.vocabularies.Common.v1.Messages")
+			.returns(SyncPromise.resolve(oMessageAnnotation));
+
+		// code under test
+		return oRequestor.fetchType(mTypeForMetaPath, "/TEAMS").then(function (oResult) {
+			assert.strictEqual(mTypeForMetaPath["/TEAMS"], oResult);
+			assert.ok(oType.isPrototypeOf(oResult));
+			assert.strictEqual(oResult["@com.sap.vocabularies.Common.v1.Messages"],
+				oMessageAnnotation);
+		});
+	});
+
+	//*********************************************************************************************
+	QUnit.test("fetchType: complex key", function (assert) {
+		var oRequestor = _Requestor.create("/", oModelInterface),
+			oRequestorMock = this.mock(oRequestor),
+			bKey1Done = false,
+			bKey2Done = false,
+			mTypeForMetaPath = {},
+			oType = {$Key : [{key1 : "a/b/id"}, "key2", {key3 : "c/id"}]},
+			oTypeKey1Promise = new SyncPromise(function (resolve) {
+				setTimeout(function () {
+					bKey1Done = true;
+					resolve({});
+				});
+			}),
+			oTypeKey2Promise = new SyncPromise(function (resolve) {
+				setTimeout(function () {
+					bKey2Done = true;
+					resolve({});
+				});
+			});
+
+		oRequestorMock.expects("fetchType")
+			.withExactArgs(sinon.match.same(mTypeForMetaPath), "/TEAMS")
+			.callThrough(); // start the recursion
+		oRequestorMock.expects("fetchTypeForPath")
+			.withExactArgs("/TEAMS").returns(SyncPromise.resolve(Promise.resolve(oType)));
+		this.mock(oRequestor.getModelInterface()).expects("fetchMetadata")
+			.withExactArgs("/TEAMS/@com.sap.vocabularies.Common.v1.Messages")
+			.returns(SyncPromise.resolve(undefined));
+		oRequestorMock.expects("fetchType")
+			.withExactArgs(sinon.match.same(mTypeForMetaPath), "/TEAMS/a/b")
+			.returns(oTypeKey1Promise);
+		oRequestorMock.expects("fetchType")
+			.withExactArgs(sinon.match.same(mTypeForMetaPath), "/TEAMS/c")
+			.returns(oTypeKey2Promise);
+
+		// code under test
+		return oRequestor.fetchType(mTypeForMetaPath, "/TEAMS").then(function (oResult) {
+			assert.strictEqual(oResult, oType);
+			assert.strictEqual(mTypeForMetaPath["/TEAMS"], oType);
+			assert.ok(bKey1Done);
+			assert.ok(bKey2Done);
+		});
+	});
+
+	//*********************************************************************************************
 	QUnit.test("fetchTypeForPath", function (assert) {
 		var oPromise = {},
 			oRequestor = _Requestor.create("/", oModelInterface);
@@ -3491,132 +3728,6 @@ sap.ui.define([
 			assert.strictEqual(fnGetHeader.callCount, oFixture.iCallCount);
 		});
 	});
-
-	//*********************************************************************************************
-	if (TestUtils.isRealOData()) {
-		QUnit.test("request(...)/processBatch (realOData) success", function (assert) {
-			var oRequestor = _Requestor.create(sServiceUrl, oModelInterface),
-				sResourcePath = "TEAMS('TEAM_01')",
-				that = this;
-
-			function assertResult(oPayload) {
-				delete oPayload["@odata.metadataEtag"];
-				assert.deepEqual(oPayload, {
-					"@odata.context" : "$metadata#TEAMS/$entity",
-					Team_Id : "TEAM_01",
-					Name : "Business Suite",
-					MEMBER_COUNT : 2,
-					MANAGER_ID : "3",
-					BudgetCurrency : "USD",
-					Budget : "555.55"
-				});
-			}
-
-			return oRequestor.request("GET", sResourcePath).then(assertResult)
-				.then(function () {
-					return Promise.all([
-						oRequestor.request("GET", sResourcePath, that.createGroupLock())
-							.then(assertResult),
-						oRequestor.request("GET", sResourcePath, that.createGroupLock())
-							.then(assertResult),
-						oRequestor.processBatch("groupId")
-					]);
-				});
-		});
-
-		//*****************************************************************************************
-		QUnit.test("request(...)/processBatch (realOData) fail", function (assert) {
-			var oRequestor = _Requestor.create(sServiceUrl, oModelInterface);
-
-			oRequestor.request(
-				"GET", "TEAMS('TEAM_01')", this.createGroupLock()
-			).then(function (oResult) {
-				delete oResult["@odata.metadataEtag"];
-				assert.deepEqual(oResult, {
-					"@odata.context" : "$metadata#TEAMS/$entity",
-					Team_Id : "TEAM_01",
-					Name : "Business Suite",
-					MEMBER_COUNT : 2,
-					MANAGER_ID : "3",
-					BudgetCurrency : "USD",
-					Budget : "555.55"
-				});
-			}, function (oError) {
-				assert.ok(false, oError);
-			});
-
-			oRequestor.request("GET", "fail", this.createGroupLock()).then(function (oResult) {
-				assert.ok(false, oResult);
-			}, function (oError) {
-				assert.ok(oError instanceof Error);
-				assert.strictEqual(typeof oError.error, "object");
-				assert.strictEqual(typeof oError.message, "string");
-				assert.strictEqual(oError.status, 404);
-			});
-
-			// code under test
-			return oRequestor.processBatch("groupId").then(function (oResult) {
-				assert.strictEqual(oResult, undefined);
-			});
-		});
-
-		//*****************************************************************************************
-		QUnit.test("request(ProductList)/processBatch (realOData) patch", function () {
-			var oBody = {Name : "modified by QUnit test"},
-				oRequestor = _Requestor.create(sSampleServiceUrl, oModelInterface),
-				sResourcePath = "ProductList('HT-1001')";
-
-			// code under test
-			return Promise.all([
-					oRequestor.request("PATCH", sResourcePath, this.createGroupLock(), {
-								"If-Match" : {"@odata.etag" : "*"}
-							}, oBody)
-						.then(function (oResult) {
-							TestUtils.deepContains(oResult, oBody);
-						}),
-					oRequestor.processBatch("groupId")
-				]);
-		});
-
-		//*****************************************************************************************
-		QUnit.test("processBatch (real OData): error in change set", function (assert) {
-			var sCommonMessage,
-				oEntity = {
-					"@odata.etag" : "*"
-				},
-				oRequestor = _Requestor.create(sSampleServiceUrl, oModelInterface);
-
-			function onError(sRequestUrl, oError) {
-				if (sCommonMessage) {
-					assert.strictEqual(oError.message, sCommonMessage);
-				} else {
-					sCommonMessage = oError.message;
-				}
-				assert.strictEqual(oError.requestUrl, sRequestUrl);
-			}
-
-			// code under test
-			return Promise.all([
-				oRequestor.request("PATCH", "ProductList('HT-1001')", this.createGroupLock(),
-						{"If-Match" : oEntity}, {Name : "foo"})
-					.then(undefined,
-						onError.bind(null, sSampleServiceUrl + "ProductList('HT-1001')")),
-				oRequestor.request("POST", "Unknown", this.createGroupLock(), undefined, {})
-					.then(undefined, onError.bind(null, sSampleServiceUrl + "Unknown")),
-				oRequestor.request("PATCH", "ProductList('HT-1001')", this.createGroupLock(),
-						{"If-Match" : oEntity}, {Name : "bar"})
-					.then(undefined,
-						onError.bind(null, sSampleServiceUrl + "ProductList('HT-1001')")),
-				oRequestor.request("GET", "SalesOrderList?$skip=0&$top=10", this.createGroupLock())
-					.then(undefined, function (oError) {
-						assert.strictEqual(oError.message,
-							"HTTP request was not processed because the previous request failed");
-						assert.strictEqual(oError.$reported, true);
-					}),
-				oRequestor.processBatch("groupId")
-			]);
-		});
-	}
 
 	//*********************************************************************************************
 	QUnit.test("getPathAndAddQueryOptions: Action", function (assert) {
@@ -3758,8 +3869,7 @@ sap.ui.define([
 	//*****************************************************************************************
 	QUnit.test("getOrCreateBatchQueue", function (assert) {
 		var aBatchQueue,
-			oInterface = {},
-			oRequestor = _Requestor.create("/", oInterface);
+			oRequestor = _Requestor.create("/", oModelInterface);
 
 		function checkBatchQueue(oBatchQueue0, sGroupId) {
 			assert.strictEqual(oRequestor.mBatchQueue[sGroupId], oBatchQueue0);
@@ -3777,8 +3887,7 @@ sap.ui.define([
 		// code under test
 		assert.strictEqual(oRequestor.getOrCreateBatchQueue("group"), aBatchQueue);
 
-		oInterface.onCreateGroup = function () {};
-		this.mock(oInterface).expects("onCreateGroup").withExactArgs("group2");
+		this.mock(oModelInterface).expects("onCreateGroup").withExactArgs("group2");
 
 		// code under test
 		checkBatchQueue(oRequestor.getOrCreateBatchQueue("group2"), "group2");
@@ -4178,6 +4287,18 @@ sap.ui.define([
 			oRequestor.destroy();
 			oClock.restore();
 		});
+	});
+
+	//*****************************************************************************************
+	QUnit.test("waitForBatchResponseReceived", function (assert) {
+		var oRequestor = _Requestor.create(sServiceUrl, oModelInterface);
+
+		oRequestor.mBatchQueue = {
+			myGroup : [[{$promise : "~promise~"}]]
+		};
+
+		// code under test
+		assert.strictEqual(oRequestor.waitForBatchResponseReceived("myGroup"), "~promise~");
 	});
 
 	//*****************************************************************************************
@@ -4698,6 +4819,411 @@ sap.ui.define([
 				// no new request should be inserted
 				assert.strictEqual(aRequests[0].length, 1);
 			});
+	});
+
+	//*****************************************************************************************
+	QUnit.test("sendOptimisticBatch: w/o optimistic batch", function (assert) {
+		var oRequestor = _Requestor.create("/", oModelInterface),
+			oGetPromise = Promise.resolve(/*no first batch*/),
+			sKey = window.location.href;
+
+		this.mock(CacheManager).expects("get")
+			.withExactArgs("sap.ui.model.odata.v4.optimisticBatch:" + sKey)
+			.resolves(oGetPromise);
+
+		this.mock(oRequestor).expects("sendBatch").never();
+
+		// code under test
+		oRequestor.sendOptimisticBatch();
+
+		assert.strictEqual(oRequestor.oOptimisticBatch, null);
+
+		return oGetPromise.then(function () {
+			assert.deepEqual(oRequestor.oOptimisticBatch, {key : sKey});
+		});
+	});
+
+	//*****************************************************************************************
+	QUnit.test("sendOptimisticBatch: with optimistic batch", function (assert) {
+		var oOptimisticBatch = {requests : "~aRequests~", groupId : "~sGroupId~"},
+			oGetPromise = Promise.resolve(oOptimisticBatch),
+			sKey = window.location.href,
+			oRequestor = _Requestor.create("/", oModelInterface);
+
+		this.mock(CacheManager).expects("get")
+			.withExactArgs("sap.ui.model.odata.v4.optimisticBatch:" + sKey)
+			.resolves(oGetPromise);
+		this.mock(oRequestor).expects("sendBatch")
+			.withExactArgs("~aRequests~", "~sGroupId~")
+			.returns("~sendBatchResult~");
+		this.oLogMock.expects("info")
+			.withExactArgs("optimistic batch: sent ", sKey, sClassName);
+
+		// code under test
+		oRequestor.sendOptimisticBatch();
+
+		assert.strictEqual(oRequestor.oOptimisticBatch, null);
+
+		return oGetPromise.then(function () {
+			assert.deepEqual(oRequestor.oOptimisticBatch, {key : sKey,
+				firstBatch : oOptimisticBatch,
+				result : "~sendBatchResult~"});
+		});
+	});
+
+	//*****************************************************************************************
+	QUnit.test("sendOptimisticBatch: CacheManager.get rejects", function (assert) {
+		var done = assert.async(),
+			oError = new Error("CacheManager.get rejected"),
+			oRequestor = _Requestor.create("/", oModelInterface),
+			fnReporter = function (oError0) {
+				assert.strictEqual(oError0, oError);
+				assert.strictEqual(oRequestor.oOptimisticBatch, null);
+				done();
+			};
+
+		this.mock(CacheManager).expects("get")
+			.withExactArgs("sap.ui.model.odata.v4.optimisticBatch:" + window.location.href)
+			.rejects(oError);
+		this.mock(oRequestor.oModelInterface).expects("getReporter")
+			.withExactArgs()
+			.returns(fnReporter);
+
+		// code under test
+		oRequestor.sendOptimisticBatch();
+
+		assert.strictEqual(oRequestor.oOptimisticBatch, null);
+	});
+
+	//*****************************************************************************************
+	QUnit.test("sendOptimisticBatch: #processBatch before read finished", function (assert) {
+		var oOptimisticBatch = {requests : "~aRequests~", groupId : "~sGroupId~"},
+			oRequestor = _Requestor.create("/", oModelInterface),
+			that = this,
+			oGetPromise = new Promise(function (fnResolve) {
+				that.mock(oRequestor).expects("sendBatch").never();
+				that.oLogMock.expects("error")
+					.withExactArgs("optimistic batch: #sendBatch called before optimistic "
+						+ "batch payload could be read", undefined, sClassName);
+				fnResolve(oOptimisticBatch);
+			});
+
+		this.mock(CacheManager).expects("get")
+			.withExactArgs("sap.ui.model.odata.v4.optimisticBatch:" + window.location.href)
+			.resolves(oGetPromise);
+		this.mock(oRequestor).expects("isBatchSent")
+			.withExactArgs()
+			.returns(true); // simulate #processBatch
+
+		// code under test
+		oRequestor.sendOptimisticBatch();
+
+		assert.strictEqual(oRequestor.oOptimisticBatch, null);
+
+		return oGetPromise.then(function () {
+			assert.deepEqual(oRequestor.oOptimisticBatch, null);
+		});
+	});
+
+	//*****************************************************************************************
+	QUnit.test("processOptimisticBatch: simple cases", function (assert) {
+		var oCacheManagerMock = this.mock(CacheManager),
+			sKey = window.location.href,
+			oModelInterfaceMock = this.mock(oModelInterface),
+			oRequestor = _Requestor.create("/", oModelInterface);
+
+		assert.strictEqual(oRequestor.oOptimisticBatch, null);
+
+		//** !this.oOptimisticBatch -> returns undefined
+		oCacheManagerMock.expects("set").never();
+
+		oModelInterfaceMock.expects("getOptimisticBatchEnabler").never();
+
+		// code under test
+		assert.strictEqual(oRequestor.processOptimisticBatch("n/a", "n/a"), undefined);
+
+		assert.strictEqual(oRequestor.oOptimisticBatch, null);
+
+		//** no enabler existing -> nothing happens
+		// simulate first app start w/o optimistic batch sent
+		oRequestor.oOptimisticBatch = {key : sKey};
+		oModelInterfaceMock.expects("getOptimisticBatchEnabler").withExactArgs()
+			.returns(undefined);
+
+		// code under test
+		assert.strictEqual(oRequestor.processOptimisticBatch("n/a", "n/a"), undefined);
+
+		assert.strictEqual(oRequestor.oOptimisticBatch, null);
+
+		//** enabler existing, but modifying batch (method other than GET)
+		oRequestor.oOptimisticBatch = {key : sKey};
+		oModelInterfaceMock.expects("getOptimisticBatchEnabler").withExactArgs()
+			.returns("notCalled");
+		this.oLogMock.expects("warning")
+			.withExactArgs("optimistic batch: modifying batch not supported", sKey, sClassName);
+
+		// code under test
+		assert.strictEqual(oRequestor.processOptimisticBatch([
+				{method : "GET"},
+				{method : "no GET!"}
+			], "n/a"), undefined);
+
+		//** enabler existing, but modifying batch (changeSet detected)
+		oRequestor.oOptimisticBatch = {key : sKey};
+		oModelInterfaceMock.expects("getOptimisticBatchEnabler").withExactArgs()
+			.returns("notCalled");
+		this.oLogMock.expects("warning")
+			.withExactArgs("optimistic batch: modifying batch not supported", sKey, sClassName);
+
+		// code under test
+		assert.strictEqual(
+			oRequestor.processOptimisticBatch([{method : "GET"}, [/*changeSet*/]], "n/a"),
+			undefined);
+	});
+
+	//*****************************************************************************************
+[0, null, undefined, false, Promise.resolve(false)].forEach(function (vEnablerResult) {
+	var sTitle = "processOptimisticBatch: first app start, enabler returns falsy: ";
+
+	QUnit.test(sTitle + vEnablerResult, function (assert) {
+		var fnEnabler = sinon.spy(function () {
+				return vEnablerResult;
+			}),
+			sKey = window.location.href,
+			oRequestor = _Requestor.create("/", oModelInterface),
+			that = this;
+
+		oRequestor.oOptimisticBatch = {key : sKey}; // simulate sendOptimisticBatch just happen
+		 this.mock(oModelInterface).expects("getOptimisticBatchEnabler")
+			.withExactArgs()
+			.returns(fnEnabler);
+		that.oLogMock.expects("info")
+			.withExactArgs("optimistic batch: disabled", sKey, sClassName);
+
+		// code under test
+		assert.strictEqual(oRequestor.processOptimisticBatch([{method : "GET"}], "n/a"), undefined);
+
+		assert.strictEqual(oRequestor.oOptimisticBatch, null);
+		sinon.assert.calledOnce(fnEnabler);
+		sinon.assert.calledWithExactly(fnEnabler, sKey);
+
+		// we have to wait for Promise.resolve() in productive code
+		return Promise.resolve(vEnablerResult);
+	});
+});
+
+	//*****************************************************************************************
+[1, true, "true", Promise.resolve(true), Promise.resolve({})].forEach(function (vEnablerResult) {
+	var sTitle = "processOptimisticBatch: first app start, enabler returns truthy: ";
+
+	QUnit.test(sTitle + vEnablerResult, function (assert) {
+		var fnEnabler = sinon.spy(function () {
+				return vEnablerResult;
+			}),
+			sGroupId = "group",
+			sKey = window.location.href,
+			aRequests = [{
+				headers : {header0 : "saved", "X-CSRF-Token" : "not saved"},
+				method : "GET",
+				url : "url0",
+				foo : "not saved"
+			}, {
+				headers : {header1 : "saved", "X-CSRF-Token" : "not saved"},
+				method : "GET",
+				url : "url1",
+				bar : "not saved"
+			}],
+			aPromises = [],
+			oRequestor = _Requestor.create("/", oModelInterface),
+			oSetPromise,
+			that = this;
+
+		//** enabler existing, and gets called with key, returns/resolves truthy, CacheManager.set
+		oSetPromise = new Promise(function (fnResolve) {
+			that.oLogMock.expects("info")
+				.withExactArgs("optimistic batch: enabled, batch payload saved", sKey,
+					sClassName);
+			fnResolve();
+		});
+
+		aPromises.push[vEnablerResult];
+		oRequestor.oOptimisticBatch = {key : sKey};
+		this.mock(oModelInterface).expects("getOptimisticBatchEnabler")
+			.withExactArgs()
+			.returns(fnEnabler);
+		this.mock(CacheManager).expects("set")
+			.withExactArgs("sap.ui.model.odata.v4.optimisticBatch:" + sKey, {groupId : "group",
+				requests : [{
+					headers : {header0 : "saved"},
+					method : "GET",
+					url : "url0"
+				}, {
+					headers : {header1 : "saved"},
+					method : "GET",
+					url : "url1"
+			}]})
+			.returns(oSetPromise);
+		aPromises.push(oSetPromise);
+
+		// code under test
+		assert.strictEqual(oRequestor.processOptimisticBatch(aRequests, sGroupId), undefined);
+
+		assert.strictEqual(oRequestor.oOptimisticBatch, null);
+		sinon.assert.calledOnce(fnEnabler);
+		sinon.assert.calledWithExactly(fnEnabler, sKey);
+
+		return Promise.all(aPromises);
+	});
+});
+
+	//*****************************************************************************************
+	QUnit.test("processOptimisticBatch: fnOptimisticBatchEnabler rejects", function (assert) {
+		var done = assert.async(),
+			oError = new Error("~enablerError~"),
+			sKey = window.location.href,
+			fnEnabler = function (sKey0) {
+				assert.strictEqual(sKey0, sKey);
+				return Promise.reject(oError);
+			},
+			fnReporter = function (oError0) {
+				assert.strictEqual(oError0, oError);
+				done();
+			},
+			oRequestor = _Requestor.create("/", oModelInterface);
+
+		// simulate first app start w/o optimistic batch sent
+		oRequestor.oOptimisticBatch = {key : sKey};
+
+		this.mock(CacheManager).expects("set").never();
+		this.mock(oModelInterface).expects("getReporter")
+			.withExactArgs()
+			.returns(fnReporter);
+		this.mock(oModelInterface).expects("getOptimisticBatchEnabler")
+			.withExactArgs()
+			.returns(fnEnabler);
+
+		// code under test
+		assert.strictEqual(oRequestor.processOptimisticBatch([], "n/a"), undefined);
+	});
+
+	//*****************************************************************************************
+	QUnit.test("processOptimisticBatch: CacheManager.set rejects", function (assert) {
+		var done = assert.async(),
+			oError = new Error("CacheManager.set rejected"),
+			sGroupId = "group",
+			sKey = window.location.href,
+			fnEnabler = function () {
+				return Promise.resolve(true);
+			},
+			aRequests = [{
+				headers : {foo : "bar"},
+				method : "GET",
+				url : "url0",
+				foo : "foo0"
+			}],
+			oModelInterfaceMock = this.mock(oModelInterface),
+			fnReporter = function (oError0) {
+				assert.strictEqual(oError0, oError);
+				done();
+			},
+			oRequestor = _Requestor.create("/", oModelInterface);
+
+		// simulate first app start w/o optimistic batch sent
+		oRequestor.oOptimisticBatch = {key : sKey};
+
+		oModelInterfaceMock.expects("getReporter")
+			.withExactArgs()
+			.returns(fnReporter);
+		oModelInterfaceMock.expects("getOptimisticBatchEnabler")
+			.withExactArgs()
+			.returns(fnEnabler);
+		this.mock(CacheManager).expects("set")
+			.withExactArgs("sap.ui.model.odata.v4.optimisticBatch:" + sKey, {
+				groupId : "group",
+				requests : [{
+					headers : {foo : "bar"},
+					method : "GET",
+					url : "url0"
+				}]
+			})
+			.rejects(oError);
+
+		// code under test
+		assert.strictEqual(oRequestor.processOptimisticBatch(aRequests, sGroupId), undefined);
+	});
+
+	//*****************************************************************************************
+	QUnit.test("processOptimisticBatch: n+1 start, optimistic batch matches", function (assert) {
+		var sKey = window.location.href,
+			oOptimisticBatch = {
+				firstBatch : {
+					requests : "~optimisticRequests~",
+					groupId : "~optimisticGroup~"
+				},
+				key : sKey,
+				result : "~optimisticBatchResult~"
+			},
+			oRequestor = _Requestor.create("/", oModelInterface);
+
+		oRequestor.oOptimisticBatch = oOptimisticBatch;
+		this.mock(_Requestor).expects("matchesOptimisticBatch")
+			.withExactArgs("~requests~", "~group~", "~optimisticRequests~", "~optimisticGroup~")
+			.returns(true);
+		this.oLogMock.expects("info")
+			.withExactArgs("optimistic batch: success, response consumed", sKey, sClassName);
+		this.mock(CacheManager).expects("set").never();
+		this.mock(oModelInterface).expects("getOptimisticBatchEnabler").never();
+
+		// code under test
+		assert.strictEqual(oRequestor.processOptimisticBatch("~requests~", "~group~"),
+			"~optimisticBatchResult~");
+
+		assert.strictEqual(oRequestor.oOptimisticBatch, null);
+	});
+
+	//*****************************************************************************************
+	QUnit.test("processOptimisticBatch: mismatch, CacheManager.del rejects", function (assert) {
+		// Note: this test covers also the successful CacheManager.del case
+		var oCacheManagerMock = this.mock(CacheManager),
+			done = assert.async(),
+			oError = new Error("CacheManager.del rejected"),
+			sKey = window.location.href,
+			oModelInterfaceMock = this.mock(oModelInterface),
+			oOptimisticBatch = {
+				firstBatch : {
+					requests : "~optimisticRequests~",
+					groupId : "~optimisticGroup~"
+				},
+				key : sKey,
+				result : "~optimisticBatchResult~"
+			},
+			fnReporter = function (oError0) {
+				assert.strictEqual(oError0, oError);
+				done();
+			},
+			oRequestor = _Requestor.create("/", oModelInterface);
+
+		oRequestor.oOptimisticBatch = oOptimisticBatch;
+		this.mock(_Requestor).expects("matchesOptimisticBatch")
+			.withExactArgs("~requests~", "~group~", "~optimisticRequests~", "~optimisticGroup~")
+			.returns(false);
+		this.oLogMock.expects("warning")
+			.withExactArgs("optimistic batch: mismatch, response skipped", sKey, sClassName);
+		oCacheManagerMock.expects("del")
+			.withExactArgs("sap.ui.model.odata.v4.optimisticBatch:" + sKey)
+			.rejects(oError);
+		oModelInterfaceMock.expects("getReporter")
+			.withExactArgs()
+			.returns(fnReporter);
+		oModelInterfaceMock.expects("getOptimisticBatchEnabler")
+			.withExactArgs()
+			.returns(undefined); // unrealistic, but this skips processing in productive code
+		oCacheManagerMock.expects("set").never();
+
+		// code under test
+		assert.strictEqual(oRequestor.processOptimisticBatch("~requests~", "~group~"), undefined);
+
+		assert.strictEqual(oRequestor.oOptimisticBatch, null);
 	});
 });
 // TODO: continue-on-error? -> flag on model

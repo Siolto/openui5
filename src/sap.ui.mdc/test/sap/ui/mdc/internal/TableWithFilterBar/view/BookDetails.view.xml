@@ -42,9 +42,9 @@
 							<f:SimpleForm id="detailForm" layout="ColumnLayout" editable="{view>/editMode}">
 								<f:content>
 									<Label text="ID" />
-									<mdc:Field delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}" id= "fID" value="{path: 'ID', type: 'sap.ui.model.odata.type.Int32', formatOptions: {groupingEnabled: false}}" editMode="{=${view>/editMode} ? 'ReadOnly' : 'Display'}" />
+									<mdc:Field delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}" id= "fID" value="{path: 'ID', type: 'sap.ui.model.odata.type.Int32', formatOptions: {groupingEnabled: false}}" editMode="{=${view>/editMode} ? 'ReadOnly' : 'Display'}" multipleLines="false"/>
 									<Label text="Author ID" />
-									<mdc:Field delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}" id="fAuthor" value="{path: 'author_ID', type: 'sap.ui.model.odata.type.Int32', formatOptions: {groupingEnabled: false}}" fieldHelp="FH1" display="ValueDescription" editMode="{=${view>/editMode} ? 'Editable' : 'Display'}">
+									<mdc:Field delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}" id="fAuthor" value="{path: 'author_ID', type: 'sap.ui.model.odata.type.Int32', formatOptions: {groupingEnabled: false}}" fieldHelp="FH1" display="ValueDescription" editMode="{=${view>/editMode} ? 'Editable' : 'Display'}"  multipleLines="false">
 										<mdc:dependents>
 											<mdc:ValueHelp id="FH1"
 												delegate="{name: 'sap/ui/v4demo/delegate/Books.AuthorVH.delegate', payload: {}}">
@@ -80,7 +80,7 @@
 													<mdcv:Dialog id="FH1-Dialog" title="Author ID">
 														<mdcvc:MTable id="FH1-Dialog-MTable" keyPath="ID" descriptionPath="name" filterFields="$search">
 															<mdcvc:filterBar>
-																<vhfb:FilterBar liveMode="false" delegate="{name: 'sap/ui/mdc/filterbar/vh/GenericFilterBarDelegate', payload: {}}">
+																<vhfb:FilterBar liveMode="false" delegate="{name: 'delegates/GenericVhFilterBarDelegate', payload: {}}">
 																	<vhfb:basicSearchField>
 																		<mdc:FilterField
 																			delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}"
@@ -143,7 +143,7 @@
 										</mdc:dependents>
 									</mdc:Field>
 									<Label text="Title"/>
-									<mdc:Field delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}" id="fTitle" value="{path: 'title', type: 'sap.ui.model.odata.type.String', constraints: {maxLength: 1111}}" editMode="{=${view>/editMode} ? 'Editable' : 'Display'}">
+									<mdc:Field delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}" id="fTitle" value="{path: 'title', type: 'sap.ui.model.odata.type.String', constraints: {maxLength: 1111}}" editMode="{=${view>/editMode} ? 'Editable' : 'Display'}" multipleLines="false">
 										<mdc:fieldInfo>
 											<mdc:Link
 												sourceControl="fTitle"
@@ -156,9 +156,9 @@
 									<Label text="Description"/>
 									<mdc:Field delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}" id="fDescr" multipleLines="true" value="{path: 'descr', type: 'sap.ui.model.odata.type.String', constraints: {maxLength: 1111}}" editMode="{=${view>/editMode} ? 'Editable' : 'Display'}"/>
 									<Label text="Stock"/>
-									<mdc:Field delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}" id="fStock" value="{path: 'stock', type: 'sap.ui.model.odata.type.Int32'}" editMode="{=${view>/editMode} ? 'Editable' : 'Display'}"/>
+									<mdc:Field delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}" id="fStock" value="{path: 'stock', type: 'sap.ui.model.odata.type.Int32'}" editMode="{=${view>/editMode} ? 'Editable' : 'Display'}" multipleLines="false"/>
 									<Label text="Price"/>
-									<mdc:Field delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}" id="fPrice" value="{parts: [{path: 'price'}, {path: 'currency_code'}], type: 'sap.ui.model.type.Currency', formatOptions: {parseAsString: true}}" fieldHelp="FVH-Currency" editMode="{=${view>/editMode} ? 'Editable' : 'Display'}">
+									<mdc:Field delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}" id="fPrice" value="{parts: [{path: 'price'}, {path: 'currency_code'}], type: 'sap.ui.model.type.Currency', formatOptions: {parseAsString: true}}" fieldHelp="FVH-Currency" editMode="{=${view>/editMode} ? 'Editable' : 'Display'}" multipleLines="false">
 										<mdc:dependents>
 											<mdc:ValueHelp id="FVH-Currency"
 												delegate="{name: 'sap/ui/v4demo/delegate/ValueHelp.delegate', payload: {}}">
@@ -173,7 +173,7 @@
 										</mdc:dependents>
 									</mdc:Field>
 									<Label text="Link" />
-									<mdc:Field delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}" id="fLink" value="{path: 'title', type: 'sap.ui.model.odata.type.String', constraints: {maxLength: 1111}}" editMode="Display">
+									<mdc:Field delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}" id="fLink" value="{path: 'title', type: 'sap.ui.model.odata.type.String', constraints: {maxLength: 1111}}" editMode="Display" multipleLines="false">
 										<mdc:fieldInfo>
 											<mdc:Link
 												sourceControl="fLink"
@@ -181,19 +181,19 @@
 										</mdc:fieldInfo>
 									</mdc:Field>
 									<Label text="Genre" />
-									<mdc:Field delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}" id="fGenre" value="{path: 'genre_code', type: 'sap.ui.model.odata.type.String', constraints: {maxLength: 1111}}" editMode="{=${view>/editMode} ? 'Editable' : 'Display'}" fieldHelp="FHGenre" display="Description"/>
+									<mdc:Field delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}" id="fGenre" value="{path: 'genre_code', type: 'sap.ui.model.odata.type.String', constraints: {maxLength: 1111}}" editMode="{=${view>/editMode} ? 'Editable' : 'Display'}" fieldHelp="FHGenre" display="Description" multipleLines="false"/>
 									<Label text="SubGenre" />
-									<mdc:Field delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}" id="fSubGenre" value="{path: 'subgenre_code', type: 'sap.ui.model.odata.type.String', constraints: {maxLength: 1111}}" editMode="{=${view>/editMode} ? 'Editable' : 'Display'}" fieldHelp="FHSubGenre" display="Description"/>
+									<mdc:Field delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}" id="fSubGenre" value="{path: 'subgenre_code', type: 'sap.ui.model.odata.type.String', constraints: {maxLength: 1111}}" editMode="{=${view>/editMode} ? 'Editable' : 'Display'}" fieldHelp="FHSubGenre" display="Description" multipleLines="false"/>
 								</f:content>
 								<f:dependents>
 									<mdc:ValueHelp id="FHGenre"
-										delegate="{name: 'sap/ui/v4demo/delegate/ValueHelp.delegate', payload: {}}">
-										<mdc:inParameters>
+										delegate="{name: 'sap/ui/v4demo/delegate/FieldInOutValueHelp.delegate', payload: {}}">
+										<!-- <mdc:inParameters>
 											<mdcf:InParameter id="IOFFVHGenre-In-Class" value="{classification_code}" helpPath="classification_code" />
 										</mdc:inParameters>
 										<mdc:outParameters>
 											<mdcf:OutParameter id="IOFFVHGenre-Out-Class" value="{classification_code}" helpPath="classification_code" />
-										</mdc:outParameters>
+										</mdc:outParameters> -->
 										<mdc:typeahead>
 											<mdcv:Popover title="Genre">
 												<mdcvc:MTable keyPath="code" descriptionPath="title" filterFields="$search">
@@ -264,18 +264,27 @@
 										</mdc:dialog>
 									</mdc:ValueHelp>
 									<mdc:ValueHelp id="FHSubGenre"
-										delegate="{name: 'sap/ui/v4demo/delegate/ValueHelp.delegate', payload: {}}">
-										<mdc:inParameters>
+										delegate="{name: 'sap/ui/v4demo/delegate/FieldInOutValueHelp.delegate', payload: {
+											inParameters: [ {contentId:'container-v4demo---bookdetails--subGenre', sourceFieldId:'container-v4demo---bookdetails--fGenre', target:'genre_code'},
+															{contentId:'container-v4demo---bookdetails--subGenreTypeAhead', sourceFieldId:'container-v4demo---bookdetails--fGenre', target:'genre_code'}
+															],
+											outParameters: [{source: 'genre_code', targetFieldId: 'container-v4demo---bookdetails--fGenre', mode:'Always'}
+															],
+											payloadInfos: [ {contentId:'container-v4demo---bookdetails--subGenre', path:['classification_code', 'genre_code']},
+															{contentId:'container-v4demo---bookdetails--subGenreTypeAhead', path:['classification_code', 'genre_code']}
+															]
+										}}">
+										<!-- <mdc:inParameters>
 											<mdcf:InParameter id="IOFFVHSub-In-Class" value="{classification_code}" helpPath="classification_code" />
 											<mdcf:InParameter id="IOFFVHSub-In-Genre" value="{genre_code}" helpPath="genre_code" />
 										</mdc:inParameters>
 										<mdc:outParameters>
 											<mdcf:OutParameter id="IOFFVHSub-Out-Class" value="{classification_code}" helpPath="classification_code" />
 											<mdcf:OutParameter id="IOFFVHSub-Out-Genre" value="{genre_code}" helpPath="genre_code" />
-										</mdc:outParameters>
+										</mdc:outParameters> -->
 										<mdc:typeahead>
 											<mdcv:Popover title="Sub Genre">
-												<mdcvc:MTable keyPath="code" descriptionPath="title" filterFields="$search">
+												<mdcvc:MTable id="subGenreTypeAhead" keyPath="code" descriptionPath="title" filterFields="$search">
 													<Table id="mTable1_subgenre" items='{path : "/SubGenres", length: 10, parameters: {$select: ["classification_code", "genre_code"]}}' width="30rem" mode="SingleSelectMaster">
 														<columns>
 															<Column width="10rem">
@@ -315,7 +324,26 @@
 										</mdc:typeahead>
 										<mdc:dialog>
 											<mdcv:Dialog title="Sub Genre">
-												<mdcvc:MTable keyPath="code" descriptionPath="title" filterFields="$search">
+												<mdcvc:MTable id="subGenre" keyPath="code" descriptionPath="title" filterFields="$search">
+													<mdcvc:filterBar>
+														<vhfb:FilterBar liveMode="false" delegate="{name: 'delegates/GenericVhFilterBarDelegate', payload: {collectionName: ''}}" >
+															<vhfb:basicSearchField>
+																<mdc:FilterField
+																	delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}"
+																	dataType= "Edm.String"
+																	conditions= "{$filters>/conditions/$search}"
+																	width="50%"
+																	maxConditions="1"
+																	placeholder="Search" />
+															</vhfb:basicSearchField>
+															<vhfb:filterItems>
+																<mdc:FilterField delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}" label="Code" dataType= "Edm.String" conditions= "{$filters>/conditions/code}" />
+																<mdc:FilterField delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}" label="Title" conditions= "{$filters>/conditions/title}" />
+																<mdc:FilterField delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}" label="Classification" dataType= "Edm.String" conditions= "{$filters>/conditions/classification_code}" display="Description" fieldHelp="FHClassification"/>
+																<mdc:FilterField delegate="{name: 'sap/ui/mdc/odata/v4/FieldBaseDelegate', payload: {}}" label="Genre" dataType= "Edm.String" conditions= "{$filters>/conditions/genre_code}" display="Description" fieldHelp="FHGenre"/>
+															</vhfb:filterItems>
+														</vhfb:FilterBar>
+													</mdcvc:filterBar>
 													<Table id="mTable2_subgenre" items='{path : "/SubGenres", parameters: {$select: ["classification_code", "genre_code"]}}' width="100%" growing="true" growingScrollToLoad="true" growingThreshold="20" mode="SingleSelectLeft">
 														<columns>
 															<Column width="10rem">

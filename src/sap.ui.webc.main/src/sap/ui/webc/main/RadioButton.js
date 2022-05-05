@@ -6,9 +6,11 @@
 sap.ui.define([
 	"sap/ui/webc/common/WebComponent",
 	"./library",
+	"sap/ui/core/EnabledPropagator",
 	"sap/ui/core/library",
-	"./thirdparty/RadioButton"
-], function(WebComponent, library, coreLibrary) {
+	"./thirdparty/RadioButton",
+	"./thirdparty/features/InputElementsFormSupport"
+], function(WebComponent, library, EnabledPropagator, coreLibrary) {
 	"use strict";
 
 	var ValueState = coreLibrary.ValueState;
@@ -65,13 +67,16 @@ sap.ui.define([
 				},
 
 				/**
-				 * Defines whether the component is disabled. <br>
-				 * <br>
-				 * <b>Note:</b> A disabled component is completely noninteractive.
+				 * Defines whether the control is enabled. A disabled control can't be interacted with, and it is not in the tab chain.
 				 */
-				disabled: {
+				enabled: {
 					type: "boolean",
-					defaultValue: false
+					defaultValue: true,
+					mapping: {
+						type: "attribute",
+						to: "disabled",
+						formatter: "_mapEnabled"
+					}
 				},
 
 				/**
@@ -129,6 +134,8 @@ sap.ui.define([
 				 *     <li><code>None</code></li>
 				 *     <li><code>Error</code></li>
 				 *     <li><code>Warning</code></li>
+				 *     <li><code>Success</code></li>
+				 *     <li><code>Information</code></li>
 				 * </ul>
 				 */
 				valueState: {
@@ -141,7 +148,6 @@ sap.ui.define([
 				 */
 				width: {
 					type: "sap.ui.core.CSSSize",
-					defaultValue: null,
 					mapping: "style"
 				},
 
@@ -182,9 +188,12 @@ sap.ui.define([
 				change: {
 					parameters: {}
 				}
-			}
+			},
+			designtime: "sap/ui/webc/main/designtime/RadioButton.designtime"
 		}
 	});
+
+	EnabledPropagator.call(RadioButton.prototype);
 
 	/* CUSTOM CODE START */
 

@@ -154,7 +154,7 @@ sap.ui.define([
 					defaultValue: AvatarSize.S
 				}
 			},
-			defaultAggregation: "content",
+			defaultAggregation: "image",
 			aggregations: {
 
 				/**
@@ -162,9 +162,18 @@ sap.ui.define([
 				 *
 				 * <b>Note:</b> If you experience flickering of the provided image, you can hide the component until it is being defined with the following CSS: <br /> <br /> <code> ui5-avatar:not(:defined) { <br /> visibility: hidden; <br /> } <br /> </code>
 				 */
-				content: {
+				image: {
 					type: "sap.ui.core.Control",
 					multiple: false
+				}
+			},
+			events: {
+
+				/**
+				 * Fired when the user clicks the control
+				 */
+				click: {
+					parameters: {}
 				}
 			}
 		}

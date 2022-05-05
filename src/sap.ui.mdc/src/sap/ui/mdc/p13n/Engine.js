@@ -10,12 +10,12 @@ sap.ui.define([
 	"sap/ui/mdc/p13n/modification/FlexModificationHandler",
 	"sap/m/MessageStrip",
 	"sap/ui/core/library",
-	"sap/ui/mdc/p13n/StateUtil",
 	"sap/ui/core/Element",
 	"sap/ui/mdc/p13n/modules/DefaultProviderRegistry",
 	"sap/ui/mdc/p13n/UIManager",
-	"sap/ui/mdc/p13n/modules/StateHandlerRegistry"
-], function (AdaptationProvider, merge, Log, PropertyHelper, FlexModificationHandler, MessageStrip, coreLibrary, StateUtil, Element, DefaultProviderRegistry, UIManager, StateHandlerRegistry) {
+	"sap/ui/mdc/p13n/modules/StateHandlerRegistry",
+	"sap/ui/mdc/p13n/modules/xConfigAPI"
+], function (AdaptationProvider, merge, Log, PropertyHelper, FlexModificationHandler, MessageStrip, coreLibrary, Element, DefaultProviderRegistry, UIManager, StateHandlerRegistry, xConfigAPI) {
 	"use strict";
 
 	var ERROR_INSTANCING = "Engine: This class is a singleton. Please use the getInstance() method instead.";
@@ -30,12 +30,13 @@ sap.ui.define([
 	var oEngine;
 
 	/**
-	 * Constructor for a new Engine. The Engine should always be accessed
-	 * via 'getInstance' and not by creating a new instance of it. The class should only be used
-	 * to create derivations.
+	 * Constructor for a new Engine.
+	 *
+	 * The Engine should always be accessed via 'getInstance' and not by creating a new instance of it.
+	 * The class should only be used to create derivations.
 	 *
 	 * @class
-	 * @extends sap.ui.base.Object
+	 * @extends sap.ui.mdc.p13n.AdaptationProvider
 	 *
 	 * @author SAP SE
 	 * @version ${version}
@@ -58,7 +59,7 @@ sap.ui.define([
 			this._aStateHandlers = [];
 
 			//Default Provider Registry to be used for internal PersistenceProvider functionality access
-			this.defaultProviderRegistry = DefaultProviderRegistry.getInstance();
+			this.defaultProviderRegistry = DefaultProviderRegistry.getInstance(this);
 
 			//UIManager to be used for p13n UI creation
 			this.uimanager = UIManager.getInstance(this);
@@ -158,6 +159,19 @@ sap.ui.define([
 		this._getRegistryEntry(vControl).modification = oModificationSetting;
 	};
 
+	var fnQueue = function(oControl, fTask) {
+		var fCleanupPromiseQueue = function(pOriginalPromise) {
+			if (oControl._pModificationQueue === pOriginalPromise){
+				delete oControl._pModificationQueue;
+			}
+		};
+
+		oControl._pModificationQueue = oControl._pModificationQueue instanceof Promise ? oControl._pModificationQueue.then(fTask) : fTask();
+		oControl._pModificationQueue.then(fCleanupPromiseQueue.bind(null, oControl._pModificationQueue));
+
+		return oControl._pModificationQueue;
+	};
+
 	/**
 	 * <code>Engine#createChanges</code> can be used to programmatically trigger the creation
 	 * of a set of changes based on the current control state and the provided state.
@@ -169,54 +183,67 @@ sap.ui.define([
 	 * @param {string} mDiffParameters.key The key used to retrieve the corresponding Controller.
 	 * @param {object} mDiffParameters.state The state which should be applied on the provided control instance
 	 * @param {boolean} [mDiffParameters.applyAbsolute] Decides whether unmentioned entries should be affected,
+	 * @param {boolean} [mDiffParameters.stateBefore] In case the state should be diffed manually
 	 * for example if "A" is existing in the control state, but not mentioned in the new state provided in the
 	 * mDiffParameters.state then the absolute appliance decides whether to remove "A" or to keep it.
 	 * @param {boolean} [mDiffParameters.suppressAppliance] Decides whether the change should be applied directly.
+	 * @param {boolean} [mDiffParameters.applySequentially] Decides whether the appliance should be queued or processed in parallel.
 	 * Controller
 	 *
 	 * @returns {Promise} A Promise resolving in the according delta changes.
 	 */
 	Engine.prototype.createChanges = function(mDiffParameters) {
 
-		var vControl = mDiffParameters.control;
 		var sKey = mDiffParameters.key;
 		var aNewState = mDiffParameters.state;
 		var bApplyAbsolute = !!mDiffParameters.applyAbsolute;
 		var bSuppressCallback = !!mDiffParameters.suppressAppliance;
-		if (!sKey || !vControl || !aNewState) {
+		var bApplySequentially = !!mDiffParameters.applySequentially;
+
+		if (!sKey || !mDiffParameters.control || !aNewState) {
 			throw new Error("To create changes via Engine, atleast a 1)Control 2)Key and 3)State needs to be provided.");
 		}
 
-		return this.initAdaptation(vControl, sKey).then(function(){
+		var oControl = Engine.getControlInstance(mDiffParameters.control);
 
-			var oController = this.getController(vControl, sKey);
-			var mChangeOperations = oController.getChangeOperations();
+		var fDeltaHandling = function() {
+			return this.initAdaptation(oControl, sKey).then(function(){
 
-			var oRegistryEntry = this._getRegistryEntry(vControl);
-			var oCurrentState = oController.getCurrentState();
-			var oPriorState = merge(oCurrentState instanceof Array ? [] : {}, oCurrentState);
+				var oController = this.getController(oControl, sKey);
+				var mChangeOperations = oController.getChangeOperations();
 
-			var mDeltaConfig = {
-				existingState: oPriorState,
-				applyAbsolute: bApplyAbsolute,
-				changedState: aNewState,
-				control: oController.getAdaptationControl(),
-				changeOperations: mChangeOperations,
-				deltaAttributes: ["name"],
-				propertyInfo: oRegistryEntry.helper.getProperties().map(function(a){return {name: a.name};})
-			};
+				var oRegistryEntry = this._getRegistryEntry(oControl);
+				var oCurrentState = oController.getCurrentState();
+				var oPriorState = merge(oCurrentState instanceof Array ? [] : {}, oCurrentState);
 
-			//Only execute change calculation in case there is a difference (--> example: press 'Ok' without a difference)
-			var aChanges = oController.getDelta(mDeltaConfig);
+				var mDeltaConfig = {
+					existingState: mDiffParameters.stateBefore || oPriorState,
+					applyAbsolute: bApplyAbsolute,
+					changedState: aNewState,
+					control: oController.getAdaptationControl(),
+					changeOperations: mChangeOperations,
+					deltaAttributes: ["name"],
+					propertyInfo: oRegistryEntry.helper.getProperties().map(function(a){return {name: a.name};})
+				};
 
-			if (!bSuppressCallback) {
-				this._processChanges(vControl, aChanges);
-			}
+				//Only execute change calculation in case there is a difference (--> example: press 'Ok' without a difference)
+				var aChanges = oController.getDelta(mDeltaConfig);
 
-			return aChanges || [];
+				if (!bSuppressCallback) {
+					return this._processChanges(oControl, aChanges);
+				}
 
-		}.bind(this));
+				return aChanges || [];
 
+			}.bind(this));
+
+		}.bind(this);
+
+		if (bApplySequentially) {
+			return fnQueue(oControl, fDeltaHandling);
+		} else {
+			return fDeltaHandling.apply(this);
+		}
 	};
 
 	/**
@@ -300,9 +327,6 @@ sap.ui.define([
 			.then(function(aChanges){
 				var oControl = Engine.getControlInstance(vControl);
 				this.stateHandlerRegistry.fireChange(oControl);
-				if (oControl._onChangeAppliance instanceof Function) {
-					oControl._onChangeAppliance.call(oControl);
-				}
 				return aChanges;
 			}.bind(this));
 		} else {
@@ -334,19 +358,19 @@ sap.ui.define([
 			return Promise.reject("Please do not use a PeristenceProvider in RTA.");
 		}
 
-		var oModificationHandler = this.getModificationHandler(oControl);
-		var fnInitialAppliance = oModificationHandler.processChanges;
+		var oOriginalModifHandler = this.getModificationHandler(oControl);
+		var oTemporaryRTAHandler = new FlexModificationHandler();
 
 		var oRTAPromise = new Promise(function(resolve, reject){
 			fResolveRTA = resolve;
 		});
 
-		oModificationHandler.processChanges = function(aChanges) {
+		oTemporaryRTAHandler.processChanges = function(aChanges) {
 			fResolveRTA(aChanges);
 			return Promise.resolve(aChanges);
 		};
 
-		this._setModificationHandler(oControl, oModificationHandler);
+		this._setModificationHandler(oControl, oTemporaryRTAHandler);
 
 		this.uimanager.show(oControl, aKeys).then(function(oContainer){
 			var oCustomHeader = oContainer.getCustomHeader();
@@ -360,8 +384,9 @@ sap.ui.define([
 		});
 
 		oRTAPromise.then(function(){
-			oModificationHandler.processChanges = fnInitialAppliance;
-		});
+			this._setModificationHandler(oControl, oOriginalModifHandler);
+			oTemporaryRTAHandler.destroy();
+		}.bind(this));
 
 		return oRTAPromise;
 
@@ -390,16 +415,14 @@ sap.ui.define([
 
 		return Promise.resolve()
 			.then(function() {
-				if (oRegistryEntry) {
-					var oModificationHandler = this.getModificationHandler(vControl);
-					return oModificationHandler.enhanceConfig(oControl, mEnhanceConfig)
-						.then(function(oConfig){
+				return xConfigAPI.enhanceConfig(oControl, mEnhanceConfig)
+					.then(function(oConfig){
+						if (oRegistryEntry) {
+							//to simplify debugging
 							oRegistryEntry.xConfig = oConfig;
-						});
-				} else {
-					throw new Error("The control instance needs to be registered to use xConfig!");
-				}
-			}.bind(this));
+						}
+					});
+			});
 	};
 
 	/**
@@ -408,16 +431,56 @@ sap.ui.define([
 	 * @param {sap.ui.core.Element} vControl The according element which should be checked
 	 * @param {object} [mEnhanceConfig] An object providing a modification handler specific payload
 	 * @param {object} [mEnhanceConfig.propertyBag] Optional propertybag for different modification handler derivations
-	 * @param {boolean} [bSync] If the method should be executed synchronously; e.g. for the Table
 	 *
-	 * @returns {Promise<object>} Promise resolving with the adapted xConfig object
+	 * @returns {Promise<object>|object}
+	 *     A promise that resolves with the xConfig, the xConfig directly if it is already available, or <code>null</code> if there is no xConfig
 	 */
-	Engine.prototype.readXConfig = function(vControl, mEnhanceConfig, bSync) {
+	Engine.prototype.readXConfig = function(vControl, mEnhanceConfig) {
 
 		var oControl = Engine.getControlInstance(vControl);
-		var oModificationHandler = this.getModificationHandler(vControl);
-		return oModificationHandler.readConfig(oControl, mEnhanceConfig, bSync) || Promise.resolve({});
+		return xConfigAPI.readConfig(oControl, mEnhanceConfig) || {};
+	};
 
+	/**
+	 * The Engine is processing state via the internal key registry.
+	 * The external state representation might differ from the internal registration.
+	 * <b>Note:</b> This will only replace the keys to the external StateUtil representation, but not transform the state content itself.
+	 *
+	 * @private
+	 * @param {string|sap.ui.mdc.Control} vControl The registered control instance
+	 * @param {object} oInternalState The internal state
+	 * @returns {object} The externalized state
+	 */
+	Engine.prototype.externalizeKeys = function(vControl, oInternalState) {
+		var oExternalState = {};
+		Object.keys(oInternalState).forEach(function(sInternalKey){
+			var oController = this.getController(Engine.getControlInstance(vControl), sInternalKey);
+			if (oController) {
+				oExternalState[oController.getStateKey()] = oInternalState[sInternalKey];
+			}
+		}.bind(this));
+		return oExternalState;
+	};
+
+	/**
+	 * The Engine is processing state via the internal key registry.
+	 * The external state representation might differ from the internal registration.
+	 * <b>Note:</b> This will only replace the keys to the internal Engine registry, but not transform the state content itself.
+	 *
+	 * @private
+	 * @param {string|sap.ui.mdc.Control} vControl The registered control instance
+	 * @param {object} oExternalState The external state
+	 * @returns {object} The internalized state
+	 */
+	Engine.prototype.internalizeKeys = function (vControl, oExternalState) {
+		var aControllerKeys = this.getRegisteredControllers(vControl), oInternalState = {};
+		aControllerKeys.forEach(function(sInternalRegistryKey){
+			var sExternalStateKey = this.getController(vControl, sInternalRegistryKey).getStateKey();
+			if (oExternalState.hasOwnProperty(sExternalStateKey)) {
+				oInternalState[sInternalRegistryKey] = oExternalState[sExternalStateKey];
+			}
+		}.bind(this));
+		return oInternalState;
 	};
 
 	/**
@@ -442,7 +505,7 @@ sap.ui.define([
 			var aStatePromise = [], aChanges = [], mInfoState = {};
 
 			if (oControl.validateState instanceof Function) {
-				mInfoState = oControl.validateState(StateUtil._externalizeKeys(oState));
+				mInfoState = oControl.validateState(this.externalizeKeys(oControl, oState));
 			}
 
 			if (mInfoState.validation === MessageType.Error){
@@ -477,6 +540,39 @@ sap.ui.define([
 				});
 				return this._processChanges(oControl, aChanges);
 			}.bind(this));
+
+		}.bind(this));
+	};
+
+	Engine.prototype.diffState = function(oControl, oOld, oNew) {
+
+		var aDiffCreation = [], oDiffState = {};
+		oOld = merge({}, oOld);
+		oNew = merge({}, oNew);
+
+		this.getRegisteredControllers(oControl).forEach(function(sKey){
+
+			aDiffCreation.push(this.createChanges({
+				control: oControl,
+				stateBefore: oOld[sKey],
+				state: oNew[sKey],
+				applyAbsolute: true,
+				key: sKey,
+				suppressAppliance: true
+			}));
+
+		}.bind(this));
+
+		return Promise.all(aDiffCreation)
+		.then(function(aChanges){
+			this.getRegisteredControllers(oControl).forEach(function(sKey, i){
+
+				var aState = this.getController(oControl, sKey).changesToState(aChanges[i], oOld[sKey], oNew[sKey]);
+				oDiffState[sKey] = aState;
+
+			}.bind(this));
+
+			return oDiffState;
 
 		}.bind(this));
 	};
@@ -557,7 +653,7 @@ sap.ui.define([
 	 * @private
 	 *
 	 * @param {sap.ui.mdc.Control} vControl The registered control instance
-	 * @param {string} sKey The key for the according Controller
+	 * @param {string|string[]} aKeys The key for the according Controller
 	 * @param {Object[]} aCustomInfo A custom set of propertyinfos as base to create the UI
 	 *
 	 * @returns {Promise} A Promise resolving after the adaptation housekeeping has been initialized.
@@ -622,7 +718,7 @@ sap.ui.define([
 	 * and the set of provided registered keys.
 	 *
 	 * @param {sap.ui.mdc.Control} vControl The registered Control instance.
-	 * @param {string|array} vKey A key as string or an array of keys
+	 * @param {string|array} vKeys A key as string or an array of keys
 	 *
 	 * @returns {object} The requested UI settings of the control instance and provided keys
 	 */
@@ -759,6 +855,9 @@ sap.ui.define([
 		var sHandlerMode = aPersistenceProvider ? aPersistenceProvider[0].getMode() : "Standard";
 
 		var mHandlerMode = {
+			//During preprocessing, it might be necessary to calculate the modification handler instance
+			//without an initialized control instance --> use flex as default
+			undefined: FlexModificationHandler,
 			Global: FlexModificationHandler,
 			Transient: FlexModificationHandler,
 			Standard: FlexModificationHandler,
@@ -888,6 +987,8 @@ sap.ui.define([
 	 * @param {sap.ui.mdc.Control} vControl The registered control instance.
 	 * @param {string} sKey The registerd key to get the corresponding Controller.
 	 * @param {sap.ui.core.Control} oP13nUI The adaptation UI displayed in the container (e.g. BasePanel derivation).
+	 *
+	 * @returns {object} Object defining the state validation result
 	 */
 	Engine.prototype.validateP13n = function(vControl, sKey, oP13nUI) {
 		var oController = this.getController(vControl, sKey);
@@ -902,10 +1003,10 @@ sap.ui.define([
 		});
 
 		//Only execeute validation for controllers that support 'model2State'
-		if (oController.model2State instanceof Function) {
+		if (oController && oController.model2State instanceof Function) {
 			oTheoreticalState[sKey] = oController.model2State();
 
-			var mInfoState = oControl.validateState(StateUtil._externalizeKeys(oTheoreticalState), sKey);
+			var mInfoState = oControl.validateState(this.externalizeKeys(oControl, oTheoreticalState), sKey);
 
 			var oMessageStrip;
 
@@ -921,7 +1022,9 @@ sap.ui.define([
 			} else {
 				Log.warning("message strip could not be provided - the adaptation UI needs to implement 'setMessageStrip'");
 			}
-
+			return mInfoState;
+		} else {
+			return undefined;
 		}
 
 	};
@@ -929,7 +1032,7 @@ sap.ui.define([
 	/**
 	 * Reads the current state of the subcontrollers and triggers a state appliance
 	 *
-	 * @param {sap.ui.mdc.Control} vControl The registered Control instance.
+	 * @param {sap.ui.mdc.Control} oControl The registered Control instance.
 	 * @param {array} aKeys An array of keys
 	 * @returns {Promise} A Promise resolving after all p13n changes have been calculated and processed
 	 */
@@ -1024,9 +1127,9 @@ sap.ui.define([
 	};
 
 	/**
-	 * @private
-	 *
 	 * This method can be used for debugging to retrieve the complete registry.
+	 *
+	 * @private
 	 */
 	Engine.prototype._getRegistry = function() {
 		var oRegistry = {

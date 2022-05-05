@@ -30,7 +30,8 @@ sap.ui.define([
 	'sap/m/Button',
 	'sap/m/Panel',
 	'sap/base/Log',
-	'sap/ui/core/InvisibleMessage'
+	'sap/ui/core/InvisibleMessage',
+	'sap/ui/thirdparty/jquery'
 ], function(
 		Control,
 		ManagedObjectObserver,
@@ -60,7 +61,8 @@ sap.ui.define([
 		Button,
 		Panel,
 		Log,
-		InvisibleMessage
+		InvisibleMessage,
+		jQuery
 		) {
 	"use strict";
 
@@ -276,6 +278,12 @@ sap.ui.define([
 				if (oField instanceof Button && oField.getId().endsWith("-removeBtnLarge")) {
 					iRow++;
 				}
+			}
+
+			if (aConditions.length === 1 && iIndex === 0) {
+				// the only one existing condition is removed. -> add dummy condition to have it in update in one step
+				this.addDummyCondition(1); // TODO: without setProperty to update condition at once?
+				aConditions = this.getConditions();
 			}
 
 			aConditions.splice(iIndex, 1);
@@ -698,6 +706,7 @@ sap.ui.define([
 				delegate: _getDelegate.call(this),
 				value: { path: "$this>", type: oNullableType, mode: 'TwoWay', targetType: 'raw' },
 				editMode: {parts: [{path: "$condition>operator"}, {path: "$condition>invalid"}], formatter: _getEditModeFromOperator},
+				multipleLines: false,
 				width: "100%"
 			});
 		}
@@ -715,7 +724,7 @@ sap.ui.define([
 			oControl.attachChange(this.onChange.bind(this));
 		}
 		oControl.onpaste = this.onPaste.bind(this);
-		oControl.setLayoutData(new GridData({span: {path: "$condition>", formatter: _getSpanForValue.bind(this)}}));
+		oControl.setLayoutData(new GridData({span: {parts: [{path: "$condition>"}, {path: "$this>/formatOptions"}], formatter: _getSpanForValue.bind(this)}}));
 		oControl.setBindingContext(oValueBindingContext, "$this");
 		oControl.setBindingContext(oBindingContext, "$condition");
 		// add fieldGroup to validate Condition only after both Fields are entered.
@@ -978,7 +987,7 @@ sap.ui.define([
 			if (oOperator && oOperator.valueTypes[0] === Operator.ValueType.Static && (oCondition.values.length === 0 || bTypeChange)) {
 				// if type changed the text needs to be new formatted (setting of type and conditions might be async.)
 				if (oOperator.getStaticText) {
-					var sText = oOperator.getStaticText(oDataType);
+					var sText = oOperator.getStaticText(oDataType, _getBaseType.call(this, oDataType));
 					if (oCondition.values.length > 0) {
 						oCondition.values[0] = sText;
 					} else {
@@ -1036,10 +1045,10 @@ sap.ui.define([
 				span: "XL2 L3 M3 S3",
 				indent: "XL9 L8 M8 S7",
 				linebreak: true,
-				visibleS: {path: "$this>/conditions", formatter: _getAddButtonVisible.bind(this)},
-				visibleM: {path: "$this>/conditions", formatter: _getAddButtonVisible.bind(this)},
-				visibleL: {path: "$this>/conditions", formatter: _getAddButtonVisible.bind(this)},
-				visibleXL: {path: "$this>/conditions", formatter: _getAddButtonVisible.bind(this)}}),
+				visibleS: {parts: [{path: "$this>/conditions"}, {path: "$this>/formatOptions"}], formatter: _getAddButtonVisible.bind(this)},
+				visibleM: {parts: [{path: "$this>/conditions"}, {path: "$this>/formatOptions"}], formatter: _getAddButtonVisible.bind(this)},
+				visibleL: {parts: [{path: "$this>/conditions"}, {path: "$this>/formatOptions"}], formatter: _getAddButtonVisible.bind(this)},
+				visibleXL: {parts: [{path: "$this>/conditions"}, {path: "$this>/formatOptions"}], formatter: _getAddButtonVisible.bind(this)}}),
 			ariaDescribedBy: this._oInvisibleAddOperatorButtonText
 		});
 
@@ -1051,18 +1060,16 @@ sap.ui.define([
 
 	}
 
-	function _getAddButtonVisible(aConditions) {
+	function _getAddButtonVisible(aConditions, oFormatOptions) {
 
-		var oFormatOptions = this.getFormatOptions();
 		var iMaxConditions = oFormatOptions.hasOwnProperty("maxConditions") ? oFormatOptions.maxConditions : -1;
 
 		return iMaxConditions === -1 || aConditions.length < iMaxConditions;
 
 	}
 
-	function _getRemoveButtonVisible(aConditions) {
+	function _getRemoveButtonVisible(aConditions, oFormatOptions) {
 
-		var oFormatOptions = this.getFormatOptions();
 		var iMaxConditions = oFormatOptions.hasOwnProperty("maxConditions") ? oFormatOptions.maxConditions : -1;
 
 		// only on case of maxCondition==1 the Remove icons should be invisible
@@ -1165,12 +1172,14 @@ sap.ui.define([
 		var oOperatorField = new Field(sIdPrefix + "-operator", {
 			value: {path: "$this>operator", type: this._oOperatorFieldType},
 			width: "100%",
-			display: "Description",
+			display: FieldDisplay.Description,
+			editMode: EditMode.Editable,
+			multipleLines: false,
 			fieldHelp: this.getId() + "--rowSelect-help",
 			change: this.onSelectChange.bind(this),
 			ariaLabelledBy: this.getId() + "--ivtOperator"
 		})
-		.setLayoutData(new GridData({span: {path: "$this>/conditions", formatter: _getSpanForOperator.bind(this)}, linebreak: true}))
+		.setLayoutData(new GridData({span: {parts: [{path: "$this>/conditions"}, {path: "$this>/formatOptions"}], formatter: _getSpanForOperator.bind(this)}, linebreak: true}))
 		.setBindingContext(oBindingContext, "$this");
 		if (oBindingContext) {
 			// validate only complete condition
@@ -1193,7 +1202,7 @@ sap.ui.define([
 		})
 		.setLayoutData(new GridData({span: "XL1 L1 M1 S2",
 			indent: {path: "$this>operator", formatter: _getIndentForOperator},
-			visibleS: {path: "$this>/conditions", formatter: _getRemoveButtonVisible.bind(this)},
+			visibleS: {parts: [{path: "$this>/conditions"}, {path: "$this>/formatOptions"}], formatter: _getRemoveButtonVisible.bind(this)},
 			visibleM: false,
 			visibleL: false,
 			visibleXL: false
@@ -1226,9 +1235,9 @@ sap.ui.define([
 		.setLayoutData(new GridData({span: "XL1 L1 M1 S1",
 			indent: {path: "$this>operator", formatter: _getIndentForOperator},
 			visibleS: false,
-			visibleM: {path: "$this>/conditions", formatter: _getRemoveButtonVisible.bind(this)},
-			visibleL: {path: "$this>/conditions", formatter: _getRemoveButtonVisible.bind(this)},
-			visibleXL: {path: "$this>/conditions", formatter: _getRemoveButtonVisible.bind(this)}
+			visibleM: {parts: [{path: "$this>/conditions"}, {path: "$this>/formatOptions"}], formatter: _getRemoveButtonVisible.bind(this)},
+			visibleL: {parts: [{path: "$this>/conditions"}, {path: "$this>/formatOptions"}], formatter: _getRemoveButtonVisible.bind(this)},
+			visibleXL: {parts: [{path: "$this>/conditions"}, {path: "$this>/formatOptions"}], formatter: _getRemoveButtonVisible.bind(this)}
 		}))
 		.setBindingContext(oBindingContext, "$this"); // to find condition on remove
 
@@ -1270,8 +1279,7 @@ sap.ui.define([
 
 	}
 
-	function _getSpanForOperator(aConditions) {
-		var oFormatOptions = this.getFormatOptions();
+	function _getSpanForOperator(aConditions, oFormatOptions) {
 		var iMaxConditions = oFormatOptions.hasOwnProperty("maxConditions") ? oFormatOptions.maxConditions : -1;
 		var sSpan = "XL3 L3 M3 ";
 
@@ -1283,8 +1291,7 @@ sap.ui.define([
 		return sSpan;
 	}
 
-	function _getSpanForValue(oCondition) {
-		var oFormatOptions = this.getFormatOptions();
+	function _getSpanForValue(oCondition, oFormatOptions) {
 		var iMaxConditions = oFormatOptions.hasOwnProperty("maxConditions") ? oFormatOptions.maxConditions : -1;
 
 		var oOperator = oCondition && FilterOperatorUtil.getOperator(oCondition.operator);

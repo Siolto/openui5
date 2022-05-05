@@ -61,9 +61,17 @@ sap.ui.define([
 
 	"use strict";
 
-
-	// delegate further initialization of this library to the Core
-	sap.ui.getCore().initLibrary({
+	/**
+	 * The main UI5 control library, with responsive controls that can be used in touch devices as well as desktop browsers.
+	 *
+	 * @namespace
+	 * @alias sap.m
+	 * @author SAP SE
+	 * @version ${version}
+	 * @since 1.4
+	 * @public
+	 */
+	var thisLib = sap.ui.getCore().initLibrary({
 		name : "sap.m",
 		version: "${version}",
 		dependencies : ["sap.ui.core"],
@@ -353,6 +361,7 @@ sap.ui.define([
 			"sap.m.UploadCollection",
 			"sap.m.UploadCollectionToolbarPlaceholder",
 			"sap.m.upload.UploadSet",
+			"sap.m.VariantManagement",
 			"sap.m.VBox",
 			"sap.m.ViewSettingsDialog",
 			"sap.m.WheelSlider",
@@ -587,21 +596,6 @@ sap.ui.define([
 			}
 		}
 	});
-
-	/* eslint-disable no-undef */
-	/**
-	 * The main UI5 control library, with responsive controls that can be used in touch devices as well as desktop browsers.
-	 *
-	 * @namespace
-	 * @alias sap.m
-	 * @author SAP SE
-	 * @version ${version}
-	 * @since 1.4
-	 * @public
-	 */
-	var thisLib = sap.m;
-	/* eslint-enable no-undef */
-
 
 	thisLib.upload = thisLib.upload || {};
 
@@ -1807,7 +1801,7 @@ sap.ui.define([
 		 * @public
 		 * @experimental since 1.96
 		 */
-		 ArticleMode: "ArticleMode",
+		ArticleMode: "ArticleMode",
 
 		/**
 		 * Line mode (Implemented for both, cozy and compact densities).
@@ -1823,10 +1817,13 @@ sap.ui.define([
 		/**
 		 * Icon mode.
 		 *
-		 * GenericTile displays a combination of icon and header title. It is applicable only for the OneByOne FrameType and TwoByHalf FrameType.
-		 * @public 1.96
+		 * GenericTile displays a combination of icon and header title.
+		 *
+		 * It is applicable only for the OneByOne FrameType and TwoByHalf FrameType.
+		 * @public
+		 * @since 1.96
 		 * @experimental Since 1.96
-		*/
+		 */
 		IconMode : "IconMode"
 	};
 
@@ -5404,7 +5401,7 @@ sap.ui.define([
 			 * Creates or updates an image control.
 			 *
 			 * @param {string} sImgId UD of the image to be dealt with.
-			 * @param {sap.m.Image} oImageControl The image to update. If undefined, a new image will be created.
+			 * @param {sap.m.Image} oImage The image to update. If undefined, a new image will be created.
 			 * @param {sap.ui.core.Control} oParent oImageControl's parentControl.
 			 * @param {object} mProperties Settings for the image control; the <code>src</code> property
 			 * MUST be contained; the keys of the object must be valid names of image settings

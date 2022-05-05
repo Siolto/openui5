@@ -59,12 +59,11 @@ sap.ui.define(['sap/ui/core/Renderer', './InputBaseRenderer', 'sap/ui/core/libra
 		};
 
 		/**
-		 * Writes the accessibility properties for the control.
+		 * Collects the accessibility properties for the control.
 		 *
 		 * See {@link sap.m.InputBase#getAccessibilityState}.
 		 * @override
-		 * @param {sap.ui.core.RenderManager} oRm The RenderManager that can be used for writing to the render output buffer
-		 * @param {sap.m.TimePicker} oControl An object representation of the control that should be rendered
+		 * @param {sap.m.TimePicker} oControl THe time picker control
 		 */
 		TimePickerRenderer.getAccessibilityState = function (oControl) {
 			var mAccessibilityState = InputBaseRenderer.getAccessibilityState.apply(this, arguments);
@@ -72,7 +71,6 @@ sap.ui.define(['sap/ui/core/Renderer', './InputBaseRenderer', 'sap/ui/core/libra
 			mAccessibilityState["roledescription"] = oControl._oResourceBundle.getText("ACC_CTR_TYPE_TIMEINPUT");
 			mAccessibilityState["autocomplete"] = "none";
 			mAccessibilityState["haspopup"] = coreLibrary.aria.HasPopup.Dialog.toLowerCase();
-			mAccessibilityState["expanded"] = "false";
 			mAccessibilityState["disabled"] = null; // aria-disabled not needed if there's already a native 'disabled' attribute
 			mAccessibilityState["owns"] = oControl.getId() + "-clocks";
 			if (oControl._isMobileDevice()) {

@@ -69,6 +69,9 @@ sap.ui.define([
 		allowBindings: {
 			defaultValue: true,
 			mergeStrategy: "mostRestrictiveWins"
+		},
+		typeLabel: {
+			defaultValue: "BASE_EDITOR.TYPES.OBJECT"
 		}
 	});
 
@@ -107,7 +110,7 @@ sap.ui.define([
 		var oTextArea = this.getContent();
 		var sValue = oTextArea.getValue();
 		if (!sValue || sValue === "") {
-			this.setValue(oValue);
+			this.setValue(undefined);
 		} else {
 			try {
 				var oValue = JSON.parse(sValue);

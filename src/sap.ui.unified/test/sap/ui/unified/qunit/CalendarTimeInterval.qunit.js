@@ -8,12 +8,11 @@ sap.ui.define([
 	"sap/ui/unified/DateRange",
 	"sap/ui/unified/DateTypeRange",
 	"sap/ui/unified/library",
-	"sap/ui/core/CalendarType",
 	"sap/ui/core/format/DateFormat",
 	"sap/ui/events/KeyCodes",
 	"sap/ui/thirdparty/jquery",
 	"sap/ui/core/Core"
-], function(qutils, CalendarTimeInterval, CalendarLegend, CalendarLegendItem, DateRange, DateTypeRange, unifiedLibrary, CalendarType, DateFormat, KeyCodes, jQuery, oCore) {
+], function(qutils, CalendarTimeInterval, CalendarLegend, CalendarLegendItem, DateRange, DateTypeRange, unifiedLibrary, DateFormat, KeyCodes, jQuery, oCore) {
 	"use strict";
 
 	// set language to en-US, since we have specific language strings tested
@@ -577,7 +576,7 @@ sap.ui.define([
 		var $MP = oCore.byId("Cal1").getAggregation("monthPicker").$();
 		var aMonths = $MP.find(".sapUiCalItem");
 		assert.equal(aMonths.length, 6, "Calendar1: 4 months rendered");
-		assert.equal(jQuery(aMonths[0]).text(), "Jan", "Calendar1: first displayed month");
+		assert.equal(jQuery(aMonths[0]).text(), "January", "Calendar1: first displayed month");
 		assert.equal(jQuery(aMonths[2]).attr("tabindex"), "0", "Calendar1: 3. displayed month is focused");
 		assert.notOk(jQuery(aMonths[2]).hasClass("sapUiCalItemSel"), "Calendar1: 3. displayed month is not selected");
 
@@ -605,14 +604,14 @@ sap.ui.define([
 		assert.ok(jQuery("#Cal1--Head-next").hasClass("sapUiCalDsbl"), "Calendar1: next button disabled");
 		var $MP = oCore.byId("Cal1").getAggregation("monthPicker").$();
 		var aMonths = $MP.find(".sapUiCalItem");
-		assert.equal(jQuery(aMonths[0]).text(), "Jul", "Calendar1: first displayed month");
+		assert.equal(jQuery(aMonths[0]).text(), "July", "Calendar1: first displayed month");
 		assert.equal(jQuery(aMonths[2]).attr("tabindex"), "0", "Calendar1: 3. displayed month is focused");
 
 		qutils.triggerEvent("click", "Cal1--Head-prev");
 		oCore.applyChanges();
 		$MP = oCore.byId("Cal1").getAggregation("monthPicker").$();
 		aMonths = $MP.find(".sapUiCalItem");
-		assert.equal(jQuery(aMonths[0]).text(), "Jan", "Calendar1: first displayed month");
+		assert.equal(jQuery(aMonths[0]).text(), "January", "Calendar1: first displayed month");
 		assert.equal(jQuery(aMonths[2]).attr("tabindex"), "0", "Calendar1: 3. displayed month is focused");
 	});
 
@@ -1088,7 +1087,7 @@ sap.ui.define([
 		qutils.triggerEvent("click", "CalP--Head-B1");
 		assert.ok(jQuery(jQuery("#CalP--Cal").get(0)).is(":visible"), "Calendar picker visible");
 
-		sap.ui.test.qunit.triggerKeydown(oCore.byId("CalP").getFocusDomRef(), KeyCodes.ESCAPE);
+		qutils.triggerKeydown(oCore.byId("CalP").getFocusDomRef(), KeyCodes.ESCAPE);
 		assert.ok(!jQuery(jQuery("#CalP--Cal").get(0)).is(":visible"), "Calendar picker not visible after closing");
 		assert.strictEqual(oSpyCancel.callCount, 1, "CalendarTimeInterval 'fireCancel' was called once");
 
@@ -1144,7 +1143,7 @@ sap.ui.define([
 		assert.strictEqual(oCalPicker._oMaxDate.getYear(), 9999, "max year is set to 9999");
 
 		// close calendarPicker
-		sap.ui.test.qunit.triggerKeydown(oCore.byId("CalP").getFocusDomRef(), KeyCodes.ESCAPE);
+		qutils.triggerKeydown(oCore.byId("CalP").getFocusDomRef(), KeyCodes.ESCAPE);
 		oCore.applyChanges();
 
 		// change the pickerPopup to false
@@ -1165,7 +1164,7 @@ sap.ui.define([
 		assert.strictEqual(oCalPicker._oMinDate.getYear(), 2015, "min year is set to 2015");
 		assert.strictEqual(oCalPicker._oMaxDate.getYear(), 2017, "max year is set to 2017");
 
-		sap.ui.test.qunit.triggerKeydown(oCore.byId("CalP").getFocusDomRef(), KeyCodes.ESCAPE);
+		qutils.triggerKeydown(oCore.byId("CalP").getFocusDomRef(), KeyCodes.ESCAPE);
 		// clean
 		oCalP.destroy();
 	});
@@ -1182,7 +1181,7 @@ sap.ui.define([
 		qutils.triggerEvent("click", "CalP--Head-B1");
 
 		// close calendarPicker
-		sap.ui.test.qunit.triggerKeydown(document.activeElement, KeyCodes.ESCAPE);
+		qutils.triggerKeydown(document.activeElement, KeyCodes.ESCAPE);
 
 		// check if the triggering button receives the focus after picker close
 		assert.strictEqual(document.activeElement.id, oCalP.getAggregation("header").getDomRef("B1").id, "After picker close the triggering button receives the focus");
@@ -1206,7 +1205,7 @@ sap.ui.define([
 		assert.strictEqual(oCalP.$("contentOver").get(0).style.display, "", "After opening the picker overlay is shown");
 
 		// close calendarPicker
-		sap.ui.test.qunit.triggerKeydown(document.activeElement, KeyCodes.ESCAPE);
+		qutils.triggerKeydown(document.activeElement, KeyCodes.ESCAPE);
 
 		// clean
 		oCalP.destroy();

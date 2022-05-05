@@ -655,26 +655,75 @@ sap.ui.define([
 		},
 
 		metadata : {
-			publicMethods: ["boot", "isInitialized","isThemeApplied","attachInitEvent","attachInit","getRenderManager","createRenderManager",
-							 "getConfiguration", "setRoot", "createUIArea", "getUIArea", "getUIDirty", "getElementById",
-							 "getCurrentFocusedControlId", "getControl", "getComponent", "getTemplate", "lock", "unlock","isLocked",
-							 "attachEvent","detachEvent","applyChanges", "getEventBus",
-							 "applyTheme","setThemeRoot","attachThemeChanged","detachThemeChanged","getStaticAreaRef",
-							 "attachThemeScopingChanged","detachThemeScopingChanged","fireThemeScopingChanged",
-							 "notifyContentDensityChanged",
-							 "registerPlugin","unregisterPlugin","getLibraryResourceBundle", "byId",
-							 "getLoadedLibraries", "loadLibrary", "loadLibraries", "initLibrary",
-							 "includeLibraryTheme", "setModel", "getModel", "hasModel", "isMobile",
-							 "attachControlEvent", "detachControlEvent", "attachIntervalTimer", "detachIntervalTimer",
-							 "attachParseError", "detachParseError", "fireParseError",
-							 "attachValidationError", "detachValidationError", "fireValidationError",
-							 "attachFormatError", "detachFormatError", "fireFormatError",
-							 "attachValidationSuccess", "detachValidationSuccess", "fireValidationSuccess",
-							 "attachLocalizationChanged", "detachLocalizationChanged",
-							 "attachLibraryChanged", "detachLibraryChanged",
-							 "isStaticAreaRef", "createComponent", "getRootComponent", "getApplication",
-							 "setMessageManager", "getMessageManager","byFieldGroupId",
-							 "addPrerenderingTask"]
+			// while this list contains mostly public methods,
+			// a set of private API is exposed for sap.ui.core restricted usage
+			publicMethods: [
+				// @public
+				//  - Init
+				"isInitialized","attachInit",
+				"getConfiguration",
+				"lock", "unlock","isLocked",
+				//  - UIArea & Rendering
+				"createUIArea", "getUIArea", "getUIDirty", "applyChanges", "getStaticAreaRef",
+				"createRenderManager",
+				//  - Theming
+				"applyTheme","setThemeRoot","attachThemeChanged","detachThemeChanged",
+				"isThemeApplied",
+				"notifyContentDensityChanged",
+				//  - Control & App dev.
+				"getCurrentFocusedControlId",
+				"isMobile",
+				"getEventBus",
+				"byId", "byFieldGroupId",
+				//  - Libraries
+				"getLoadedLibraries", "loadLibrary", "initLibrary",
+				"getLibraryResourceBundle",
+				//  - Models & Messaging
+				"setModel", "getModel", "hasModel",
+				"getMessageManager",
+				//  - Events
+				"attachEvent","detachEvent",
+				"attachControlEvent", "detachControlEvent",
+				"attachParseError", "detachParseError",
+				"attachValidationError", "detachValidationError",
+				"attachFormatError", "detachFormatError",
+				"attachValidationSuccess", "detachValidationSuccess",
+				"attachLocalizationChanged", "detachLocalizationChanged",
+
+				// @protected
+				"isStaticAreaRef",
+				"fireFormatError", "fireValidationSuccess", "fireValidationError", "fireParseError",
+
+				// @private, @ui5-restricted sap.ui.core
+				//  - Init
+				"boot",
+				//  - UIArea & Rendering
+				"_createUIArea",
+				"addPrerenderingTask",
+				//  - Messaging
+				"setMessageManager",
+				//  - Libraries
+				"attachLibraryChanged", "detachLibraryChanged",
+				"loadLibraries",
+				//  - Theming
+				"attachThemeScopingChanged","detachThemeScopingChanged","fireThemeScopingChanged",
+				"includeLibraryTheme",
+
+				// @deprecated
+				//  - Init & Plugins
+				"attachInitEvent",
+				"registerPlugin","unregisterPlugin",
+				//  - Application/Root-Component
+				"setRoot",
+				"getRootComponent", "getApplication",
+				//  - legacy registries & factories
+				"getControl", "getComponent", "getTemplate",
+				"createComponent",
+				//  - Control dev.
+				"attachIntervalTimer", "detachIntervalTimer",
+				"getElementById",
+				//  - UIArea & Rendering
+				"getRenderManager"]
 		}
 
 	});
@@ -1264,11 +1313,9 @@ sap.ui.define([
 		var oConfig = this.oConfiguration;
 
 		// create any pre-configured UIAreas
-		//	if ( oConfig.areas && oConfig.areas.length > 0 ) {
 		if ( oConfig.areas ) {
-			// Log.warning("deprecated config option '(data-sap-ui-)areas' used.");
 			for (var i = 0, l = oConfig.areas.length; i < l; i++) {
-				this.createUIArea(oConfig.areas[i]);
+				this._createUIArea(oConfig.areas[i]);
 			}
 			oConfig.areas = undefined;
 		}
@@ -1309,11 +1356,19 @@ sap.ui.define([
 		}
 	};
 
+	/**
+	 * Creates a "rootComponent" or "sap.ui.app.Application".
+	 * Both concepts are deprecated.
+	 * Called during Core initialization.
+	 * @deprecated since 1.95
+	 * @private
+	 */
 	Core.prototype._setupRootComponent = function() {
 		var METHOD = "sap.ui.core.Core.init()",
 			oConfig = this.oConfiguration;
 
 		// load the root component
+		// @deprecated concept, superseded by "sap/ui/core/ComponentSupport"
 		var sRootComponent = oConfig.getRootComponent();
 		if (sRootComponent) {
 
@@ -1339,7 +1394,7 @@ sap.ui.define([
 
 		} else {
 
-			// DEPRECATED LEGACY CODE: load the application (TODO: remove when Application is removed!)
+			// @deprecated concept, superseded by "sap/ui/core/Component"
 			var sApplication = oConfig.getApplication();
 			if (sApplication) {
 
@@ -1399,7 +1454,7 @@ sap.ui.define([
 		}
 		this.bInitialized = true;
 		this._executeOnInit();
-		this._setupRootComponent();
+		this._setupRootComponent(); // @legacy-relevant: private API for 2 deprecated concepts "rootComponent" & "sap.ui.app.Application"
 		this._executeInitListeners();
 	};
 
@@ -1511,6 +1566,9 @@ sap.ui.define([
 	};
 
 	/**
+	 * Creates a new <code>RenderManager</code> instance for use by the caller.
+	 *
+	 * @returns {sap.ui.core.RenderManager} A newly createdRenderManeger
 	 * @public
 	 * @deprecated Since version 0.15.0. Replaced by <code>createRenderManager()</code>
 	 */
@@ -1795,10 +1853,10 @@ sap.ui.define([
 	}
 
 	/**
-	 * Preprocessed given dependencies
+	 * Preprocess the given dependencies.
 	 *
-	 * @param {object} oDependencies - Dependencies to preprocess
-	 * @returns {object} oDependencies - Proprocessed dependencies
+	 * @param {object} dependencies - Dependencies to preprocess
+	 * @returns {object} Preprocessed dependencies
 	 */
 	function preprocessDependencies(dependencies) {
 		if (Array.isArray(dependencies)) {
@@ -2192,7 +2250,7 @@ sap.ui.define([
 	 * @param {string} [sId] the ID for the component instance
 	 * @param {object} [mSettings] the settings object for the component
 	 * @public
-	 * @returns {sap.ui.core.Component} the created Component instance
+	 * @returns {sap.ui.core.Component|Promise<sap.ui.core.Component>} The created component instance or a promise on it in the async use case
 	 * @deprecated Since 1.95. Please use {@link sap.ui.core.Component.create Component.create} instead.
 	 */
 	Core.prototype.createComponent = function(vComponent, sUrl, sId, mSettings) {
@@ -2313,6 +2371,7 @@ sap.ui.define([
 	 * @param {boolean} [oLibInfo.noLibraryCSS=false] Indicates whether the library doesn't provide / use theming.
 	 *                        When set to true, no library.css will be loaded for this library
 	 * @param {object} [oLibInfo.extensions] Potential extensions of the library metadata; structure not defined by the UI5 core framework.
+	 * @return {object|undefined} As of version 1.101; returns the library namespace, based on the given library name. Returns 'undefined' if no library name is provided.
 	 * @public
 	 */
 	Core.prototype.initLibrary = function(oLibInfo) {
@@ -2330,8 +2389,12 @@ sap.ui.define([
 			Log.error("[Deprecated] library " + sLibName + " uses old fashioned initLibrary() call (rebuild with newest generator)");
 		}
 
-		if ( !sLibName || mLoadedLibraries[sLibName] ) {
+		if (!sLibName) {
+			Log.error("A library name must be provided.", null, METHOD);
 			return;
+
+		} else if (mLoadedLibraries[sLibName]) {
+			return ObjectPath.get(sLibName);
 		}
 
 		Log.debug("Analyzing Library " + sLibName, null, METHOD);
@@ -2370,7 +2433,7 @@ sap.ui.define([
 		}
 
 		// ensure namespace
-		ObjectPath.create(sLibName);
+		var oLib = ObjectPath.create(sLibName);
 
 		// Create lib info object or merge with existing 'adhoc' library
 		this.mLibraries[sLibName] = oLibInfo = extend(this.mLibraries[sLibName] || {
@@ -2445,6 +2508,7 @@ sap.ui.define([
 
 		this.fireLibraryChanged({name : sLibName, stereotype : "library", operation: "add", metadata : oLibInfo});
 
+		return oLib;
 	};
 
 	// helper to add the FOUC marker to the CSS for the given id
@@ -2733,6 +2797,19 @@ sap.ui.define([
 	 * @deprecated As of version 1.1, use {@link sap.ui.core.Control#placeAt Control#placeAt} instead!
 	 */
 	Core.prototype.createUIArea = function(oDomRef) {
+		return this._createUIArea(oDomRef);
+	};
+
+	/**
+	 * Creates a new {@link sap.ui.core.UIArea UIArea}.
+	 * Must only be used by sap.ui.core functionality.
+	 *
+	 * @param {Element|string} oDomRef a DOM Element or ID string of the UIArea
+	 * @return {sap.ui.core.UIArea} a new UIArea
+	 * @private
+	 * @ui5-restricted sap.ui.core
+	 */
+	Core.prototype._createUIArea = function(oDomRef) {
 		var that = this;
 		assert(typeof oDomRef === "string" || typeof oDomRef === "object", "oDomRef must be a string or object");
 
@@ -3209,6 +3286,9 @@ sap.ui.define([
 
 	/**
 	 * Register a listener for the {@link sap.ui.core.Core#event:libraryChanged} event.
+	 *
+	 * @param {function} fnFunction Callback to be called when the <code>libraryChanged</code> event is fired
+	 * @param {object} [oListener] Optional context object to call the callback on
 	 */
 	Core.prototype.attachLibraryChanged = function(fnFunction, oListener) {
 		_oEventProvider.attachEvent(Core.M_EVENTS.LibraryChanged, fnFunction, oListener);
@@ -3216,6 +3296,9 @@ sap.ui.define([
 
 	/**
 	 * Unregister a listener from the {@link sap.ui.core.Core#event:libraryChanged} event.
+	 *
+	 * @param {function} fnFunction function to unregister
+	 * @param {object} [oListener] context object given during registration
 	 */
 	Core.prototype.detachLibraryChanged = function(fnFunction, oListener) {
 		_oEventProvider.detachEvent(Core.M_EVENTS.LibraryChanged, fnFunction, oListener);
@@ -3430,17 +3513,17 @@ sap.ui.define([
 
 			document.body.insertBefore(oStaticArea, document.body.firstChild);
 
-			this.createUIArea(oStaticArea).bInitial = false;
+			this._createUIArea(oStaticArea).bInitial = false;
 		}
 		return oStaticArea;
 
 	};
 
 	/**
-	 * Used to find out whether a certain DOM element is the static area
+	 * Checks whether the given DOM element is the root of the static area.
 	 *
-	 * @param {object} oDomRef
-	 * @return {boolean} whether the given DomRef is the StaticAreaRef
+	 * @param {Element} oDomRef DOM element to check
+	 * @returns {boolean} Whether the given DOM element is the root of the static area
 	 * @protected
 	 */
 	Core.prototype.isStaticAreaRef = function(oDomRef) {
@@ -3943,6 +4026,8 @@ sap.ui.define([
 	 *
 	 * Please note that this event is a bubbling event and may already be canceled before reaching the core.
 	 *
+	 * @param {object}
+	 *            [oData] An object that will be passed to the handler along with the event object when the event is fired
 	 * @param {function}
 	 *            fnFunction The function to be called, when the event occurs
 	 * @param {object}

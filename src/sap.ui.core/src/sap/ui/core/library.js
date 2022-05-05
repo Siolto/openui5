@@ -14,141 +14,6 @@ sap.ui.define([
 	function(DataType, ViewType) {
 	"use strict";
 
-	// delegate further initialization of this library to the Core
-	sap.ui.getCore().initLibrary({
-		name : "sap.ui.core",
-		version: "${version}",
-		designtime: "sap/ui/core/designtime/library.designtime",
-		types: [
-
-			// builtin types
-			"any",
-			"boolean",
-			"float",
-			"int",
-			"object",
-			"string",
-			"void",
-
-			// simple types and enums
-			"sap.ui.core.AbsoluteCSSSize",
-			"sap.ui.core.AccessibleRole",
-			"sap.ui.core.AccessibleLandmarkRole",
-			"sap.ui.core.aria.HasPopup",
-			"sap.ui.core.BarColor",
-			"sap.ui.core.BusyIndicatorSize",
-			"sap.ui.core.CalendarType",
-			"sap.ui.core.CSSColor",
-			"sap.ui.core.CSSSize",
-			"sap.ui.core.CSSSizeShortHand",
-			"sap.ui.core.Collision",
-			"sap.ui.core.ComponentLifecycle",
-			"sap.ui.core.Design",
-			"sap.ui.core.Dock",
-			"sap.ui.core.HorizontalAlign",
-			"sap.ui.core.ID",
-			"sap.ui.core.IconColor",
-			"sap.ui.core.ImeMode",
-			"sap.ui.core.IndicationColor",
-			"sap.ui.core.MessageType",
-			"sap.ui.core.OpenState",
-			"sap.ui.core.Orientation",
-			"sap.ui.core.Percentage",
-			"sap.ui.core.Priority",
-			"sap.ui.core.ScrollBarAction",
-			"sap.ui.core.Scrolling",
-			"sap.ui.core.SortOrder",
-			"sap.ui.core.TextAlign",
-			"sap.ui.core.TextDirection",
-			"sap.ui.core.TitleLevel",
-			"sap.ui.core.URI",
-			"sap.ui.core.ValueState",
-			"sap.ui.core.VerticalAlign",
-			"sap.ui.core.Wrapping",
-			"sap.ui.core.InvisibleMessageMode",
-			"sap.ui.core.dnd.DropEffect",
-			"sap.ui.core.dnd.DropLayout",
-			"sap.ui.core.dnd.DropPosition",
-			"sap.ui.core.mvc.ViewType",
-			"sap.ui.core.routing.HistoryDirection"
-		],
-		interfaces: [
-			"sap.ui.core.IShrinkable",
-			"sap.ui.core.Label",
-			"sap.ui.core.PopupInterface",
-			"sap.ui.core.Toolbar",
-			"sap.ui.core.IContextMenu",
-			"sap.ui.core.IFormContent",
-			"sap.ui.core.dnd.IDragInfo",
-			"sap.ui.core.dnd.IDropInfo",
-			"sap.ui.core.IDScope",
-			"sap.ui.core.ITitleContent",
-			"sap.ui.core.IAsyncContentCreation",
-			"sap.ui.core.IPlaceholderSupport",
-			"sap.ui.core.IColumnHeaderMenu"
-		],
-		controls: [
-			"sap.ui.core.ComponentContainer",
-			"sap.ui.core.Control",
-			"sap.ui.core.HTML",
-			"sap.ui.core.Icon",
-			"sap.ui.core.InvisibleText",
-			"sap.ui.core.LocalBusyIndicator",
-			"sap.ui.core.ScrollBar",
-			"sap.ui.core.TooltipBase",
-			"sap.ui.core.XMLComposite",
-			"sap.ui.core.mvc.HTMLView",
-			"sap.ui.core.mvc.JSONView",
-			"sap.ui.core.mvc.JSView",
-			"sap.ui.core.mvc.TemplateView",
-			"sap.ui.core.mvc.View",
-			"sap.ui.core.mvc.XMLView",
-			"sap.ui.core.tmpl.DOMElement",
-			"sap.ui.core.tmpl.TemplateControl",
-			"sap.ui.core.util.Export"
-		],
-		elements: [
-			"sap.ui.core.CustomData",
-			"sap.ui.core.Element",
-			"sap.ui.core.Item",
-			"sap.ui.core.LayoutData",
-			"sap.ui.core.ListItem",
-			"sap.ui.core.Message",
-			"sap.ui.core.SeparatorItem",
-			"sap.ui.core.Title",
-			"sap.ui.core.VariantLayoutData",
-			"sap.ui.core.dnd.DragDropBase",
-			"sap.ui.core.dnd.DragInfo",
-			"sap.ui.core.dnd.DropInfo",
-			"sap.ui.core.dnd.DragDropInfo",
-			"sap.ui.core.search.OpenSearchProvider",
-			"sap.ui.core.search.SearchProvider",
-			"sap.ui.core.tmpl.DOMAttribute",
-			"sap.ui.core.util.ExportCell",
-			"sap.ui.core.InvisibleMessage"
-		],
-		extensions: {
-			"sap.ui.support" : {
-				diagnosticPlugins: [
-					"sap/ui/core/support/plugins/TechInfo",
-					"sap/ui/core/support/plugins/ControlTree",
-					"sap/ui/core/support/plugins/Debugging",
-					"sap/ui/core/support/plugins/Trace",
-					"sap/ui/core/support/plugins/Selector",
-					"sap/ui/core/support/plugins/Breakpoint",
-					"sap/ui/core/support/plugins/ViewInfo",
-					"sap/ui/core/support/plugins/LocalStorage",
-					"sap/ui/core/support/plugins/Interaction",
-					"sap/ui/core/support/plugins/Performance"
-				],
-				//Configuration used for rule loading of Support Assistant
-				publicRules:true,
-				internalRules:true
-			}
-		}
-	});
-
-	/* eslint-disable no-undef */
 	/**
 	 * The SAPUI5 Core Runtime.
 	 *
@@ -162,8 +27,138 @@ sap.ui.define([
 	 * @since 0.8
 	 * @public
 	 */
-	var thisLib = sap.ui.core;
-	/* eslint-enable no-undef */
+	 var thisLib = sap.ui.getCore().initLibrary({
+		 name : "sap.ui.core",
+		 version: "${version}",
+		 designtime: "sap/ui/core/designtime/library.designtime",
+		 types: [
+
+			 // builtin types
+			 "any",
+			 "boolean",
+			 "float",
+			 "int",
+			 "object",
+			 "string",
+			 "void",
+
+			 // simple types and enums
+			 "sap.ui.core.AbsoluteCSSSize",
+			 "sap.ui.core.AccessibleRole",
+			 "sap.ui.core.AccessibleLandmarkRole",
+			 "sap.ui.core.aria.HasPopup",
+			 "sap.ui.core.BarColor",
+			 "sap.ui.core.BusyIndicatorSize",
+			 "sap.ui.core.CalendarType",
+			 "sap.ui.core.CSSColor",
+			 "sap.ui.core.CSSSize",
+			 "sap.ui.core.CSSSizeShortHand",
+			 "sap.ui.core.Collision",
+			 "sap.ui.core.ComponentLifecycle",
+			 "sap.ui.core.Design",
+			 "sap.ui.core.Dock",
+			 "sap.ui.core.HorizontalAlign",
+			 "sap.ui.core.ID",
+			 "sap.ui.core.IconColor",
+			 "sap.ui.core.ImeMode",
+			 "sap.ui.core.IndicationColor",
+			 "sap.ui.core.MessageType",
+			 "sap.ui.core.OpenState",
+			 "sap.ui.core.Orientation",
+			 "sap.ui.core.Percentage",
+			 "sap.ui.core.Priority",
+			 "sap.ui.core.ScrollBarAction",
+			 "sap.ui.core.Scrolling",
+			 "sap.ui.core.SortOrder",
+			 "sap.ui.core.TextAlign",
+			 "sap.ui.core.TextDirection",
+			 "sap.ui.core.TitleLevel",
+			 "sap.ui.core.URI",
+			 "sap.ui.core.ValueState",
+			 "sap.ui.core.VerticalAlign",
+			 "sap.ui.core.Wrapping",
+			 "sap.ui.core.InvisibleMessageMode",
+			 "sap.ui.core.dnd.DropEffect",
+			 "sap.ui.core.dnd.DropLayout",
+			 "sap.ui.core.dnd.DropPosition",
+			 "sap.ui.core.mvc.ViewType",
+			 "sap.ui.core.routing.HistoryDirection"
+		 ],
+		 interfaces: [
+			 "sap.ui.core.IShrinkable",
+			 "sap.ui.core.Label",
+			 "sap.ui.core.PopupInterface",
+			 "sap.ui.core.Toolbar",
+			 "sap.ui.core.IContextMenu",
+			 "sap.ui.core.IFormContent",
+			 "sap.ui.core.dnd.IDragInfo",
+			 "sap.ui.core.dnd.IDropInfo",
+			 "sap.ui.core.IDScope",
+			 "sap.ui.core.ITitleContent",
+			 "sap.ui.core.IAsyncContentCreation",
+			 "sap.ui.core.IPlaceholderSupport",
+			 "sap.ui.core.IColumnHeaderMenu"
+		 ],
+		 controls: [
+			 "sap.ui.core.ComponentContainer",
+			 "sap.ui.core.Control",
+			 "sap.ui.core.HTML",
+			 "sap.ui.core.Icon",
+			 "sap.ui.core.InvisibleText",
+			 "sap.ui.core.LocalBusyIndicator",
+			 "sap.ui.core.ScrollBar",
+			 "sap.ui.core.TooltipBase",
+			 "sap.ui.core.XMLComposite",
+			 "sap.ui.core.mvc.HTMLView",
+			 "sap.ui.core.mvc.JSONView",
+			 "sap.ui.core.mvc.JSView",
+			 "sap.ui.core.mvc.TemplateView",
+			 "sap.ui.core.mvc.View",
+			 "sap.ui.core.mvc.XMLView",
+			 "sap.ui.core.tmpl.DOMElement",
+			 "sap.ui.core.tmpl.TemplateControl",
+			 "sap.ui.core.util.Export"
+		 ],
+		 elements: [
+			 "sap.ui.core.CustomData",
+			 "sap.ui.core.Element",
+			 "sap.ui.core.Item",
+			 "sap.ui.core.LayoutData",
+			 "sap.ui.core.ListItem",
+			 "sap.ui.core.Message",
+			 "sap.ui.core.SeparatorItem",
+			 "sap.ui.core.Title",
+			 "sap.ui.core.VariantLayoutData",
+			 "sap.ui.core.dnd.DragDropBase",
+			 "sap.ui.core.dnd.DragInfo",
+			 "sap.ui.core.dnd.DropInfo",
+			 "sap.ui.core.dnd.DragDropInfo",
+			 "sap.ui.core.search.OpenSearchProvider",
+			 "sap.ui.core.search.SearchProvider",
+			 "sap.ui.core.tmpl.DOMAttribute",
+			 "sap.ui.core.util.ExportCell",
+			 "sap.ui.core.InvisibleMessage"
+		 ],
+		 extensions: {
+			 "sap.ui.support" : {
+				 diagnosticPlugins: [
+					 "sap/ui/core/support/plugins/TechInfo",
+					 "sap/ui/core/support/plugins/ControlTree",
+					 "sap/ui/core/support/plugins/Debugging",
+					 "sap/ui/core/support/plugins/Trace",
+					 "sap/ui/core/support/plugins/Selector",
+					 "sap/ui/core/support/plugins/Breakpoint",
+					 "sap/ui/core/support/plugins/ViewInfo",
+					 "sap/ui/core/support/plugins/LocalStorage",
+					 "sap/ui/core/support/plugins/Interaction",
+					 "sap/ui/core/support/plugins/Performance"
+				 ],
+				 //Configuration used for rule loading of Support Assistant
+				 publicRules:true,
+				 internalRules:true
+			 }
+		 }
+	 });
 
 	/**
 	 * @classdesc A string type that represents non-relative CSS size values.
@@ -2099,6 +2094,35 @@ sap.ui.define([
 	};
 
 	/**
+	 * Drop positions relative to a dropped element.
+	 *
+	 * @enum {string}
+	 * @public
+	 * @since 1.100.0
+	 * @ui5-metamodel This enumeration also will be described in the UI5 (legacy) designtime metamodel
+	 */
+	thisLib.dnd.RelativeDropPosition = {
+
+		/**
+		 * Drop on the control.
+		 * @public
+		 */
+		On : "On",
+
+		/**
+		 * Drop before the control.
+		 * @public
+		 */
+		Before : "Before",
+
+		/**
+		 * Drop after the control.
+		 * @public
+		 */
+		After : "After"
+	};
+
+	/**
 	 * Configuration options for the layout of the droppable controls.
 	 *
 	 * @enum {string}
@@ -2218,7 +2242,7 @@ sap.ui.define([
 	 * @public
 	 * @ui5-metamodel This enumeration also will be described in the UI5 (legacy) designtime metamodel
 	 */
-	sap.ui.core.ComponentLifecycle =  {
+	thisLib.ComponentLifecycle =  {
 
 		/**
 		 * Legacy lifecycle means that the <code>ComponentContainer</code> takes care
@@ -2255,7 +2279,7 @@ sap.ui.define([
 	 * @since 1.78
 	 * @ui5-metamodel This enumeration also will be described in the UI5 (legacy) designtime metamodel
 	 */
-	sap.ui.core.InvisibleMessageMode =  {
+	thisLib.InvisibleMessageMode =  {
 
 		/**
 		 * Indicates that updates to the region should be presented at the next graceful opportunity,
@@ -2272,50 +2296,55 @@ sap.ui.define([
 
 	};
 
-	var lazy = sap.ui.lazyRequire;
+	/**
+	 * @deprecated since 1.56 as lazy loading implies sync loading
+	 */
+	(function() {
+		var lazy = sap.ui.lazyRequire;
 
-	function each(sPackage,aClasses,sShortcutPkg) {
-		for (var i = 0; i < aClasses.length; i++) {
-			if ( sShortcutPkg ) {
-				lazy(sShortcutPkg, aClasses[i].toLowerCase(), sPackage + aClasses[i]);
-			} else {
-			  lazy(sPackage + aClasses[i], "new extend getMetadata");
+		function each(sPackage,aClasses,sShortcutPkg) {
+			for (var i = 0; i < aClasses.length; i++) {
+				if ( sShortcutPkg ) {
+					lazy(sShortcutPkg, aClasses[i].toLowerCase(), sPackage + aClasses[i]);
+				} else {
+				  lazy(sPackage + aClasses[i], "new extend getMetadata");
+				}
 			}
 		}
-	}
 
-	// lazy imports
-	lazy("sap.ui.core.BusyIndicator", "show hide attachOpen detachOpen attachClose detachClose");
-	lazy("sap.ui.core.tmpl.Template", "registerType unregisterType");
-	lazy("sap.ui.core.Fragment", "registerType byId createId");
-	lazy("sap.ui.core.IconPool", "createControlByURI addIcon getIconURI getIconInfo isIconURI getIconCollectionNames getIconNames getIconForMimeType");
-	lazy("sap.ui.core.service.ServiceFactoryRegistry", "register unregister get");
+		// lazy imports
+		lazy("sap.ui.core.BusyIndicator", "show hide attachOpen detachOpen attachClose detachClose");
+		lazy("sap.ui.core.tmpl.Template", "registerType unregisterType");
+		lazy("sap.ui.core.Fragment", "registerType byId createId");
+		lazy("sap.ui.core.IconPool", "createControlByURI addIcon getIconURI getIconInfo isIconURI getIconCollectionNames getIconNames getIconForMimeType");
+		lazy("sap.ui.core.service.ServiceFactoryRegistry", "register unregister get");
 
-	lazy("sap.ui.model.odata.AnnotationHelper", "createPropertySetting format getNavigationPath"
-		+ " gotoEntitySet gotoEntityType gotoFunctionImport isMultiple resolvePath simplePath");
-	/* eslint-disable no-undef */
-	var AnnotationHelper = sap.ui.model && sap.ui.model.odata && sap.ui.model.odata.AnnotationHelper;
-	/* eslint-enable no-undef */
-	if ( AnnotationHelper ) { // ensure that lazy stub exists before enriching it
-		AnnotationHelper.format.requiresIContext = true;
-		AnnotationHelper.getNavigationPath.requiresIContext = true;
-		AnnotationHelper.isMultiple.requiresIContext = true;
-		AnnotationHelper.simplePath.requiresIContext = true;
-	}
-	lazy("sap.ui", "xmlfragment", "sap.ui.core.Fragment"); // cannot use "each" as it assumes a module to exist for each function name
-	lazy("sap.ui", "jsfragment", "sap.ui.core.Fragment");
-	lazy("sap.ui", "htmlfragment", "sap.ui.core.Fragment");
+		lazy("sap.ui.model.odata.AnnotationHelper", "createPropertySetting format getNavigationPath"
+			+ " gotoEntitySet gotoEntityType gotoFunctionImport isMultiple resolvePath simplePath");
+		/* eslint-disable no-undef */
+		var AnnotationHelper = sap.ui.model && sap.ui.model.odata && sap.ui.model.odata.AnnotationHelper;
+		/* eslint-enable no-undef */
+		if ( AnnotationHelper ) { // ensure that lazy stub exists before enriching it
+			AnnotationHelper.format.requiresIContext = true;
+			AnnotationHelper.getNavigationPath.requiresIContext = true;
+			AnnotationHelper.isMultiple.requiresIContext = true;
+			AnnotationHelper.simplePath.requiresIContext = true;
+		}
+		lazy("sap.ui", "xmlfragment", "sap.ui.core.Fragment"); // cannot use "each" as it assumes a module to exist for each function name
+		lazy("sap.ui", "jsfragment", "sap.ui.core.Fragment");
+		lazy("sap.ui", "htmlfragment", "sap.ui.core.Fragment");
 
-	each("sap.ui.model.", ["Filter","Sorter","json.JSONModel","resource.ResourceModel","odata.ODataModel","odata.v2.ODataModel","odata.v4.ODataModel","xml.XMLModel"]);
-	each("sap.ui.model.type.", ["Boolean","Integer","Float","String","Date","Time","DateTime","FileSize","Currency","Unit","DateInterval", "DateTimeInterval", "TimeInterval"]);
-	each("sap.ui.model.odata.type.", ["Boolean","Byte","Currency","Date","DateTime","DateTimeOffset","DateTimeWithTimezone","Decimal","Double","Guid","Int16","Int32","Int64","Raw","SByte","Single","Stream","String","Time","TimeOfDay","Unit"]);
-	each("sap.ui.core.", ["Locale","LocaleData","mvc.Controller", "UIComponent"]);
-	each("sap.ui.core.mvc.", ["Controller", "View", "JSView", "JSONView", "XMLView", "HTMLView", "TemplateView"], "sap.ui");
-	each("sap.ui.core.", ["Component"], "sap.ui");
-	each("sap.ui.core.tmpl.", ["Template"], "sap.ui");
-	each("sap.ui.core.routing.", ["HashChanger", "History", "Route", "Router", "Target", "Targets", "Views"]);
-	each("sap.ui.core.service.", ["ServiceFactory", "Service"]);
+		each("sap.ui.model.", ["Filter","Sorter","json.JSONModel","resource.ResourceModel","odata.ODataModel","odata.v2.ODataModel","odata.v4.ODataModel","xml.XMLModel"]);
+		each("sap.ui.model.type.", ["Boolean","Integer","Float","String","Date","Time","DateTime","FileSize","Currency","Unit","DateInterval", "DateTimeInterval", "TimeInterval"]);
+		each("sap.ui.model.odata.type.", ["Boolean","Byte","Currency","Date","DateTime","DateTimeOffset","DateTimeWithTimezone","Decimal","Double","Guid","Int16","Int32","Int64","Raw","SByte","Single","Stream","String","Time","TimeOfDay","Unit"]);
+		each("sap.ui.core.", ["Locale","LocaleData","mvc.Controller", "UIComponent"]);
+		each("sap.ui.core.mvc.", ["Controller", "View", "JSView", "JSONView", "XMLView", "HTMLView", "TemplateView"], "sap.ui");
+		each("sap.ui.core.", ["Component"], "sap.ui");
+		each("sap.ui.core.tmpl.", ["Template"], "sap.ui");
+		each("sap.ui.core.routing.", ["HashChanger", "History", "Route", "Router", "Target", "Targets", "Views"]);
+		each("sap.ui.core.service.", ["ServiceFactory", "Service"]);
+	}());
 
-	return sap.ui.core;
+	return thisLib;
 
 });

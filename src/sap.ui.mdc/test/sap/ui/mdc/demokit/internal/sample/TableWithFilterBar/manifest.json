@@ -22,8 +22,7 @@
 	  "sample": {
 		"files": [
 			"View.view.xml",
-			"Controller.controller.js",
-			"Books.Table.delegate.js"
+			"Controller.controller.js"
 		]
 	  }
 	},

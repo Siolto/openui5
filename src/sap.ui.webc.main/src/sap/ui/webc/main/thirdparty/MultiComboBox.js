@@ -1,4 +1,4 @@
-sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/common/thirdparty/base/renderer/LitRenderer', 'sap/ui/webc/common/thirdparty/base/delegate/ResizeHandler', 'sap/ui/webc/common/thirdparty/base/types/ValueState', 'sap/ui/webc/common/thirdparty/base/Keys', 'sap/ui/webc/common/thirdparty/base/types/Integer', 'sap/ui/webc/common/thirdparty/icons/slim-arrow-down', 'sap/ui/webc/common/thirdparty/base/Device', 'sap/ui/webc/common/thirdparty/base/i18nBundle', 'sap/ui/webc/common/thirdparty/icons/decline', 'sap/ui/webc/common/thirdparty/icons/multiselect-all', 'sap/ui/webc/common/thirdparty/icons/not-editable', './MultiComboBoxItem', './Tokenizer', './Token', './Icon', './Popover', './ResponsivePopover', './List', './StandardListItem', './ToggleButton', './ComboBoxFilters-f59100bd', './Button', './generated/i18n/i18n-defaults', './generated/templates/MultiComboBoxTemplate.lit', './generated/templates/MultiComboBoxPopoverTemplate.lit', './generated/themes/MultiComboBox.css', './generated/themes/ResponsivePopoverCommon.css', './generated/themes/ValueStateMessage.css', './generated/themes/Suggestions.css'], function (UI5Element, litRender, ResizeHandler, ValueState, Keys, Integer, slimArrowDown, Device, i18nBundle, decline, multiselectAll, notEditable, MultiComboBoxItem, Tokenizer, Token, Icon, Popover, ResponsivePopover, List, StandardListItem, ToggleButton, ComboBoxFilters, Button, i18nDefaults, MultiComboBoxTemplate_lit, MultiComboBoxPopoverTemplate_lit, MultiComboBox_css, ResponsivePopoverCommon_css, ValueStateMessage_css, Suggestions_css) { 'use strict';
+sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/common/thirdparty/base/renderer/LitRenderer', 'sap/ui/webc/common/thirdparty/base/delegate/ResizeHandler', 'sap/ui/webc/common/thirdparty/base/types/ValueState', 'sap/ui/webc/common/thirdparty/base/Keys', 'sap/ui/webc/common/thirdparty/base/types/Integer', 'sap/ui/webc/common/thirdparty/icons/slim-arrow-down', 'sap/ui/webc/common/thirdparty/base/Device', 'sap/ui/webc/common/thirdparty/base/i18nBundle', 'sap/ui/webc/common/thirdparty/icons/decline', 'sap/ui/webc/common/thirdparty/icons/multiselect-all', 'sap/ui/webc/common/thirdparty/icons/not-editable', 'sap/ui/webc/common/thirdparty/icons/error', 'sap/ui/webc/common/thirdparty/icons/alert', 'sap/ui/webc/common/thirdparty/icons/sys-enter-2', 'sap/ui/webc/common/thirdparty/icons/information', 'sap/ui/webc/common/thirdparty/base/FeaturesRegistry', './MultiComboBoxItem', './Tokenizer', './Token', './Icon', './Popover', './ResponsivePopover', './List', './StandardListItem', './ToggleButton', './_chunks/ComboBoxFilters', './Button', './generated/i18n/i18n-defaults', './generated/templates/MultiComboBoxTemplate.lit', './generated/templates/MultiComboBoxPopoverTemplate.lit', './generated/themes/MultiComboBox.css', './generated/themes/ResponsivePopoverCommon.css', './generated/themes/ValueStateMessage.css', './generated/themes/Suggestions.css'], function (UI5Element, litRender, ResizeHandler, ValueState, Keys, Integer, slimArrowDown, Device, i18nBundle, decline, multiselectAll, notEditable, error, alert, sysEnter2, information, FeaturesRegistry, MultiComboBoxItem, Tokenizer, Token, Icon, Popover, ResponsivePopover, List, StandardListItem, ToggleButton, ComboBoxFilters, Button, i18nDefaults, MultiComboBoxTemplate_lit, MultiComboBoxPopoverTemplate_lit, MultiComboBox_css, ResponsivePopoverCommon_css, ValueStateMessage_css, Suggestions_css) { 'use strict';
 
 	function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e['default'] : e; }
 
@@ -139,6 +139,8 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 			this._deleting = false;
 			this._validationTimeout = null;
 			this._handleResizeBound = this._handleResize.bind(this);
+			this.currentItemIdx = -1;
+			this.FormSupport = undefined;
 		}
 		onEnterDOM() {
 			ResizeHandler__default.register(this, this._handleResizeBound);
@@ -153,6 +155,10 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 			this.fireEvent("change");
 		}
 		togglePopover() {
+			this.allItemsPopover.toggle(this);
+		}
+		togglePopoverByDropdownIcon() {
+			this._shouldFilterItems = false;
 			this.allItemsPopover.toggle(this);
 		}
 		_showFilteredItems() {
@@ -175,6 +181,7 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 			const value = input.value;
 			const filteredItems = this._filterItems(value);
 			const oldValueState = this.valueState;
+			this._shouldFilterItems = true;
 			if (this.filterSelected) {
 				this.filterSelected = false;
 			}
@@ -213,25 +220,29 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 			this.fireSelectionChange();
 		}
 		get _getPlaceholder() {
-			if (this._tokenizer && this._tokenizer.tokens.length) {
+			if (this._getSelectedItems().length) {
 				return "";
 			}
 			return this.placeholder;
 		}
-		_handleLeft() {
+		_handleArrowLeft() {
 			const cursorPosition = this.getDomRef().querySelector(`input`).selectionStart;
-			if (cursorPosition === 0) {
+			const isTextSelected = this.getDomRef().querySelector(`input`).selectionEnd - cursorPosition > 0;
+			if (cursorPosition === 0 && !isTextSelected) {
 				this._tokenizer._focusLastToken();
 			}
 		}
 		_tokenizerFocusOut(event) {
 			this._tokenizerFocused = false;
-			const tokensCount = this._tokenizer.tokens.length - 1;
+			const tokensCount = this._tokenizer.tokens.length;
+			const selectedTokens = this._selectedTokensCount;
+			const lastTokenBeingDeleted = tokensCount - 1 === 0 && this._deleting;
+			const allTokensAreBeingDeleted = selectedTokens === tokensCount && this._deleting;
 			if (!event.relatedTarget || !event.relatedTarget.hasAttribute("ui5-token")) {
 				this._tokenizer.tokens.forEach(token => { token.selected = false; });
 				this._tokenizer.scrollToStart();
 			}
-			if (tokensCount === 0 && this._deleting) {
+			if (allTokensAreBeingDeleted || lastTokenBeingDeleted) {
 				setTimeout(() => {
 					if (!Device.isPhone()) {
 						this.shadowRoot.querySelector("input").focus();
@@ -248,75 +259,300 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 			this._keyDown = false;
 		}
 		async _onkeydown(event) {
-			if (Keys.isLeft(event)) {
-				this._handleLeft(event);
+			const isArrowDownCtrl = Keys.isDownCtrl(event);
+			if (Keys.isShow(event) && !this.disabled) {
+				this._handleShow(event);
+				return;
 			}
-			if (Keys.isShow(event) && !this.readonly && !this.disabled) {
+			if (Keys.isDownShift(event) || Keys.isUpShift(event)) {
 				event.preventDefault();
-				this.togglePopover();
+				return;
 			}
-			if (this.open && (Keys.isUp(event) || Keys.isDown(event))) {
-				this._handleArrowNavigation(event);
+			if (Keys.isUp(event) || Keys.isDown(event) || Keys.isUpCtrl(event) || isArrowDownCtrl) {
+				this._handleArrowNavigation(event, isArrowDownCtrl);
+				return;
 			}
-			if (Keys.isBackSpace(event) && event.target.value === "") {
+			if (isArrowDownCtrl && !this.allItemsPopover.opened) {
+				setTimeout(() => this._inputDom.setSelectionRange(0, this._inputDom.value.length), 0);
+			}
+			if (Keys.isLeftCtrl(event) || Keys.isRightCtrl(event)) {
+				this._handleArrowCtrl(event);
+				return;
+			}
+			if (Keys.isCtrlV(event) || Keys.isInsertShift(event)) {
+				this._handlePaste(event);
+				return;
+			}
+			if (Keys.isSpaceShift(event)) {
+				event.preventDefault();
+			}
+			this._keyDown = true;
+			this[`_handle${event.key}`] && this[`_handle${event.key}`](event);
+		}
+		async _handlePaste(event) {
+			const pastedText = await navigator.clipboard.readText();
+			if (!pastedText) {
+				return;
+			}
+			const separatedText = pastedText.split(/\r\n|\r|\n/g);
+			const matchingItems = this.items.filter(item => separatedText.indexOf(item.text) > -1 && !item.selected);
+			if (matchingItems.length) {
+				matchingItems.forEach(item => {
+					item.selected = true;
+					this.value = "";
+					this.fireSelectionChange();
+				});
+			} else {
+				this.value = pastedText;
+				this.fireEvent("input");
+			}
+		}
+		_handleShow(event) {
+			const items = this.items;
+			const selectedItem = this._getSelectedItems()[0];
+			const focusedToken = this._tokenizer.tokens.find(token => token.focused);
+			const value = this.value;
+			const matchingItem = this.items.find(item => item.text.localeCompare(value, undefined, { sensitivity: "base" }) === 0);
+			event.preventDefault();
+			if (this.readonly) {
+				return;
+			}
+			this._isOpenedByKeyboard = true;
+			this._shouldFilterItems = false;
+			this._filteredItems = this.items;
+			this.togglePopover();
+			if (!focusedToken && matchingItem) {
+				this._itemToFocus = matchingItem;
+				return;
+			}
+			if (selectedItem && !focusedToken) {
+				this._itemToFocus = selectedItem;
+			} else if (focusedToken && event.target === focusedToken) {
+				this._itemToFocus = items.find(item => item.text === focusedToken.text);
+			} else {
+				this._itemToFocus = items[0];
+			}
+		}
+		_handlePageUp(event) {
+			event.preventDefault();
+		}
+		_handlePageDown(event) {
+			event.preventDefault();
+		}
+		_handleBackspace(event) {
+			if (event.target.value === "") {
 				event.preventDefault();
 				this._tokenizer._focusLastToken();
 			}
-			if (Keys.isEscape(event) && (!this.allowCustomValues || (!this.open && this.allowCustomValues))) {
+		}
+		_handleEscape(event) {
+			if (!this.allowCustomValues || (!this.open && this.allowCustomValues)) {
 				this.value = this._lastValue;
 			}
-			if (Keys.isEnter(event)) {
-				this.handleEnter();
+		}
+		_handleHome(event) {
+			const shouldFocusToken = this._isFocusInside && event.target.selectionStart === 0 && this._tokenizer.tokens.length > 0;
+			if (shouldFocusToken) {
+				event.preventDefault();
+				this._tokenizer.tokens[0].focus();
 			}
-			this._keyDown = true;
+		}
+		_handleEnd(event) {
+			const tokens = this._tokenizer.tokens;
+			const lastTokenIdx = tokens.length - 1;
+			const shouldFocusInput = event.target === tokens[lastTokenIdx] && tokens[lastTokenIdx] === this.shadowRoot.activeElement;
+			if (shouldFocusInput) {
+				event.preventDefault();
+				this._inputDom.focus();
+			}
+		}
+		_handleTab(event) {
+			this.allItemsPopover.close();
+		}
+		_handleSelectAll(event) {
+			const filteredItems = this._filteredItems;
+			const allItemsSelected = filteredItems.every(item => item.selected);
+			filteredItems.forEach(item => {
+				item.selected = !allItemsSelected;
+			});
+			this.fireSelectionChange();
 		}
 		_onValueStateKeydown(event) {
 			const isArrowDown = Keys.isDown(event);
 			const isArrowUp = Keys.isUp(event);
+			if (Keys.isTabNext(event) || Keys.isTabPrevious(event)) {
+				this._onItemTab(event);
+				return;
+			}
 			event.preventDefault();
-			if (isArrowDown) {
+			if (isArrowDown || Keys.isDownCtrl(event)) {
 				this._handleArrowDown(event);
 			}
-			if (isArrowUp) {
+			if (isArrowUp || Keys.isUpCtrl(event)) {
 				this._inputDom.focus();
 			}
 		}
-		_onItemKeydown(event) {
+		async _onItemKeydown(event) {
 			const isFirstItem = this.list.items[0] === event.target;
+			const isArrowUp = Keys.isUp(event) || Keys.isUpCtrl(event);
+			if (this.hasValueStateMessage && !this.valueStateHeader) {
+				await this._setValueStateHeader();
+			}
+			if (Keys.isTabNext(event) || Keys.isTabPrevious(event)) {
+				this._onItemTab(event);
+				return;
+			}
+			if (Keys.isHomeCtrl(event)) {
+				this.list._itemNavigation._handleHome(event);
+				this.list.items[this.list._itemNavigation._currentIndex].focus();
+			}
+			if (Keys.isEndCtrl(event)) {
+				this.list._itemNavigation._handleEnd(event);
+				this.list.items[this.list._itemNavigation._currentIndex].focus();
+			}
 			event.preventDefault();
-			if (!Keys.isUp(event) || !isFirstItem) {
+			if (Keys.isDownShift(event) || Keys.isUpShift(event)) {
+				this._handleItemRangeSelection(event);
 				return;
 			}
-			if (this.valueStateHeader) {
+			if ((Keys.isUpCtrl(event)) && !isFirstItem) {
+				this.list._itemNavigation._handleUp(event);
+				this.list.items[this.list._itemNavigation._currentIndex].focus();
+			}
+			if (Keys.isDownCtrl(event)) {
+				this.list._itemNavigation._handleDown(event);
+				this.list.items[this.list._itemNavigation._currentIndex].focus();
+			}
+			if (Keys.isShow(event)) {
+				this.togglePopover();
+			}
+			if (Keys.isCtrlA(event)) {
+				this._handleSelectAll(event);
+				return;
+			}
+			if (((isArrowUp && isFirstItem) || Keys.isHome(event)) && this.valueStateHeader) {
 				this.valueStateHeader.focus();
-				return;
 			}
-			this._inputDom.focus();
+			if (!this.valueStateHeader && isFirstItem && isArrowUp) {
+				this._inputDom.focus();
+			}
 		}
-		async _handleArrowNavigation(event) {
-			const isArrowDown = Keys.isDown(event);
-			const hasSuggestions = this.allItemsPopover.opened && this.items.length;
+		_handleArrowCtrl(event) {
+			const input = this._inputDom;
+			const isArrowLeft = Keys.isLeftCtrl(event);
+			if (isArrowLeft && input.selectionStart === 0 && input.selectionEnd === 0) {
+				event.preventDefault();
+			}
+			if (isArrowLeft && ((input.selectionEnd - input.selectionStart) > 0)) {
+				input.setSelectionRange(0, 0);
+			}
+		}
+		_onItemTab(event) {
+			this._inputDom.focus();
+			this.allItemsPopover.close();
+		}
+		async _handleArrowNavigation(event, isDownControl) {
+			const isArrowDown = isDownControl || Keys.isDown(event);
+			const hasSuggestions = this.items.length;
+			const isOpen = this.allItemsPopover.opened;
 			event.preventDefault();
 			if (this.hasValueStateMessage && !this.valueStateHeader) {
 				await this._setValueStateHeader();
 			}
-			if (isArrowDown && this.focused && this.valueStateHeader) {
+			if (isArrowDown && isOpen && this.valueStateHeader) {
 				this.valueStateHeader.focus();
 				return;
 			}
-			if (isArrowDown && this.focused && hasSuggestions) {
+			if (isArrowDown && hasSuggestions) {
 				this._handleArrowDown(event);
+			}
+			if (!isArrowDown && !isOpen && !this.readonly) {
+				this._navigateToPrevItem();
 			}
 		}
 		_handleArrowDown(event) {
+			const isOpen = this.allItemsPopover.opened;
 			const firstListItem = this.list.items[0];
-			this.list._itemNavigation.setCurrentItem(firstListItem);
-			firstListItem.focus();
+			if (isOpen) {
+				this.list._itemNavigation.setCurrentItem(firstListItem);
+				firstListItem.focus();
+			} else if (!this.readonly) {
+				this._navigateToNextItem();
+			}
 		}
-		handleEnter() {
+		_handleItemRangeSelection(event) {
+			const items = this.items;
+			const listItems = this.list.items;
+			const currentItemIdx = listItems.indexOf(event.target);
+			const nextItemIdx = currentItemIdx + 1;
+			const prevItemIdx = currentItemIdx - 1;
+			if (Keys.isDownShift(event) && items[nextItemIdx]) {
+				items[nextItemIdx].selected = items[currentItemIdx].selected;
+				items[nextItemIdx].focus();
+			}
+			if (Keys.isUpShift(event) && items[prevItemIdx]) {
+				items[prevItemIdx].selected = items[currentItemIdx].selected;
+				items[prevItemIdx].focus();
+			}
+			this.fireSelectionChange();
+		}
+		_navigateToNextItem() {
+			const items = this.items;
+			const itemsCount = items.length;
+			const previousItemIdx = this.currentItemIdx;
+			if (previousItemIdx > -1 && items[previousItemIdx].text !== this.value) {
+				this.currentItemIdx = -1;
+			}
+			if (previousItemIdx >= itemsCount - 1) {
+				return;
+			}
+			let currentItem = this.items[++this.currentItemIdx];
+			while (this.currentItemIdx < itemsCount - 1 && currentItem.selected) {
+				currentItem = this.items[++this.currentItemIdx];
+			}
+			if (currentItem.selected === true) {
+				this.currentItemIdx = previousItemIdx;
+				return;
+			}
+			this.value = currentItem.text;
+			this._innerInput.value = currentItem.text;
+			this._innerInput.setSelectionRange(0, currentItem.text.length);
+		}
+		_navigateToPrevItem() {
+			const items = this.items;
+			let previousItemIdx = this.currentItemIdx;
+			if ((!this.value && previousItemIdx !== -1) || (previousItemIdx !== -1 && this.value && this.value !== items[previousItemIdx].text)) {
+				previousItemIdx = -1;
+			}
+			if (previousItemIdx === -1) {
+				this.currentItemIdx = items.length;
+			}
+			if (previousItemIdx === 0) {
+				this.currentItemIdx = 0;
+				return;
+			}
+			let currentItem = this.items[--this.currentItemIdx];
+			while (currentItem && currentItem.selected && this.currentItemIdx > 0) {
+				currentItem = this.items[--this.currentItemIdx];
+			}
+			if (!currentItem) {
+				return;
+			}
+			if (currentItem.selected) {
+				this.currentItemIdx = previousItemIdx;
+				return;
+			}
+			this.value = currentItem.text;
+			this._innerInput.value = currentItem.text;
+			this._innerInput.setSelectionRange(0, currentItem.text.length);
+		}
+		_handleEnter() {
 			const lowerCaseValue = this.value.toLowerCase();
 			const matchingItem = this.items.find(item => item.text.toLowerCase() === lowerCaseValue);
 			const oldValueState = this.valueState;
+			if (this.FormSupport) {
+				this.FormSupport.triggerFormSubmit(this);
+			}
 			if (matchingItem) {
 				if (matchingItem.selected) {
 					if (this._validationTimeout) {
@@ -343,13 +579,40 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 			}, 2000);
 		}
 		_onTokenizerKeydown(event) {
+			const isCtrl = !!(event.metaKey || event.ctrlKey);
 			if (Keys.isRight(event)) {
 				const lastTokenIndex = this._tokenizer.tokens.length - 1;
-				if (this._tokenizer.tokens[lastTokenIndex] === document.activeElement.shadowRoot.activeElement) {
+				if (event.target === this._tokenizer.tokens[lastTokenIndex]) {
 					setTimeout(() => {
 						this.shadowRoot.querySelector("input").focus();
 					}, 0);
 				}
+			}
+			if ((isCtrl && ["c", "x"].includes(event.key.toLowerCase())) || Keys.isDeleteShift(event) || Keys.isInsertCtrl(event)) {
+				event.preventDefault();
+				const isCut = event.key.toLowerCase() === "x" || Keys.isDeleteShift(event);
+				const selectedTokens = this._tokenizer.tokens.filter(token => token.selected);
+				if (isCut) {
+					const cutResult = this._tokenizer._fillClipboard("cut", selectedTokens);
+					selectedTokens.forEach(token => {
+						this._tokenizer._tokenDelete(event, token);
+					});
+					this.focus();
+					return cutResult;
+				}
+				return this._tokenizer._fillClipboard("copy", selectedTokens);
+			}
+			if (Keys.isCtrlV(event) || Keys.isInsertShift(event)) {
+				this._handlePaste(event);
+			}
+			if (Keys.isHome(event)) {
+				this._handleHome(event);
+			}
+			if (Keys.isEnd(event)) {
+				this._handleEnd(event);
+			}
+			if (Keys.isShow(event) && !this.readonly && !this.disabled) {
+				this._handleShow(event);
 			}
 		}
 		_filterItems(str) {
@@ -357,11 +620,14 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 		}
 		_afterOpenPicker() {
 			this._toggle();
-			if (!Device.isPhone()) {
+			if (!Device.isPhone() && !this._isOpenedByKeyboard) {
 				this._innerInput.focus();
+			} else if (this._isOpenedByKeyboard) {
+				this._itemToFocus.focus();
 			} else {
 				this.allItemsPopover.focus();
 			}
+			this._isOpenedByKeyboard = false;
 		}
 		_toggle() {
 			this.open = !this.open;
@@ -376,7 +642,7 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 			if (!Device.isPhone()) {
 				this.fireSelectionChange();
 			}
-			if (!event.detail.selectionComponentPressed && !Keys.isSpace(event.detail)) {
+			if (!event.detail.selectionComponentPressed && !Keys.isSpace(event.detail) && !Keys.isSpaceCtrl(event.detail)) {
 				this.allItemsPopover.close();
 				this.value = "";
 				if (Device.isPhone()) {
@@ -434,6 +700,7 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 		}
 		onBeforeRendering() {
 			const input = this.shadowRoot.querySelector("input");
+			this.FormSupport = FeaturesRegistry.getFeature("FormSupport");
 			this._inputLastValue = this.value;
 			if (input && !input.value) {
 				this._filteredItems = this.items;
@@ -441,8 +708,11 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 			this.items.forEach(item => {
 				item._getRealDomRef = () => this.allItemsPopover.querySelector(`*[data-ui5-stable=${item.stableDomRef}]`);
 			});
-			const filteredItems = this._filterItems(this.value);
-			this._filteredItems = filteredItems;
+			if (this._shouldFilterItems) {
+				this._filteredItems = this._filterItems(this.value);
+			} else {
+				this._filteredItems = this.items;
+			}
 		}
 		async onAfterRendering() {
 			await this._getRespPopover();
@@ -516,6 +786,7 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 			} else {
 				this._innerInput.blur();
 			}
+			!Device.isPhone() && this._innerInput.setSelectionRange(0, this.value.length);
 			this._lastValue = this.value;
 		}
 		inputFocusOut(event) {
@@ -525,9 +796,6 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 					this.value = "";
 				}
 			}
-		}
-		_readonlyIconClick() {
-			this._inputDom.focus();
 		}
 		get editable() {
 			return !this.readonly;
@@ -577,6 +845,9 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 		}
 		get _tokensCountTextId() {
 			return `${this._id}-hiddenText-nMore`;
+		}
+		get _selectedTokensCount() {
+			return this._tokenizer.tokens.filter(token => token.selected).length;
 		}
 		get ariaDescribedByText() {
 			return this.valueStateTextId ? `${this._tokensCountTextId} ${this.valueStateTextId}` : `${this._tokensCountTextId}`;

@@ -51,7 +51,7 @@ sap.ui.define(["sap/base/Log", "sap/base/util/ObjectPath", "sap/ui/core/mvc/View
 	 */
 	// Following we attach all additional module API functions to the original sap.ui.extensionpoint factory.
 	// For compatibility we cannot change the actual return value of this module.
-	var ExtensionPoint = sap.ui.extensionpoint;
+	var ExtensionPoint = sap.ui.extensionpoint || {};
 
 	/**
 	 * API documentation see ExtensionPoint.load() and sap.ui.extensionpoint().
@@ -234,7 +234,12 @@ sap.ui.define(["sap/base/Log", "sap/base/util/ObjectPath", "sap/ui/core/mvc/View
 							next.index += aControls.length;
 							next = next._nextSibling;
 						}
+
+						this._aControls = aControls;
 					},
+
+					// the resolved controls of this ExtensionPoint
+					_aControls: [],
 
 					// only used internally to check for a marker object
 					_isExtensionPoint: true,

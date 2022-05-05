@@ -1,7 +1,7 @@
 sap.ui.define([
 	"sap/base/util/merge",
 	"sap/base/Log"
-], function (
+], function(
 	merge,
 	Log
 ) {
@@ -24,11 +24,18 @@ sap.ui.define([
 				only: ["sap/ui/rta"],
 				branchTracking: true
 			},
-			page: "test-resources/sap/ui/rta/qunit/testsandbox.qunit.html?test={name}",
+			page: "test-resources/sap/ui/rta/qunit/testsandbox.qunit.html?testsuite={suite}&test={name}",
 			autostart: true
 		},
 		// keep tests in alphabetical order!
 		tests: {
+			// Opa Testsuite
+			"opa/testsuite": {
+				title: "Opa Testsuite",
+				group: "Opa Testsuite",
+				page: "test-resources/sap/ui/rta/qunit/opa/testsuite.opa.qunit.html"
+			},
+
 			// API
 			"api/startKeyUserAdaptation": {
 				group: "API",
@@ -114,6 +121,12 @@ sap.ui.define([
 				group: "Command",
 				coverage: {
 					only: ["sap/ui/rta/command/appDescriptor/AddLibrary"]
+				}
+			},
+			"command/compVariant/CompVariantContent": {
+				group: "Command",
+				coverage: {
+					only: ["sap/ui/rta/command/compVariant/CompVariantContent"]
 				}
 			},
 			"command/compVariant/CompVariantSaveAs": {
@@ -327,6 +340,17 @@ sap.ui.define([
 					}
 				}
 			},
+			"command/Resize": {
+				group: "Command",
+				coverage: {
+					only: ["sap/ui/rta/command/Resize"]
+				},
+				ui5: {
+					resourceroots: {
+						"rta/test": "test-resources/sap/ui/rta/"
+					}
+				}
+			},
 			"command/Reveal": {
 				group: "Command",
 				coverage: {
@@ -364,30 +388,6 @@ sap.ui.define([
 				group: "Command",
 				coverage: {
 					only: ["sap/ui/rta/command/Stack"]
-				}
-			},
-
-			// DesignTime Tool
-			"dttool/controls/ListItem": {
-				group: "DtTool",
-				coverage: {
-					only: ["sap/ui/rta/internal/dttool/controls/DTToolListItem"]
-				},
-				ui5: {
-					resourceroots: {
-						"sap.ui.rta.internal.dttool": "test-resources/sap/ui/rta/internal/dttool/"
-					}
-				}
-			},
-			"dttool/controls/OutlineTree": {
-				group: "DtTool",
-				coverage: {
-					only: ["sap/ui/rta/internal/dttool/controls/OutlineTree"]
-				},
-				ui5: {
-					resourceroots: {
-						"sap.ui.rta.internal.dttool": "test-resources/sap/ui/rta/internal/dttool/"
-					}
 				}
 			},
 
@@ -551,6 +551,21 @@ sap.ui.define([
 				group: "Plugin",
 				coverage: {
 					only: ["sap/ui/rta/plugin/Rename"]
+				}
+			},
+			"plugin/Resize": {
+				group: "Plugin",
+				coverage: {
+					only: ["sap/ui/rta/plugin/Resize"]
+				}
+			},
+			"plugin/ResizeRTL": {
+				group: "Plugin",
+				coverage: {
+					only: ["sap/ui/rta/plugin/Resize"]
+				},
+				ui5: {
+					rtl: true
 				}
 			},
 			"plugin/Selection": {
@@ -745,6 +760,9 @@ sap.ui.define([
 						"sap/ui/rta/util/changeVisualization/ChangeIndicatorRegistry"
 					]
 				}
+			},
+			"Generic Testsuite": {
+				page: "test-resources/sap/ui/rta/qunit/testsuite.generic.qunit.html"
 			}
 		}
 	};

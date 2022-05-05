@@ -45,6 +45,25 @@ sap.ui.define([
 		fnAssertNumericContentHasRendered(assert);
 	});
 
+	QUnit.test("Numeric Content rendered with correct value and scale when formatterValue is set to true.", function (assert) {
+		var value = '12.2';
+		var scale = '%';
+
+		this.oNumericContent.setFormatterValue(true);
+
+		this.oNumericContent.setValue(value + scale);
+		oCore.applyChanges();
+		assert.strictEqual(document.getElementById("numeric-cnt-value-inner").innerText, value, "Value is rendered correctly");
+		assert.strictEqual(document.getElementById("numeric-cnt-scale").innerText, scale, "Scale is rendered correctly");
+
+		// for few countries metric representation is different
+		// for eg; in turkish % is written as %12.2 instead of 12.2%
+		this.oNumericContent.setValue(scale + value);
+		oCore.applyChanges();
+		assert.strictEqual(document.getElementById("numeric-cnt-value-inner").innerText, value, "Value is rendered correctly");
+		assert.strictEqual(document.getElementById("numeric-cnt-scale").innerText, scale, "Scale is rendered correctly");
+	});
+
 	QUnit.test("Numeric Content - Render Placeholder loading animation", function (assert) {
 		//Switch to Loading State
 		this.oNumericContent.setState(LoadState.Loading);
@@ -55,6 +74,31 @@ sap.ui.define([
 		this.oNumericContent.setState(LoadState.Loaded);
 		oCore.applyChanges();
 		assert.equal(document.querySelector(".sapMNCLoadingShimmer"), null, "Loading Shimmer absent on 'Loaded' state");
+	});
+
+	QUnit.test("Numeric Content - State test", function (assert) {
+		this.oNumericContent.setValue(200);
+
+		//Switch to Loading State
+		this.oNumericContent.setState(LoadState.Loading);
+		oCore.applyChanges();
+		assert.ok(document.querySelector(".sapMNCLoadingShimmer"), "Loading Shimmer present on 'Loading' state");
+		assert.equal(getComputedStyle(document.querySelector(".sapMNCLoadingShimmer")).opacity, "1" ,"Loading Shimmer Opacity is set correctly");
+		assert.equal(getComputedStyle(document.querySelector(".sapMNCValue.Good.Loading")).opacity, "1" ,"NumericContent Opacity is set correctly");
+
+		//Switch to Loaded State
+		this.oNumericContent.setState(LoadState.Loaded);
+		oCore.applyChanges();
+		assert.equal(document.querySelector(".sapMNCLoadingShimmer"), null, "Loading Shimmer absent on 'Loaded' state");
+		assert.equal(getComputedStyle(document.querySelector(".sapMNCValue.Good.Loaded")).opacity, "1" ,"NumericContent Opacity is set correctly");
+
+		//Switch to Failed State
+		this.oNumericContent.setState(LoadState.Failed);
+		oCore.applyChanges();
+		assert.equal(getComputedStyle(document.querySelector(".sapMNCValue.Good.Failed")).opacity, "0.25" ,"sapMNCValue Opacity is set correctly");
+		assert.equal(getComputedStyle(document.querySelector(".sapMNCIconImage.Failed")).opacity, "1" ,"sapMNCValue Opacity is set correctly");
+		assert.equal(getComputedStyle(document.querySelector(".sapMNCScale.Failed")).opacity, "1" ,"sapMNCScale Opacity is set correctly");
+
 	});
 
 	QUnit.test("Numeric Content has ARIA properties", function (assert) {

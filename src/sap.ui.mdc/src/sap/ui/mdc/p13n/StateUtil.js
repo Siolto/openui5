@@ -2,7 +2,8 @@
 * ! ${copyright}
 */
 sap.ui.define([
-], function() {
+	"sap/ui/mdc/p13n/Engine"
+], function(Engine) {
 	"use strict";
 
 	/**
@@ -41,11 +42,15 @@ sap.ui.define([
 		*	<li><code>aggregated</code> - Set to <code>false</code>  to remove an aggregation.</li>
 		*	</ul>
 		*
+		*	<b>Note:</b>To improve the performance, you should avoid additional calls of the control’s delegate.
+		*	To do this, the <code>propertyInfo</code> property of the relevant control can be enriched with the properties used in the provided state.
+		*
+		*
 		* @private
 		* @ui5-restricted sap.fe
 		* @MDC_PUBLIC_CANDIDATE
 		*
-		* @param {object} oControl The control that is used to create changes and to which changes are made
+		* @param {sap.ui.mdc.Control} oControl The control that is used to create changes and to which changes are made
 		* @param {object} oState The state in which the control is represented
 		*
 		* @example
@@ -93,7 +98,8 @@ sap.ui.define([
 		* @returns {Promise} <code>Promise</code> that resolves after all changes have been applied
 		*/
 		applyExternalState: function(oControl, oState){
-			return oControl.getEngine().applyState(oControl, StateUtil._internalizeKeys(oState));
+			var oInternalState = Engine.getInstance().internalizeKeys(oControl, oState);
+			return Engine.getInstance().applyState(oControl, oInternalState);
 		},
 
 		/**
@@ -106,13 +112,33 @@ sap.ui.define([
 		 * @private
 		 * @ui5-restricted sap.fe
 		 * @MDC_PUBLIC_CANDIDATE
-		 * @param {object} oControl The control instance implementing IxState to retrieve the externalized state
+		 * @param {sap.ui.mdc.Control} oControl The control instance implementing IxState to retrieve the externalized state
 		 *
 		 * @returns {Promise} <code>Promise</code> that resolves after the current state has been retrieved
 		 */
 		retrieveExternalState: function(oControl) {
-			return oControl.getEngine().retrieveState(oControl).then(function(oEngineState){
-				return StateUtil._externalizeKeys(oEngineState);
+			return Engine.getInstance().retrieveState(oControl).then(function(oEngineState){
+				return Engine.getInstance().externalizeKeys(oControl, oEngineState);
+			});
+		},
+
+		/**
+		 * Creates a delta between two states.
+		 *
+		 * @private
+		 * @ui5-restricted sap.fe
+		 *
+		 * @MDC_PUBLIC_CANDIDATE
+		 * @param {sap.ui.mdc.Control} oControl The control instance implementing IxState
+		 * @param {object} oOldState The prior state
+		 * @param {object} oNewState The new state
+		 *
+		 * @returns {Promise} <code>Promise</code> that resolves after the current state has been diffed
+		 */
+		diffState: function(oControl, oOldState, oNewState) {
+			return sap.ui.mdc.p13n.Engine.getInstance().diffState(oControl, Engine.getInstance().internalizeKeys(oControl, oOldState), Engine.getInstance().internalizeKeys(oControl, oNewState))
+			.then(function(oEngineStateDiff){
+				return Engine.getInstance().externalizeKeys(oControl, oEngineStateDiff);
 			});
 		},
 
@@ -126,7 +152,7 @@ sap.ui.define([
 		 * @param {function} fnListener fnFunction The handler function to call when the event occurs
 		 */
 		attachStateChange: function(fnListener) {
-			sap.ui.mdc.p13n.Engine.getInstance().stateHandlerRegistry.attachChange(fnListener);
+			Engine.getInstance().stateHandlerRegistry.attachChange(fnListener);
 		},
 
 		/**
@@ -139,50 +165,7 @@ sap.ui.define([
 		 * @param {function} fnListener fnFunction The handler function to detach from the event
 		 */
 		detachStateChange: function(fnListener) {
-			sap.ui.mdc.p13n.Engine.getInstance().stateHandlerRegistry.detachChange(fnListener);
-		},
-
-		_externalizeKeys: function(oInternalState) {
-			var mKeysForState = {
-				Sort: "sorters",
-				Group: "groupLevels",
-				Aggregate: "aggregations",
-				Filter: "filter",
-				Item: "items",
-				Column: "items",
-				ColumnWidth: "supplementaryConfig"
-			};
-			var oTransformedState = {};
-
-			Object.keys(oInternalState).forEach(function(sProvidedEngineKey){
-				var sExternalKey = mKeysForState[sProvidedEngineKey];
-				var sTransformedKey = sExternalKey || sProvidedEngineKey;//no external key --> provide internal key
-				oTransformedState[sTransformedKey] = oInternalState[sProvidedEngineKey];
-			});
-			return oTransformedState;
-		},
-
-		_internalizeKeys: function(oExternalState) {
-			var mKeysForEngine = {
-				sorters: ["Sort"],
-				groupLevels: ["Group"],
-				aggregations: ["Aggregate"],
-				filter: ["Filter"],
-				items: ["Item", "Column"],
-				supplementaryConfig: ["ColumnWidth"]
-			};
-
-			var oTransformedState = {};
-
-			Object.keys(oExternalState).forEach(function(sProvidedEngineKey){
-				if (mKeysForEngine[sProvidedEngineKey]) {
-					mKeysForEngine[sProvidedEngineKey].forEach(function(sTransformedKey){
-						oTransformedState[sTransformedKey] = oExternalState[sProvidedEngineKey];
-					});
-				}
-			});
-
-			return oTransformedState;
+			Engine.getInstance().stateHandlerRegistry.detachChange(fnListener);
 		}
 
 	};

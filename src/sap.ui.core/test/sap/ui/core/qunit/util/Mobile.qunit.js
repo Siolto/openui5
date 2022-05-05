@@ -2,7 +2,11 @@
  * ${copyright}
  */
 /*global QUnit */
-sap.ui.define(["sap/ui/util/Mobile", "sap/ui/Device"], function(Mobile, Device) {
+sap.ui.define([
+	"sap/ui/util/Mobile",
+	"sap/ui/Device",
+	"sap/ui/thirdparty/jquery"
+], function(Mobile, Device, jQuery) {
 	"use strict";
 
 	var fnRemoveViewort = function(){
@@ -19,6 +23,7 @@ sap.ui.define(["sap/ui/util/Mobile", "sap/ui/Device"], function(Mobile, Device) 
 		Mobile.init();
 
 		// check viewport:  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+		// for ios platform: <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 		var $v = jQuery("meta").filter("[name=viewport]");
 		assert.equal($v.length, 1, "There should be a viewport meta tag");
 		assert.ok($v.attr("content").length > 0, "viewport meta tag has content");
@@ -56,7 +61,8 @@ sap.ui.define(["sap/ui/util/Mobile", "sap/ui/Device"], function(Mobile, Device) 
 			homeIconPrecomposed: true
 		});
 
-		// check viewport
+		// check viewport:  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+		// for ios platform: <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 		var $v = jQuery("meta").filter("[name=viewport]");
 		assert.equal($v.length, 0, "There should be no viewport meta tag");
 

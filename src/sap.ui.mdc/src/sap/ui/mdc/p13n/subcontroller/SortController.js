@@ -3,8 +3,8 @@
  */
 
 sap.ui.define([
-	'./BaseController', 'sap/ui/mdc/p13n/P13nBuilder', 'sap/ui/mdc/p13n/panels/SortPanel', 'sap/m/p13n/SortPanel'
-], function (BaseController, P13nBuilder, SortPanelOld, SortPanel) {
+	'./BaseController', 'sap/ui/mdc/p13n/P13nBuilder', 'sap/m/p13n/SortPanel'
+], function (BaseController, P13nBuilder, SortPanel) {
 	"use strict";
 
     var SortController = BaseController.extend("sap.ui.mdc.p13n.subcontroller.SortController", {
@@ -14,8 +14,8 @@ sap.ui.define([
 		}
     });
 
-    SortController.prototype.getCurrentState = function() {
-        return this.getAdaptationControl().getCurrentState().sorters;
+    SortController.prototype.getStateKey = function() {
+        return "sorters";
     };
 
     SortController.prototype.getUISettings = function() {

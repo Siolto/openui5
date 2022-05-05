@@ -32,13 +32,16 @@ sap.ui.define([
 				],
 				avatar: new Avatar({
 					icon: "employee",
-					content: new Button({
+					image: new Button({
 						icon: "employee",
 						text: "Some text...",
 						click: function(oEvent) {
 							// console.log("Event click fired for Button with parameters: ", oEvent.getParameters());
 						}
-					})
+					}),
+					click: function(oEvent) {
+						// console.log("Event click fired for Avatar with parameters: ", oEvent.getParameters());
+					}
 				}),
 				footnotes: [
 					new Button({

@@ -1796,6 +1796,7 @@ sap.ui.define([
 		oCore.applyChanges();
 		$Input = oInput.$("inner");
 		//assert
+		assert.strictEqual($Input.attr("role"), "spinbutton", "The internal input has correct aria role");
 		assert.ok($Input.is("[aria-valuenow]"), "Internal Input has 'aria-valuenow' attribute");
 		assert.strictEqual($Input.attr("aria-valuenow"), "0", "Internal input's 'aria-valuenow' attribute has correct value");
 		assert.notOk($Input.is("[aria-valuemin]"), "Internal Input doesn't have 'aria-valuemin' attribute");
@@ -2751,6 +2752,22 @@ sap.ui.define([
 
 		// assert
 		assert.strictEqual(this.stepInput._getInput().getValueStateText(), "Enter a number with a maximum value of 10", "value state text is correct");
+	});
+
+	QUnit.test("If maximum or minimum binding constraint is set to 0, _getMin and _getMax return 0 too", function(assert) {
+		// arrange
+		this.stepInput.setModel(new JSONModel({ value: 11 }));
+		this.stepInput.bindProperty("value", {
+			path: "/value",
+			type: new TypeFloat(null, {
+				maximum: 0,
+				minimum: 0
+			})
+		});
+
+		// assert
+		assert.strictEqual(this.stepInput._getMin(), 0, "returned min value is correct");
+		assert.strictEqual(this.stepInput._getMax(), 0, "returned max value is correct");
 	});
 
 	QUnit.test("_verifyValue calculates the value state correctly", function(assert) {

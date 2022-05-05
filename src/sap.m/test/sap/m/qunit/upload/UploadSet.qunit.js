@@ -14,10 +14,16 @@ sap.ui.define([
 	"sap/ui/model/json/JSONModel",
 	"test-resources/sap/m/qunit/upload/UploadSetTestUtils",
 	"sap/ui/core/Core",
-	"sap/ui/core/dnd/DragAndDrop"
+	"sap/ui/core/dnd/DragAndDrop",
+	"sap/ui/base/Event",
+	"sap/m/library",
+	"sap/ui/model/Sorter"
 ], function (jQuery, UploadSet, UploadSetItem, UploadSetRenderer, Uploader, Toolbar, Label, ListItemBaseRenderer,
-			 Dialog, Device, MessageBox, JSONModel, TestUtils, oCore, DragAndDrop) {
+			 Dialog, Device, MessageBox, JSONModel, TestUtils, oCore, DragAndDrop, EventBase, Library, Sorter) {
 	"use strict";
+
+	// shortcut for sap.m.ListMode
+	var ListMode = Library.ListMode;
 
 	function getData() {
 		return {
@@ -462,6 +468,83 @@ sap.ui.define([
 
 		return oEvent;
 	}
+
+	function getData1() {
+		return {
+			items: [
+				{
+					fileName: "Alice.mp4"
+				},
+				{
+					fileName: "Test.mp4"
+				},
+				{
+					fileName: "Brenda.mp4",
+					enabledRemove: false,
+					enabledEdit: false,
+					visibleRemove: false,
+					visibleEdit: false
+				}
+			]
+		};
+	}
+
+	QUnit.module("UploadSet general functionality", {
+		beforeEach: function () {
+			this.oUploadSet = new UploadSet("uploadSet", {
+				items: {
+					path: "/items",
+					template: TestUtils.createItemTemplate(),
+					templateShareable: false
+				}
+			}).setModel(new JSONModel(getData1()));
+			this.oUploadSet.placeAt("qunit-fixture");
+			oCore.applyChanges();
+		},
+		afterEach: function () {
+			this.oUploadSet.destroy();
+			this.oUploadSet = null;
+		}
+	});
+
+	QUnit.test("SameFilenameAllowed set as false in uploadSet", function (assert) {
+		assert.expect(1);
+		var oItem = this.oUploadSet.getItems()[0];
+
+		// Set as false
+		this.oUploadSet.setSameFilenameAllowed(false);
+		this.oUploadSet.placeAt("qunit-fixture");
+
+		oItem._getEditButton().firePress();
+		oCore.applyChanges();
+
+		this.oUploadSet.getItems()[0].$("fileNameEdit-inner")[0].value = "Test";
+		oItem._getConfirmRenameButton().firePress();
+		oCore.applyChanges();
+
+		assert.equal(this.oUploadSet.getItems()[0].getFileName(), "Alice.mp4", "FileName will remain same");
+	});
+
+	QUnit.test("SameFilenameAllowed set as true in uploadSet", function (assert) {
+		assert.expect(2);
+		var oItem = this.oUploadSet.getItems()[0];
+
+		this.oUploadSet.setSameFilenameAllowed(true);
+		this.oUploadSet.placeAt("qunit-fixture");
+
+		oItem._getEditButton().firePress();
+		oCore.applyChanges();
+
+		this.oUploadSet.attachEventOnce("fileRenamed", function (oEvent) {
+			assert.ok(true, "FileRenamed event should have been called.");
+			assert.equal(oEvent.getParameter("item").getFileName(), "Test.mp4", "File name should be correct.");
+		});
+		this.oUploadSet.getItems()[0].$("fileNameEdit-inner")[0].value = "Test";
+
+		oItem._getConfirmRenameButton().firePress();
+		oCore.applyChanges();
+	});
+
 	QUnit.module("Rendering of UploadSet with hideUploadButton = true", {
 		beforeEach: function () {
 			this.oUploadSet = new UploadSet("uploadSet", {
@@ -502,6 +585,22 @@ sap.ui.define([
 
 		//Assert
 		assert.equal(this.oUploadSet.getItems().length, 0, "item is successfully removed using index");
+	});
+
+	QUnit.test("Remove Aggregation destroys supplied control object", function (assert) {
+		//Arrange
+		var uploadSetItem = new UploadSetItem();
+		this.spy(uploadSetItem, "destroy");
+		this.spy(uploadSetItem, "_getListItem");
+
+		//Act
+		this.oUploadSet.removeAllAggregation("items");
+		this.oUploadSet.removeAggregation("items", uploadSetItem);
+		oCore.applyChanges();
+
+		//Assert
+		assert.equal(uploadSetItem._getListItem.callCount, 0, "List Item not created for empty list");
+		assert.equal(uploadSetItem.destroy.callCount, 1, "Item control object destroyed successfully");
 	});
 
 	QUnit.module("Drag and drop", {
@@ -552,6 +651,202 @@ sap.ui.define([
 		DragAndDrop.preprocessEvent(oEvent);
 		assert.ok(oEvent.dragSession === oDragSession, "dragend: Drag session was preserved");
 
+	});
+
+	QUnit.test("Test for method setMultiple", function(assert) {
+		assert.equal(this.oUploadSet.getMultiple(), false, "Initial multiple value (false) is set correctly");
+		this.oUploadSet.setMultiple(true);
+		assert.equal(this.oUploadSet.getMultiple(), true, "Multiple property should be set to true");
+	});
+
+	QUnit.test("Drag and drop of multiple files with multiple property", function(assert) {
+
+		// arrange
+		var oFileList = { // dummy files list used to simulate drag drop files
+			0: {
+				name: "Sample Drop File",
+				size: 1,
+				type: "type"
+			},
+			1: {
+				name: "Sample Drop File 2",
+				size: 1,
+				type: "type"
+			},
+			length: 2
+		};
+		var oEvent = new EventBase("drop", {}, { // using BaseEvent to create sample drop event to simulate drag and drop
+			browserEvent: {
+				dataTransfer: {
+					files: oFileList
+				}
+			}
+		});
+
+		this.stub(this.oUploadSet, "_processNewFileObjects").callsFake(function() {
+			// creating fake function since this function makes xhr call to upload files
+			return true;
+		});
+		this.stub(MessageBox, "error").returns("Dummy Error message");
+
+		// act
+		this.oUploadSet._onDropFile(oEvent); // method invoked on uploadSet when dropping files to upload
+
+		// assert
+		assert.ok(this.oUploadSet._processNewFileObjects.notCalled, "Multiple files are not uploaded with multiple property set to false");
+
+		// act
+		this.oUploadSet.setMultiple(true);
+
+		this.oUploadSet._onDropFile(oEvent); // method invoked on uploadSet when dropping files to upload
+
+		// assert
+		assert.ok(this.oUploadSet._processNewFileObjects.called, "Multiple files are uploaded with multiple property set to true");
+
+	});
+
+	QUnit.test("Test for MultiSelect in pending upload (not supported)", function(assert) {
+		//Act
+		this.oUploadSet.setInstantUpload(false);
+		this.oUploadSet.setMode(ListMode.MultiSelect);
+		//Assert
+		assert.equal(this.oUploadSet.getMode(), ListMode.None, "Mode after setting 'MultiSelect' in pending upload is 'None'");
+	});
+
+	QUnit.test("Test for method setMode)", function(assert) {
+		assert.equal(this.oUploadSet.getMode(), ListMode.MultiSelect, "Initial mode MultiSelect is set correctly");
+		this.oUploadSet.setMode(ListMode.SingleSelect);
+		assert.equal(this.oUploadSet.getMode(), ListMode.SingleSelect, "Mode is set to SingleSelect");
+	});
+
+	QUnit.test("Set and get selected items by Id", function(assert) {
+		//Arrange
+		var aAllItems = this.oUploadSet.getItems();
+		this.oUploadSet.setMode(ListMode.MultiSelect);
+
+		//Act
+		var oReturnedUploadSet = this.oUploadSet.setSelectedItemById(aAllItems[0].getId(), true);
+
+		//Assert
+		assert.ok(oReturnedUploadSet instanceof UploadSet, "Returned value is UploadSet");
+		assert.deepEqual(this.oUploadSet.getSelectedItems()[0], aAllItems[0], "Data of first selected item is correct");
+		assert.ok(this.oUploadSet.getSelectedItems()[0] instanceof UploadSetItem, "First item returned is UploadSetItem");
+	});
+
+	QUnit.test("Get selected items without selection", function(assert) {
+		//Assert
+		assert.equal(this.oUploadSet.getSelectedItems().length, 0, "0 items have been selected");
+	});
+
+	QUnit.test("Set and get selected item", function(assert) {
+		//Arrange
+		var aAllItems = this.oUploadSet.getItems();
+		this.oUploadSet.setMode(ListMode.SingleSelect);
+
+		//Act
+		this.oUploadSet.setSelectedItem(aAllItems[0], true);
+
+		//Assert
+		assert.deepEqual(this.oUploadSet.getSelectedItem()[0], aAllItems[0], "Selected item is correct");
+		assert.ok(this.oUploadSet.getSelectedItem()[0] instanceof UploadSetItem, "Item returned is UploadSetItem");
+	});
+
+	QUnit.test("Set and get selected item by Id", function(assert) {
+		//Arrange
+		var aAllItems = this.oUploadSet.getItems();
+		this.oUploadSet.setMode(ListMode.SingleSelectLeft);
+
+		//Act
+		var oReturnedUploadSet = this.oUploadSet.setSelectedItemById(aAllItems[0].getId(), true);
+
+		//Assert
+		assert.deepEqual(oReturnedUploadSet, this.oUploadSet, "Local UploadSet and returned element are deepEqual");
+		assert.deepEqual(this.oUploadSet.getSelectedItem()[0], aAllItems[0], "Selected item is correct");
+		assert.ok(oReturnedUploadSet.getItems()[0].getSelected(), "The getSelected of UploadSetItem has been set correctly");
+		assert.ok(this.oUploadSet.getSelectedItem()[0] instanceof UploadSetItem, "Item returned is UploadSetItem");
+	});
+
+	QUnit.test("Get selected item without selection", function(assert) {
+		//Assert
+		assert.equal(this.oUploadSet.getSelectedItem(), null, "Selected item is correct");
+	});
+
+	QUnit.test("Set all and get selected items", function(assert) {
+		//Arrange
+		var aAllItems = this.oUploadSet.getItems();
+		this.oUploadSet.setMode(ListMode.MultiSelect);
+
+		//Act
+		var oReturnedUploadSet = this.oUploadSet.selectAll();
+
+		//Assert
+		assert.ok(oReturnedUploadSet instanceof UploadSet, "Returned value is UploadSet");
+		assert.equal(this.oUploadSet.getSelectedItems().length, aAllItems.length, "Input and Output amount of items are equal");
+		assert.equal(oReturnedUploadSet.getSelectedItems().length, this.oUploadSet.getSelectedItems().length, "Return value of selectAll is equal to getSelectedItems");
+		assert.deepEqual(oReturnedUploadSet, this.oUploadSet, "Local UploadSet and returned element are deepEqual");
+		assert.deepEqual(this.oUploadSet.getSelectedItems()[0], aAllItems[0], "Data of first selected item is correct");
+		assert.ok(this.oUploadSet.getSelectedItems()[0] instanceof UploadSetItem, "First item returned is UploadSetItem");
+		assert.equal(this.oUploadSet.getSelectedItem()[0], aAllItems[0], "getSelectedItem() returns first selected item for multiple selection");
+	});
+
+	QUnit.test("Set and reset all items manually to check sync state of UploadSet Items and UploadSet.", function(assert) {
+		//Arrange
+		var aAllItems = this.oUploadSet.getItems();
+		this.oUploadSet.setMode(ListMode.MultiSelect);
+
+		//Act
+		for (var i = 0; i < aAllItems.length; i++) {
+			aAllItems[i].setSelected(true);
+		}
+		for (var i = 0; i < aAllItems.length; i++) {
+			aAllItems[i].setSelected(false);
+		}
+
+		//Assert
+		assert.equal(this.oUploadSet.getSelectedItems().length, 0, "0 items are selected");
+	});
+
+	QUnit.module("Grouping tests", {
+		beforeEach: function() {
+			this.oUploadSet = new UploadSet({
+				items: {
+					path: "/items",
+					templateShareable: false,
+					template: TestUtils.createItemTemplate(),
+					sorter: new Sorter("fileName", false, function(oContext) {
+						return {
+							key: oContext.getProperty("fileName"),
+							upperCase: false
+						};
+					})
+				}
+			}).setModel(new JSONModel(getData()));
+			this.oUploadSet.placeAt("qunit-fixture");
+			oCore.applyChanges();
+		},
+		afterEach: function() {
+			this.oUploadSet.destroy();
+			this.oUploadSet = null;
+		}
+	});
+
+	QUnit.test("Test for adding Groups", function(assert) {
+		//Arrange
+		this.spy(this.oUploadSet._oList, "addItemGroup");
+		var aList = this.oUploadSet._oList,
+			aItems = aList.getItems();
+
+		//Act
+		this.oUploadSet.rerender();
+
+		//Assert
+		assert.equal(this.oUploadSet._oList.addItemGroup.callCount, 2, "Two groups were added");
+		assert.equal(aItems.length, 4, "Each item is part of a separate group (we have inside 2 group items, each with 1 UploadSet item)");
+		aItems.forEach(function(oItem) {
+			if (oItem._bGroupHeader) {
+				assert.ok(oItem.getTitle().length > 0, "The group item has title property");
+			}
+		});
 	});
 
 });

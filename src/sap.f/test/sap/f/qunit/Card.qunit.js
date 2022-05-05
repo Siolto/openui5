@@ -10,6 +10,7 @@ sap.ui.define([
 	"sap/m/Text",
 	"sap/ui/core/Core",
 	"sap/ui/thirdparty/jquery",
+	"sap/ui/core/Control",
 	"sap/ui/core/format/DateFormat",
 	"sap/ui/core/date/UniversalDate"
 ],
@@ -23,6 +24,7 @@ function (
 	Text,
 	Core,
 	jQuery,
+	Control,
 	DateFormat,
 	UniversalDate
 ) {
@@ -64,25 +66,17 @@ function (
 
 	QUnit.module("Headers");
 
-	QUnit.test("Press is fired on sapselect for default header", function (assert) {
+	QUnit.test("NumericHeader renderer", function (assert) {
 		// Arrange
-		var oHeader = new CardHeader({ title: "Title" }),
-			oCard = new Card({
-				header: oHeader
-			}),
-			fnPressHandler = this.stub();
-
-		oHeader.attachPress(fnPressHandler);
-
+		var oHeader = new CardNumericHeader({ title: "Title", number: "{Number}" });
 		// Act
-		oCard.placeAt(DOM_RENDER_LOCATION);
+		oHeader.placeAt(DOM_RENDER_LOCATION);
 		Core.applyChanges();
-		oHeader.onsapselect(new jQuery.Event("sapselect"));
 
 		// Assert
-		assert.ok(fnPressHandler.calledOnce, "The press event is fired on sapselect");
+		assert.strictEqual(oHeader.$().find(".sapFCardNumericIndicators").length, 1, "NumericIndicators are rendered.");
 
-		oCard.destroy();
+		oHeader.destroy();
 	});
 
 	QUnit.test("Press is fired on sapselect for numeric header", function (assert) {
@@ -345,6 +339,40 @@ function (
 		assert.ok(oCard.getCardHeader().$().attr("aria-labelledby").indexOf("mainIndicator") > -1, "'aria-labelledby' contains main indicator id");
 
 		// Clean up
+		oCard.destroy();
+	});
+
+	QUnit.module("Custom header", {
+		before: function () {
+			this.CustomHeader = Control.extend("test.sap.f.card.CustomHeader", {
+				metadata: {
+					interfaces: ["sap.f.cards.IHeader"]
+				},
+				renderer: {
+					apiVersion: 2,
+					render: function (oRm, oControl) {
+						oRm.openStart("div", oControl).openEnd().close("div");
+					}
+				}
+			});
+		}
+	});
+
+	QUnit.test("Card with custom header", function (assert) {
+		// Arrange
+		var oCard = new Card({
+			header: new this.CustomHeader()
+		});
+
+		try {
+			oCard.placeAt(DOM_RENDER_LOCATION);
+			Core.applyChanges();
+			assert.ok(true, "Card with custom header is successfully rendered");
+
+		} catch (e) {
+			assert.ok(false, "Couldn't render card with custom header. " + e.message);
+		}
+
 		oCard.destroy();
 	});
 

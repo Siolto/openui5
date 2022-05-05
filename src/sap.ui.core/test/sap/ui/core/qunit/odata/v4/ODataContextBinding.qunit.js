@@ -13,11 +13,9 @@ sap.ui.define([
 	"sap/ui/model/odata/v4/ODataParentBinding",
 	"sap/ui/model/odata/v4/lib/_Cache",
 	"sap/ui/model/odata/v4/lib/_GroupLock",
-	"sap/ui/model/odata/v4/lib/_Helper",
-	"sap/ui/test/TestUtils"
+	"sap/ui/model/odata/v4/lib/_Helper"
 ], function (Log, SyncPromise, Binding, ChangeReason, ContextBinding, Context,
-		ODataContextBinding, ODataModel, asODataParentBinding, _Cache, _GroupLock, _Helper,
-		TestUtils) {
+		ODataContextBinding, ODataModel, asODataParentBinding, _Cache, _GroupLock, _Helper) {
 	"use strict";
 
 	var aAllowedBindingParameters = ["$$canonicalPath", "$$groupId", "$$inheritExpandSelect",
@@ -44,10 +42,6 @@ sap.ui.define([
 			this.mock(this.oModel.oRequestor.oModelInterface)
 				.expects("fetchMetadata").atLeast(0)
 				.returns(SyncPromise.resolve());
-		},
-
-		afterEach : function () {
-			return TestUtils.awaitRendering();
 		},
 
 		/**
@@ -1328,14 +1322,8 @@ sap.ui.define([
 	});
 
 	//*********************************************************************************************
-[false, true].forEach(function (bV4) {
-	var sTitle = "execute: bReplaceWithRVC throws because "
-			+ (bV4 ? "not in collection" : "of base context");
-
-	QUnit.test(sTitle, function (assert) {
-		var oContext = bV4
-				? Context.create(this.oModel, {/*oBinding*/}, "/EMPLOYEES('42')", undefined)
-				: this.oModel.createBindingContext("/EMPLOYEES('42')"),
+	QUnit.test("execute: bReplaceWithRVC throws because of base context", function (assert) {
+		var oContext = this.oModel.createBindingContext("/EMPLOYEES('42')"),
 			oBinding = this.bindContext("schema.Operation(...)", oContext);
 
 		this.mock(oBinding).expects("checkSuspended").withExactArgs();
@@ -1347,7 +1335,6 @@ sap.ui.define([
 			oBinding.execute("groupId", false, null, true);
 		}, new Error("Cannot replace this parent context: /EMPLOYEES('42')"));
 	});
-});
 
 	//*********************************************************************************************
 	QUnit.test("execute: bReplaceWithRVC throws because of absolute binding", function (assert) {
@@ -3119,7 +3106,11 @@ sap.ui.define([
 
 	//*********************************************************************************************
 [false, true].forEach(function (bHasChangeListeners) {
-	QUnit.test("refreshInternal: bHasChangeListeners=" + bHasChangeListeners, function (assert) {
+	[false, true].forEach(function (bKeepCacheOnError) {
+		var sTitle = "refreshInternal: bHasChangeListeners=" + bHasChangeListeners
+				+ ", bKeepCacheOnError=" + bKeepCacheOnError;
+
+	QUnit.test(sTitle, function (assert) {
 		var oBinding,
 			oBindingMock = this.mock(ODataContextBinding.prototype),
 			oContext = Context.createNewContext(this.oModel, {}, "/EMPLOYEE('42')"),
@@ -3134,7 +3125,6 @@ sap.ui.define([
 			fnFetchCache,
 			oGroupLock = {},
 			fnHasChangeListeners,
-			bKeepCacheOnError = {/*true or false*/},
 			sPath = {/*EMPLOYEES('42')*/},
 			oRefreshResult;
 
@@ -3151,12 +3141,12 @@ sap.ui.define([
 			.withExactArgs(sinon.match.same(sPath));
 		fnFetchCache = oBindingMock.expects("fetchCache")
 			.withExactArgs(sinon.match.same(oContext), false, false,
-				sinon.match.same(bKeepCacheOnError));
+				bKeepCacheOnError ? "myGroup" : undefined);
 		this.mock(oBinding).expects("createRefreshPromise").exactly(bHasChangeListeners ? 1 : 0)
 			.withExactArgs().callThrough();
 		this.mock(oBinding).expects("refreshDependentBindings")
 			.withExactArgs(sinon.match.same(sPath), "myGroup", sinon.match.same(bCheckUpdate),
-				sinon.match.same(bKeepCacheOnError))
+				bKeepCacheOnError)
 			.returns(oDependentsPromise);
 
 		// code under test
@@ -3170,6 +3160,7 @@ sap.ui.define([
 			oBinding.resolveRefreshPromise(Promise.resolve());
 		}
 		return oRefreshResult;
+	});
 	});
 });
 
@@ -3273,7 +3264,8 @@ sap.ui.define([
 		oBindingMock.expects("createReadGroupLock").withExactArgs("myGroup", false);
 		oBindingMock.expects("removeCachesAndMessages").withExactArgs("path");
 		oBindingMock.expects("fetchCache")
-			.withExactArgs(sinon.match.same(oContext), false, false, bKeepCacheOnError)
+			.withExactArgs(sinon.match.same(oContext), false, false,
+				bKeepCacheOnError ? "myGroup" : undefined)
 			.callsFake(function () {
 				oBinding.oCache = oNewCache;
 				oBinding.oCachePromise = SyncPromise.resolve(oNewCache);
@@ -3347,7 +3339,8 @@ sap.ui.define([
 		oBindingMock.expects("createReadGroupLock").twice().withExactArgs("myGroup", false);
 		oBindingMock.expects("removeCachesAndMessages").withExactArgs("path");
 		oBindingMock.expects("fetchCache")
-			.withExactArgs(sinon.match.same(oContext), false, false, bKeepCacheOnError)
+			.withExactArgs(sinon.match.same(oContext), false, false,
+				bKeepCacheOnError ? "myGroup" : undefined)
 			.callsFake(function () {
 				oBinding.oCache = oNewCache;
 				oBinding.oCachePromise = SyncPromise.resolve(oNewCache);
@@ -3427,7 +3420,7 @@ sap.ui.define([
 		oBindingMock.expects("createReadGroupLock").withExactArgs("myGroup", bIsRoot);
 		oBindingMock.expects("removeCachesAndMessages").withExactArgs("path");
 		oBindingMock.expects("fetchCache")
-			.withExactArgs(sinon.match.same(oContext), false, false, true)
+			.withExactArgs(sinon.match.same(oContext), false, false, "myGroup")
 			.callsFake(function () {
 				oBinding.oCache = oNewCache;
 				oBinding.oCachePromise = SyncPromise.resolve(oNewCache);
@@ -3484,7 +3477,7 @@ sap.ui.define([
 		oBindingMock.expects("createReadGroupLock").withExactArgs("myGroup", bIsRoot);
 		oBindingMock.expects("removeCachesAndMessages").withExactArgs("path");
 		oBindingMock.expects("fetchCache")
-			.withExactArgs(undefined, false, false, true)
+			.withExactArgs(undefined, false, false, "myGroup")
 			.callsFake(function () {
 				oBinding.oCache = oNewCache;
 				oBinding.oCachePromise = SyncPromise.resolve(oNewCache);
@@ -4893,25 +4886,4 @@ sap.ui.define([
 			assert.strictEqual(bDependent1Refreshed, true);
 		});
 	});
-
-	//*******************************************************************************************
-	if (TestUtils.isRealOData()) {
-		//*****************************************************************************************
-		QUnit.test("Action import on navigation property", function () {
-			var oModel = new ODataModel({
-					serviceUrl : "/sap/opu/odata4/IWBEP/TEA/default/IWBEP/TEA_BUSI/0001/",
-					synchronizationMode : "None"
-				}),
-				oBinding = oModel.bindContext("EMPLOYEE_2_TEAM/"
-					+ "com.sap.gateway.default.iwbep.tea_busi.v0001.AcChangeManagerOfTeam(...)"),
-				oParentBinding = oModel.bindContext("/EMPLOYEES('1')", null,
-					{$expand : "EMPLOYEE_2_TEAM"});
-
-			// ensure object of bound action is loaded
-			return oParentBinding.getBoundContext().requestObject().then(function () {
-				oBinding.setContext(oParentBinding.getBoundContext());
-				return oBinding.setParameter("ManagerID", "3").execute();
-			});
-		});
-	}
 });

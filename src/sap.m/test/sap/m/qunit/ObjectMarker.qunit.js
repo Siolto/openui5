@@ -736,7 +736,7 @@ sap.ui.define([
 		oCore.applyChanges();
 
 		// Assert
-		assert.strictEqual(this.marker._getInnerControl().$().attr("tabindex"), "0", "tabindex is set to '0'");
+		assert.strictEqual(this.marker._getInnerControl()._getIconAggregation().$().attr("tabindex"), "0", "tabindex is set to '0'");
 	});
 
 	QUnit.test("tabindex=0 for ObjectMarker of 'Flagged' type", function (assert) {
@@ -746,7 +746,7 @@ sap.ui.define([
 		oCore.applyChanges();
 
 		// Assert
-		assert.strictEqual(this.marker._getInnerControl().$().attr("tabindex"), "0", "tabindex is set to '0'");
+		assert.strictEqual(this.marker._getInnerControl()._getIconAggregation().$().attr("tabindex"), "0", "tabindex is set to '0'");
 	});
 
 	QUnit.test("Icon changing its decorative state", function (assert) {
@@ -802,7 +802,7 @@ sap.ui.define([
 			oCore.applyChanges();
 
 			// Assert
-			assert.notOk(oIcon.getAlt(), "aria-label is correct for type " + sType);
+			assert.ok(oIcon.getAlt(), "aria-label is correct for type " + sType);
 		}
 
 		// Cleanup
@@ -834,69 +834,18 @@ sap.ui.define([
 		oMarker.destroy();
 	});
 
-	QUnit.test("aria-label of the active icon - IconOnly", function (assert) {
-		// Arrange
-		var oMarker = new ObjectMarker("OM", {
-				visibility: ObjectMarkerVisibility.IconOnly,
-				press: function () {}
-			}),
-			oTable = new Table({
-				columns : [
-					new Column({
-						header : new Label("labelInTable", {
-							text : "Object Marker (active)"
-						})
-					})
-				],
-				items: [
-					new ColumnListItem({
-						cells: [
-							oMarker
-						]
-					})
-				]
-			}).placeAt("qunit-fixture"),
-			sType;
-
-		oCore.applyChanges();
-
-		for (sType in ObjectMarkerType) {
-			// Act
-			oMarker.setType(sType);
-			oCore.applyChanges();
-
-			// Assert
-			assert.strictEqual(oMarker.getDomRef().querySelectorAll("#OM-link")[0].getAttribute("aria-labelledby"), "labelInTable", "aria-labelledby is correct for type " + sType);
-		}
-
-		// Cleanup
-		oTable.destroy();
-	});
-
 	QUnit.test("aria-label of the active icon - IconAndText", function (assert) {
 		// Arrange
-		var oMarker = new ObjectMarker("OM", {
+		var oLabel = new Label("labelInTable", {
+				text : "Object Marker (active)"
+			}),
+			oMarker = new ObjectMarker("OM", {
 				visibility: ObjectMarkerVisibility.IconAndText,
 				press: function () {}
-			}),
-			oTable = new Table({
-				columns : [
-					new Column({
-						header : new Label("labelInTable", {
-							text : "Object Marker (active)"
-						})
-					})
-				],
-				items: [
-					new ColumnListItem({
-						cells: [
-							oMarker
-						]
-					})
-				]
-			}).placeAt("qunit-fixture"),
+			}).addAriaLabelledBy(oLabel),
 			sType;
 
+		oMarker.placeAt("qunit-fixture");
 		oCore.applyChanges();
 
 		for (sType in ObjectMarkerType) {
@@ -909,7 +858,8 @@ sap.ui.define([
 		}
 
 		// Cleanup
-		oTable.destroy();
+		oMarker.destroy();
+		oLabel.destroy();
 	});
 
 	QUnit.test("Tooltips", function (assert) {

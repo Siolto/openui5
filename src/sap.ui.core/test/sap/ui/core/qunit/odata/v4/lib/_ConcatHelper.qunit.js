@@ -32,7 +32,9 @@ sap.ui.define([
 			},
 			oDataRow = {},
 			// handleResponse must be at the prototype
-			oFirstLevelCache = Object.assign(Object.create({handleResponse : sinon.spy()}), {
+			oFirstLevelCache = Object.assign(Object.create({
+				handleResponse : sinon.stub().returns("~result~")
+			}), {
 				sMetaPath : "/meta/path",
 				mQueryOptions : {"sap-client" : "123"},
 				oRequestor : {
@@ -88,8 +90,10 @@ sap.ui.define([
 			oResult.value.unshift(oLeavesRow);
 		}
 
-		// code under test
-		oFirstLevelCache.handleResponse(42, 99, oResult, "~mTypeForMetaPath~");
+		assert.strictEqual(
+			// code under test
+			oFirstLevelCache.handleResponse(oResult, "a", "b", "c", "..."),
+			"~result~");
 
 		assert.notOk(oFirstLevelCache.hasOwnProperty("handleResponse"), "reverted to prototype");
 		if (fnLeaves) {
@@ -102,8 +106,7 @@ sap.ui.define([
 			fnGrandTotal.resetHistory(); // Note: fnGrandTotal is reused by inner forEach!
 		}
 		assert.strictEqual(fnHandleResponse.callCount, 1);
-		assert.ok(fnHandleResponse.calledWith(42, 99, sinon.match.same(oResult),
-			"~mTypeForMetaPath~"));
+		assert.ok(fnHandleResponse.calledWith(sinon.match.same(oResult), "a", "b", "c", "..."));
 		assert.strictEqual(oResult["@odata.count"], "26");
 		assert.strictEqual(oResult.value.length, 1, "extra rows removed");
 		assert.strictEqual(oResult.value[0], oDataRow);

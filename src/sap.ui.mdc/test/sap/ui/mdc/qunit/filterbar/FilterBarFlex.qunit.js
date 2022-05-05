@@ -74,9 +74,8 @@ sap.ui.define([
 		};
 	}
 
-	function fetchProperties() {
-		return Promise.resolve([
-			{
+	function fetchProperties(oControl, mPropertyBag) {
+		var aProperties = [{
 				name: "Category"
 			}, {
 				name: "Name"
@@ -84,9 +83,59 @@ sap.ui.define([
 				name: "ProductID"
 			}, {
 				name: "CurrencyCode"
-			}
-		]);
+			}];
+
+		if (mPropertyBag) {
+			aProperties.push(			{
+				name: "to_nav/field1",
+				typeConfig: {
+					className: "String"
+				}
+			});
+		}
+
+		return Promise.resolve(aProperties);
 	}
+
+	function addCondition(sPropertyName, oFilterBar, mPropertyBag) {
+
+		var oModifier = mPropertyBag.modifier;
+
+		return oModifier.getProperty(oFilterBar, "propertyInfo")
+		.then(function(aPropertyInfo) {
+			var nIdx = aPropertyInfo.findIndex(function(oEntry) {
+				return oEntry.name === sPropertyName;
+			});
+
+			if (nIdx < 0) {
+				FilterBarDelegate.fetchProperties(oFilterBar, oFilterBar.isA ? null : mPropertyBag).then( function(aFetchedProperties) {
+					if (aFetchedProperties) {
+						var nIdx = aFetchedProperties.findIndex(function(oEntry) {
+							return oEntry.name === sPropertyName;
+						});
+
+						if (nIdx >= 0) {
+							aPropertyInfo.push({
+								name: sPropertyName,
+								dataType: aFetchedProperties[nIdx].typeConfig.className,
+								maxConditions: aFetchedProperties[nIdx].maxConditions,
+								constraints: aFetchedProperties[nIdx].constraints,
+								formatOption: aFetchedProperties[nIdx].formatOptions,
+								required: aFetchedProperties[nIdx].required,
+								caseSensitive: aFetchedProperties[nIdx].caseSensitive,
+								display: aFetchedProperties[nIdx].display,
+								label: aFetchedProperties[nIdx].label,
+								hiddenFilter: aFetchedProperties[nIdx].hiddenFilter
+							});
+							oModifier.setProperty(oFilterBar, "propertyInfo", aPropertyInfo);
+						}
+					}
+
+				});
+			}
+		});
+	}
+
 
 	function addItem(sPropertyName, oFilterBar, mPropertyBag) {
 		return Promise.resolve(new FilterField("comp---view--myFilterBar--" + sPropertyName, {
@@ -99,8 +148,10 @@ sap.ui.define([
 		before: function() {
 			// Implement required Delgate APIs
 			this._fnFetchPropertiers = FilterBarDelegate.fetchProperties;
+			this._fnAddCondition = FilterBarDelegate.addCondition;
 			this._fnAddItem = FilterBarDelegate.addItem;
 			FilterBarDelegate.fetchProperties = fetchProperties;
+			FilterBarDelegate.addCondition = addCondition;
 			FilterBarDelegate.addItem = addItem;
 		},
 		beforeEach: function() {
@@ -118,16 +169,20 @@ sap.ui.define([
 		},
 		after: function() {
 			FilterBarFlexHandler.fetchProperties = this._fnFetchPropertiers;
+			FilterBarFlexHandler.addCondition = this._fnAddCondition;
 			FilterBarFlexHandler.addItem = this._fnAddItem;
-			this.fetchProperties = null;
+			this._fnFetchPropertiers = null;
+			this._fnAddCondition = null;
 			this._fnAddItem = null;
 		}
 	});
 
 	QUnit.test('RemoveFilter - applyChange & revertChange on a js control tree', function(assert) {
 		var done = assert.async();
+
 		var oContent = createRemoveChangeDefinition();
 		oContent.index = 0;
+
 		return ChangesWriteAPI.create({
 			changeSpecificData: oContent,
 			selector: this.oFilterBar
@@ -143,6 +198,7 @@ sap.ui.define([
 				appComponent: this.oUiComponent,
 				view: this.oView
 			}).then(function() {
+
 				assert.notEqual(this.oFilterItem.getId(), this.oFilterBar.getAggregation('filterItems')[1].getId(), "filter has been removed successfully");
 				assert.strictEqual(this.oFilterBar.getFilterItems().length, 2);
 
@@ -162,6 +218,7 @@ sap.ui.define([
 
 	QUnit.test('AddFilter - applyChange & revertChange on a js control tree', function(assert) {
 		var done = assert.async();
+
 		var sPropertyName = "CurrencyCode";
 		return ChangesWriteAPI.create({
 			changeSpecificData: createAddChangeDefinition(sPropertyName),
@@ -193,6 +250,7 @@ sap.ui.define([
 
 	QUnit.test('MoveFilter - applyChange & revertChange on a js control tree', function(assert) {
 		var done = assert.async();
+
 		var sPropertyName = "ProductID";
 		return ChangesWriteAPI.create({
 			changeSpecificData: createMoveChangeDefinition(sPropertyName, 0),
@@ -226,6 +284,7 @@ sap.ui.define([
 
 	QUnit.test('addCondition - applyChange & revertChange on a js control tree with old format for in parameters', function(assert) {
 		var done = assert.async();
+
 		var oContent = createAddConditionChangeDefinitionOldFormat();
 
 		var aPropertyInfo = [{
@@ -249,6 +308,7 @@ sap.ui.define([
 			var oChangeHandler = FilterBarFlexHandler["addCondition"].changeHandler;
 
 			assert.deepEqual(this.oFilterBar.getFilterConditions()[oContent.content.name], undefined, "condition initially non existing");
+			this.oFilterBar._applyInitialFilterConditions();
 
 			// Test apply
 			oChangeHandler.applyChange(oChange, this.oFilterBar, {
@@ -296,6 +356,7 @@ sap.ui.define([
 			var oChangeHandler = FilterBarFlexHandler["addCondition"].changeHandler;
 
 			assert.deepEqual(this.oFilterBar.getFilterConditions()[oContent.content.name], undefined, "condition initially non existing");
+			this.oFilterBar._applyInitialFilterConditions();
 
 			// Test apply
 			oChangeHandler.applyChange(oChange, this.oFilterBar, {
@@ -320,6 +381,7 @@ sap.ui.define([
 
 	QUnit.test('addCondition - applyChange & revertChange on a js control tree with invalid conditions', function(assert) {
 		var done = assert.async();
+
 		var oContent = createAddConditionChangeDefinition("MyDummyOperator");
 		return ChangesWriteAPI.create({
 			changeSpecificData: oContent,
@@ -328,6 +390,7 @@ sap.ui.define([
 			var oChangeHandler = FilterBarFlexHandler["addCondition"].changeHandler;
 
 			assert.deepEqual(this.oFilterBar.getFilterConditions()[oContent.content.name], undefined, "condition initially non existing");
+			this.oFilterBar._applyInitialFilterConditions();
 
 			// Test apply
 			oChangeHandler.applyChange(oChange, this.oFilterBar, {
@@ -367,6 +430,7 @@ sap.ui.define([
 			selector: this.oFilterBar
 		}).then(function(oChange) {
 			var oChangeHandler = FilterBarFlexHandler["removeCondition"].changeHandler;
+			this.oFilterBar._applyInitialFilterConditions();
 
 			// Test apply
 			oChangeHandler.applyChange(oChange, this.oFilterBar, {
@@ -412,6 +476,11 @@ sap.ui.define([
 				var sFilterConditions = oXMLFilterBar.getAttribute("filterConditions").replace(/\\/g, '');
 				var mAppliedConditions = JSON.parse(sFilterConditions);
 				assert.deepEqual(mAppliedConditions[oContent.content.name], [ oContent.content.condition ], "condition has been applied on XML node");
+
+				var sPropertyInfo = oXMLFilterBar.getAttribute("propertyInfo").replace(/\\/g, '');
+				var aPropertyInfo = JSON.parse(sPropertyInfo);
+				assert.deepEqual(aPropertyInfo, [ {"name":"to_nav/field1", "dataType":"String"} ], "propertyInfo has been applied on XML node");
+
 				done();
 			});
 		}.bind(this));
@@ -438,6 +507,8 @@ sap.ui.define([
 			changeSpecificData: oContent3,
 			selector: this.oFilterBar
 		});
+
+		this.oFilterBar._applyInitialFilterConditions();
 
 		var oChangeHandler = FilterBarFlexHandler["addCondition"].changeHandler;
 

@@ -24,11 +24,34 @@ sap.ui.define([
 	"sap/ui/integration/editor/EditorResourceBundles",
 	"sap/base/util/deepClone",
 	"sap/ui/model/Sorter",
-	"sap/ui/core/SeparatorItem",
+	'sap/m/GroupHeaderListItem',
 	"sap/base/util/includes",
 	"sap/ui/core/CustomData"
 ], function (
-	BaseField, Input, Text, Title, Select, ComboBox, Popover, Button, OverflowToolbar, ToolbarSpacer, ListItem, List, CustomListItem, VBox, each, _debounce, Core, JSONModel, EditorResourceBundles, deepClone, Sorter, SeparatorItem, includes, CustomData
+	BaseField,
+	Input,
+	Text,
+	Title,
+	Select,
+	ComboBox,
+	Popover,
+	Button,
+	OverflowToolbar,
+	ToolbarSpacer,
+	ListItem,
+	List,
+	CustomListItem,
+	VBox,
+	each,
+	_debounce,
+	Core,
+	JSONModel,
+	EditorResourceBundles,
+	deepClone,
+	Sorter,
+	GroupHeaderListItem,
+	includes,
+	CustomData
 ) {
 	"use strict";
 	var REGEXP_PARAMETERS = /parameters\.([^\}\}]+)/g;
@@ -258,6 +281,8 @@ sap.ui.define([
 					oVisualization.settings.change = fnChange;
 				}
 			}
+		} else if (oVisualization.type === "TextArea") {
+			oVisualization.type = "sap/m/TextArea";
 		}
 		this._visualization = oVisualization;
 		this.attachAfterInit(this._afterInit);
@@ -269,12 +294,11 @@ sap.ui.define([
 			if (this.isFilterBackend()) {
 				this.onInput = _debounce(this.onInput, 500);
 				//if need to filter backend by input value, need to hook the onInput function which only support filter locally.
-				oControl.oninput = this.onInput;
+				oControl.oninput = this.onInput.bind(this);
 				//listen to the selectionChange event of Combobox
-				oControl.attachSelectionChange(this.onSelectionChange);
+				oControl.attachSelectionChange(this.onSelectionChange.bind(this));
 			}
 		}
-		this._settingsModel = this.getModel("currentSettings");
 	};
 
 	StringField.prototype.onSelectionChange = function(oEvent) {
@@ -354,13 +378,13 @@ sap.ui.define([
 		return aOriginTranslatedValues;
 	};
 
-	StringField.prototype.getTranslationValueInTexts = function (sLanguage, sKey) {
+	StringField.prototype.getTranslationValueInTexts = function (sLanguage, sManifestPath) {
 		var sTranslationPath = "/texts/" + sLanguage;
 		var oProperty = this._settingsModel.getProperty(sTranslationPath) || {};
-		return oProperty[sKey];
+		return oProperty[sManifestPath];
 	};
 
-	StringField.prototype.setTranslationValueInTexts = function (sLanguage, sKey, sValue) {
+	StringField.prototype.setTranslationValueInTexts = function (sLanguage, sManifestPath, sValue) {
 		var sTranslationPath = "/texts";
 		var oData = this._settingsModel.getData();
 		if (!oData) {
@@ -369,7 +393,7 @@ sap.ui.define([
 		if (!oData.hasOwnProperty("texts")) {
 			var oTexts = {};
 			oTexts[sLanguage] = {};
-			oTexts[sLanguage][sKey] = sValue;
+			oTexts[sLanguage][sManifestPath] = sValue;
 			this._settingsModel.setProperty(sTranslationPath, oTexts);
 		} else {
 			sTranslationPath = "/texts/" + sLanguage;
@@ -379,7 +403,7 @@ sap.ui.define([
 			} else {
 				oLanguage = oData.texts[sLanguage];
 			}
-			oLanguage[sKey] = sValue;
+			oLanguage[sManifestPath] = sValue;
 			this._settingsModel.setProperty(sTranslationPath, oLanguage);
 		}
 	};
@@ -396,7 +420,7 @@ sap.ui.define([
 			that._aOriginTranslatedValues = oField.getOriginTranslatedValues(oConfig);
 		}
 		var aTempTranslatedLanguages = deepClone(that._aOriginTranslatedValues, 500);
-		var oResourceBundle = Core.getLibraryResourceBundle("sap.ui.integration");
+		var oResourceBundle = oField.getResourceBundle();
 		//merge the value in texts or beforeLayerChange into the value list of i18n files
 		aTempTranslatedLanguages.forEach(function (translatedValue) {
 			var sTranslateText = oField.getTranslationValueInTexts(translatedValue.key, oConfig.manifestpath);
@@ -469,10 +493,10 @@ sap.ui.define([
 						descending: true,
 						group: true
 					})],
-					groupHeaderFactory: that.getGroupHeader
+					groupHeaderFactory: oField.getGroupHeader
 				}
 			});
-			var sPlacement = oField._previewPostion === "right" ? "Right" : "Left";
+			var sPlacement = oField._previewPosition === "right" ? "Right" : "Left";
 			that._oTranslationPopover = new Popover({
 				placement: sPlacement,
 				contentWidth: "300px",
@@ -568,8 +592,9 @@ sap.ui.define([
 	};
 
 	StringField.prototype.getGroupHeader = function(oGroup) {
-		return new SeparatorItem( {
-			text: oGroup.key
+		return new GroupHeaderListItem({
+			title: oGroup.key,
+			upperCase: false
 		});
 	};
 

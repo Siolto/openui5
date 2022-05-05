@@ -292,7 +292,8 @@ sap.ui.define([
 
 	GenericTile._Action = {
 		Press: "Press",
-		Remove: "Remove"
+		Remove: "Remove",
+		More: "More"
 	};
 
 	GenericTile.LINEMODE_SIBLING_PROPERTIES = ["state", "subheader", "header", "scope"];
@@ -421,13 +422,24 @@ sap.ui.define([
 	 */
 	GenericTile.prototype._initScopeContent = function (sTileClass) {
 		if (!this.getState || this.getState() !== LoadState.Disabled) {
-			this._oMoreIcon = this._oMoreIcon || IconPool.createControlByURI({
-				id: this.getId() + "-action-more",
-				size: "1rem",
-				useIconTooltip: false,
-				src: "sap-icon://overflow"
-			}).addStyleClass("sapMPointer").addStyleClass(sTileClass + "MoreIcon");
-
+			if (this.isA("sap.m.GenericTile") && this._isIconMode() && this.getFrameType() === FrameType.TwoByHalf){
+				// Acts Like an actual Button in Icon mode for TwoByHalf Tile
+				this._oMoreIcon = this._oMoreIcon || new Button({
+					id: this.getId() + "-action-more",
+					icon: "sap-icon://overflow",
+					type: "Transparent"
+				}).addStyleClass("sapMPointer").addStyleClass(sTileClass + "MoreIcon");
+				this._oMoreIcon.ontouchstart = function() {
+					this.removeFocus();
+				}.bind(this);
+			} else {
+				this._oMoreIcon = this._oMoreIcon || new Button({
+					id: this.getId() + "-action-more",
+					icon: "sap-icon://overflow",
+					type: "Unstyled"
+				}).addStyleClass("sapMPointer").addStyleClass(sTileClass + "MoreIcon");
+				this._oMoreIcon._bExcludeFromTabChain = true;
+			}
 			this._oRemoveButton = this._oRemoveButton || new Button({
 				id: this.getId() + "-action-remove",
 				icon: "sap-icon://decline",
@@ -453,6 +465,25 @@ sap.ui.define([
 				// do nothing
 			}
 		}
+	};
+
+	/**
+	Adding the  Classes for Action More Button in IconMode
+	@private
+	*/
+	GenericTile.prototype._addClassesForButton = function() {
+		this._oMoreIcon.getDomRef().classList.add("sapMBtn");
+		this._oMoreIcon.getDomRef("inner").classList.add("sapMBtnInner");
+		this._oMoreIcon.getDomRef("inner").classList.add("sapMBtnTransparent");
+	};
+
+	/**
+	Focus would not be visible while clicking on the tile
+	@private
+	*/
+	GenericTile.prototype.removeFocus = function() {
+		this.getDomRef().classList.add("sapMGTActionButtonPress");
+		this._oMoreIcon._activeButton();
 	};
 
 	GenericTile.prototype._isSmall = function() {
@@ -515,6 +546,11 @@ sap.ui.define([
 			this._sParentResizeListenerId = null;
 		}
 
+		//sets the extra width of 0.5rem when the grid container has 1rem gap for the TwoByxxxx tiles
+		if (this.getParent() && this.getParent().isA("sap.f.GridContainer")){
+			this._applyExtraWidth();
+		}
+
 		Device.media.detachHandler(this._handleMediaChange, this, DEVICE_SET);
 
 		if (this._$RootNode) {
@@ -524,7 +560,10 @@ sap.ui.define([
 		if (this.getFrameType() === FrameType.Auto) {
 			this.setProperty("frameType", FrameType.OneByOne, true);
 		}
-
+		//sets the maxlines for the appshortcut and systeminfo in different tile sizes
+		if (this.getMode() !== GenericTileMode.LineMode && (this.getAppShortcut() || this.getSystemInfo())) {
+			this._setMaxLines();
+		}
 		//Set Navigate Action Button Text - Only in Article Mode
 		if (this._isNavigateActionEnabled()) {
 			var sButtonText = this.getNavigationButtonText() ? this.getNavigationButtonText() : this._oRb.getText("ACTION_READ_MORE");
@@ -556,7 +595,6 @@ sap.ui.define([
 				}
 			}
 		}
-
 		// triggers update of all adjacent GenericTile LineMode siblings
 		// this is needed for their visual update if this tile's properties change causing it to expand or shrink
 		if (sMode === GenericTileMode.LineMode && this._bUpdateLineTileSiblings) {
@@ -574,9 +612,39 @@ sap.ui.define([
 			this._oNavigateAction.attachPress(this._navigateEventHandler, this);
 		}
 
+		//Removes hovering and focusable properties from the action more button in non icon mode tiles
+		if (this._oMoreIcon && this._oMoreIcon.getDomRef() && !this._isIconMode()){
+			this._oMoreIcon.getDomRef().firstChild.classList.remove("sapMBtnHoverable");
+			this._oMoreIcon.getDomRef().firstChild.classList.remove("sapMFocusable");
+		}
+
+		//Adds the classes for the action-more buton in IconMode for TwoByHalf Tile
+		if (this._isIconMode() && this.getFrameType() === FrameType.TwoByHalf && this._oMoreIcon.getDomRef()){
+			this._addClassesForButton();
+		}
+
 		this.onDragComplete();
 	};
+	GenericTile.prototype._setMaxLines = function() {
+		var sFrameType = this.getFrameType(),
+			iLines = sFrameType === FrameType.OneByOne || sFrameType === FrameType.TwoByHalf ? 1 : 2;
 
+		//Default maxLines
+		this._oAppShortcut.setProperty("maxLines", iLines, true);
+		this._oSystemInfo.setProperty("maxLines", iLines, true);
+
+		if (this.getFrameType() === FrameType.TwoByHalf) {
+			var bAppShortcutMore = this.getAppShortcut().length > 11,
+				bSystemInfoMore = this.getSystemInfo().length > 11;
+
+			// Line break to happen after 11 characters, App Shortcut to have more priority in display
+			if ((bAppShortcutMore && bSystemInfoMore) || bAppShortcutMore) {
+				this._oAppShortcut.setProperty("maxLines", 2, true);
+			} else if (bSystemInfoMore) {
+				this._oSystemInfo.setProperty("maxLines", 2, true);
+			}
+		}
+	};
 	/**
 	 * Update Hover Overlay, Generic tile to remove Active Press state of generic Tile.
 	 * @private
@@ -906,7 +974,10 @@ sap.ui.define([
 	};
 
 	/* --- Event Handling --- */
-	GenericTile.prototype.ontouchstart = function () {
+	GenericTile.prototype.ontouchstart = function (event) {
+		if (event && event.target.id.indexOf("-action-more") === -1 && this.getDomRef()) {
+			this.getDomRef().classList.remove("sapMGTActionButtonPress"); // Sets focus on the tile when clicked other than the action-More Button in Icon mode
+		}
 		this.addStyleClass("sapMGTPressActive");
 		if (this.$("hover-overlay").length > 0) {
 			this.$("hover-overlay").addClass("sapMGTPressActive");
@@ -1485,6 +1556,9 @@ sap.ui.define([
 		if ((sScope === GenericTileScope.Actions || GenericTileScope.ActionRemove) && oEvent.target.id.indexOf("-action-remove") > -1) {//tap on icon remove in Actions scope
 			sAction = GenericTile._Action.Remove;
 			oDomRef = this._oRemoveButton.getPopupAnchorDomRef();
+		} else if ((sScope === GenericTileScope.Actions || sScope === GenericTileScope.ActionMore) && this._isIconMode && this._isIconMode() && oEvent.target.id.indexOf("-action-more") > -1) {
+			sAction = GenericTile._Action.More;
+			oDomRef = this._oMoreIcon.getDomRef();
 		} else if (sScope === GenericTileScope.Actions || sScope === GenericTileScope.ActionMore) {
 			oDomRef = this._oMoreIcon.getDomRef();
 		}
@@ -1589,10 +1663,24 @@ sap.ui.define([
 	 * @returns {boolean} - true if Navigate Action Button is enabled
 	 * @private
 	 */
-	GenericTile.prototype._isNavigateActionEnabled = function() {
+GenericTile.prototype._isNavigateActionEnabled = function() {
 		return this.getMode() === GenericTileMode.ArticleMode && this.getUrl() && this.getEnableNavigationButton();
 	};
 
+	/**
+	 * An extra width of 0.5rem would be applied when the gap is 1rem(16px) in the grid container for the TwoByOne and TwoByHalf tiles
+	 * @private
+	 */
+	GenericTile.prototype._applyExtraWidth = function() {
+		var	sGap = this.getParent().getActiveLayoutSettings().getGap(),
+			bisLargeTile = this.getFrameType() === FrameType.TwoByHalf || this.getFrameType() === FrameType.TwoByOne,
+			bisGap16px = sGap === "16px" || sGap === "1rem";
+		if (bisGap16px && bisLargeTile){
+			this.addStyleClass("sapMGTWidthForGridContainer");
+		} else if (!bisGap16px && this.hasStyleClass("sapMGTWidthForGridContainer")){
+			this.removeStyleClass("sapMGTWidthForGridContainer");
+		}
+	};
 	/**
 	 * Returns true if the GenericTile is in ActionMode and frameType is TwoByOne.
 	 * @returns {boolean} - true if the GenericTile is in ActionMode

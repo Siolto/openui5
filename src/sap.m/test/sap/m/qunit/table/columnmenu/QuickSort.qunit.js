@@ -4,8 +4,9 @@ sap.ui.define([
 	"sap/m/table/columnmenu/Menu",
 	"sap/m/table/columnmenu/QuickSort",
 	"sap/m/table/columnmenu/QuickSortItem",
-	"sap/m/Button"
-], function (QUnitUtils, Menu, QuickSort, QuickSortItem, Button) {
+	"sap/m/Button",
+	"sap/ui/core/Core"
+], function (QUnitUtils, Menu, QuickSort, QuickSortItem, Button, Core) {
 	"use strict";
 
 	QUnit.module("Basic", {
@@ -31,7 +32,7 @@ sap.ui.define([
 	});
 
 	QUnit.test("Label", function(assert) {
-		var oBundle = sap.ui.getCore().getLibraryResourceBundle("sap.m");
+		var oBundle = Core.getLibraryResourceBundle("sap.m");
 		var sLabel = oBundle.getText("table.COLUMNMENU_QUICK_SORT");
 		var aItems = this.oQuickSort.getItems();
 		assert.equal(aItems[0]._getLabel(aItems.length), sLabel, "QuickSort label is correct.");
@@ -50,16 +51,15 @@ sap.ui.define([
 	});
 
 	QUnit.test("Content", function(assert) {
-		var oBundle = sap.ui.getCore().getLibraryResourceBundle("sap.m");
-		var oContent = this.oQuickSort.getEffectiveQuickActions()[0].getContent();
-		assert.ok(oContent, "The quick sort has content");
+		var oBundle = Core.getLibraryResourceBundle("sap.m");
+		var aContent = this.oQuickSort.getEffectiveQuickActions()[0].getContent();
+		assert.ok(aContent, "The quick sort has content");
 
-		var aItems = oContent.getItems();
-		assert.equal(aItems.length, 2, "The quick sort has 2 buttons");
-		assert.equal(aItems[0].getText(), oBundle.getText("table.COLUMNMENU_SORT_ASCENDING"), "Ascending button");
-		assert.ok(aItems[0].getPressed(), "The ascending button is pressed");
-		assert.equal(aItems[1].getText(), oBundle.getText("table.COLUMNMENU_SORT_DESCENDING"), "Descending button");
-		assert.ok(!aItems[1].getPressed(), "The descending button is not pressed");
+		assert.equal(aContent.length, 2, "The quick sort has 2 buttons");
+		assert.equal(aContent[0].getText(), oBundle.getText("table.COLUMNMENU_SORT_ASCENDING"), "Ascending button");
+		assert.ok(aContent[0].getPressed(), "The ascending button is pressed");
+		assert.equal(aContent[1].getText(), oBundle.getText("table.COLUMNMENU_SORT_DESCENDING"), "Descending button");
+		assert.ok(!aContent[1].getPressed(), "The descending button is not pressed");
 
 		var oItem = new QuickSortItem({
 			key: "propertyB",
@@ -82,8 +82,8 @@ sap.ui.define([
 			assert.equal(aItems[1].getPressed(), sortOrder === "Descending", "The descending button is not pressed");
 		}
 
-		testItems(aQuickActions[0].getContent().getItems(), "Ascending");
-		testItems(aQuickActions[1].getContent().getItems(), "Descending");
+		testItems(aQuickActions[0].getContent(), "Ascending");
+		testItems(aQuickActions[1].getContent(), "Descending");
 	});
 
 	QUnit.module("Events", {
@@ -106,7 +106,7 @@ sap.ui.define([
 				})]
 			});
 
-			sap.ui.getCore().applyChanges();
+			Core.applyChanges();
 		},
 		afterEach: function () {
 			this.oColumnMenu.destroy();
@@ -116,28 +116,23 @@ sap.ui.define([
 
 	QUnit.test("Change", function(assert) {
 		var done = assert.async();
-		this.oColumnMenu.openBy(this.oButton);
-		sap.ui.getCore().applyChanges();
+		var oMenu = this.oColumnMenu;
+		oMenu.openBy(this.oButton);
 
-		var oQuickSort = this.oColumnMenu.getAggregation("quickActions")[0];
-		var aButtons = document.getElementsByTagName("button");
-
-		function isButtonPressed(button) {
-			return button.firstChild.classList.contains("sapMToggleBtnPressed");
-		}
+		var oQuickSort = oMenu.getAggregation("quickActions")[0];
 
 		oQuickSort.attachChange(function(oEvent) {
 			assert.ok(true, "Sort event has been fired");
 			var oItem = oEvent.getParameter("item");
 			assert.equal(oItem.getKey(), "propertyA", "The item is passed as event parameter");
 			assert.equal(oItem.getSortOrder(), "Descending", "The sortOrder property of the item is correct");
-			assert.ok(!isButtonPressed(aButtons[0]), "After pressing the descending button, the state of the ascending button has changed.");
-			assert.ok(isButtonPressed(aButtons[1]), "The descending button is pressed");
-			done();
+
+			setTimeout(function() {
+				assert.ok(!oMenu._oPopover.isOpen(), "The popover closes");
+				done();
+			}, 1000);
 		});
 
-		assert.ok(isButtonPressed(aButtons[0]), "The ascending button is initially pressed");
-		assert.ok(!isButtonPressed(aButtons[1]), "The descending button is initially not pressed");
 		this.triggerClickEvent(document.getElementsByTagName("button")[1].id);
 	});
 

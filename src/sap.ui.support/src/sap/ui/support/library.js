@@ -19,17 +19,13 @@ sap.ui.define(["sap/ui/core/library"],
 	 * rules to check all aspects of an application.
 	 *
 	 * @namespace
-	 * @name sap.ui.support
+	 * @alias sap.ui.support
 	 * @author SAP SE
 	 * @version ${version}
 	 * @since 1.50
 	 * @public
 	 */
-
-	// library dependencies
-
-	// delegate further initialization of this library to the Core
-	sap.ui.getCore().initLibrary({
+	var thisLib = sap.ui.getCore().initLibrary({
 		name : "sap.ui.support",
 		dependencies : ["sap.ui.core"],
 		types: [
@@ -51,10 +47,10 @@ sap.ui.define(["sap/ui/core/library"],
 	/**
 	 * Defines severity types.
 	 * @enum {string}
-	 * @since ${version}
+	 * @since 1.50
 	 * @public
 	 */
-	sap.ui.support.Severity = {
+	thisLib.Severity = {
 		/**
 		 * Medium issue severity.
 		 * @public
@@ -75,10 +71,10 @@ sap.ui.define(["sap/ui/core/library"],
 	/**
 	 * Defines the Audiences.
 	 * @enum {string}
-	 * @since ${version}
+	 * @since 1.50
 	 * @public
 	 */
-	sap.ui.support.Audiences = {
+	thisLib.Audiences = {
 		/**
 		 * Audience just on Control level.
 		 * @public
@@ -99,10 +95,10 @@ sap.ui.define(["sap/ui/core/library"],
 	/**
 	 * Issue Categories.
 	 * @enum {string}
-	 * @since ${version}
+	 * @since 1.50
 	 * @public
 	 */
-	sap.ui.support.Categories = {
+	thisLib.Categories = {
 		/**
 		 * Accessibility issue category.
 		 * @public
@@ -130,6 +126,7 @@ sap.ui.define(["sap/ui/core/library"],
 		Consistency: "Consistency",
 		/**
 		 * Fiori Guidelines issue category.
+		 * @since 1.58
 		 * @public
 		 */
 		FioriGuidelines : "FioriGuidelines",
@@ -150,6 +147,7 @@ sap.ui.define(["sap/ui/core/library"],
 		DataModel: "DataModel",
 		/**
 		 * Modularization issue category.
+		 * @since 1.60
 		 * @public
 		 */
 		Modularization: "Modularization",
@@ -168,10 +166,10 @@ sap.ui.define(["sap/ui/core/library"],
 	/**
 	 * Analysis history formats.
 	 * @enum {string}
-	 * @since ${version}
+	 * @since 1.58
 	 * @public
 	 */
-	sap.ui.support.HistoryFormats = {
+	thisLib.HistoryFormats = {
 		/**
 		 * ABAP history format.
 		 * @public
@@ -187,10 +185,10 @@ sap.ui.define(["sap/ui/core/library"],
 	/**
 	 * Contains the available system presets.
 	 * @enum {object}
-	 * @since ${version}
+	 * @since 1.60
 	 * @public
 	 */
-	sap.ui.support.SystemPresets = {
+	thisLib.SystemPresets = {
 		/**
 		 * The accessibility preset.
 		 *
@@ -224,5 +222,5 @@ sap.ui.define(["sap/ui/core/library"],
 		}
 	};
 
-	return sap.ui.support;
+	return thisLib;
 });

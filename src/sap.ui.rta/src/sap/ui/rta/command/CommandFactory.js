@@ -91,8 +91,8 @@ sap.ui.define([
 		oCommand.setJsOnly(bJsOnly);
 		if (oCommand.setVariantIndependent) {
 			oCommand.setVariantIndependent(bVariantIndependent);
-		} else {
-			Log.error("the variant independent Flag is not available for the action used in: ", sChangeType);
+		} else if (bVariantIndependent) {
+			Log.error("the variant independent Flag is not available for the action", sChangeType);
 		}
 		return true;
 	}
@@ -349,6 +349,9 @@ sap.ui.define([
 			configure: configureSplitCommand,
 			adjustForBinding: adjustSplitCommand
 		},
+		resize: {
+			clazz: "sap/ui/rta/command/Resize"
+		},
 		"switch": {
 			clazz: "sap/ui/rta/command/ControlVariantSwitch"
 		},
@@ -378,6 +381,9 @@ sap.ui.define([
 		addIFrame: {
 			clazz: "sap/ui/rta/command/AddIFrame",
 			configure: configureAddIFrame
+		},
+		compVariantContent: {
+			clazz: "sap/ui/rta/command/compVariant/CompVariantContent"
 		},
 		compVariantSaveAs: {
 			clazz: "sap/ui/rta/command/compVariant/CompVariantSaveAs"
@@ -528,7 +534,7 @@ sap.ui.define([
 
 	/**
 	 * Static method for generating command
-	 * @param {sap.ui.Element|string} vElement - Could be either an element or a slector for the element for which the command is to be created
+	 * @param {sap.ui.core.Element|string} vElement - Could be either an element or a slector for the element for which the command is to be created
 	 * @param {string} sCommand - Command type
 	 * @param {object} mSettings -  Initial settings for the new command (command specific settings, looks diffrent for each and every command)
 	 * @param {sap.ui.dt.DesignTimeMetadata} oDesignTimeMetadata - Contains the action used in the command

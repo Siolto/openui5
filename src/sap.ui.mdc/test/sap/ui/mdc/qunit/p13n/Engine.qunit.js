@@ -17,8 +17,9 @@ sap.ui.define([
 	"sap/ui/core/library",
 	"sap/ui/mdc/p13n/FlexUtil",
 	"sap/ui/mdc/enum/PersistenceMode",
-	"sap/ui/core/Core"
-], function (Control, Engine, Controller, AggregationBaseDelegate, FlexRuntimeInfoAPI, FlexModificationHandler, ModificationHandler, TestModificationHandler, BaseObject, VBox, HBox, PersistenceProvider, VariantManagement, BasePanel, coreLibrary, FlexUtil, PersistenceMode, oCore) {
+	"sap/ui/core/Core",
+	"sap/ui/mdc/p13n/modules/xConfigAPI"
+], function (Control, Engine, Controller, AggregationBaseDelegate, FlexRuntimeInfoAPI, FlexModificationHandler, ModificationHandler, TestModificationHandler, BaseObject, VBox, HBox, PersistenceProvider, VariantManagement, BasePanel, coreLibrary, FlexUtil, PersistenceMode, oCore, xConfigAPI) {
 	"use strict";
 
 	QUnit.module("Modification Handler", {
@@ -166,9 +167,9 @@ sap.ui.define([
 		});
 	});
 
-	QUnit.test("Check 'enhanceXConfig' and 'readXConfig' ", function(assert){
+	QUnit.test("Check 'enhanceXConfig' and 'readXConfig'", function(assert){
 
-		var oFMHStub = sinon.spy(FlexModificationHandler.getInstance(), "enhanceConfig");
+		var oXConfigAPIStub = sinon.spy(xConfigAPI, "enhanceConfig");
 
 		var TestClass = Control.extend("adaptationTestControl", {
 			metadata: {
@@ -200,9 +201,9 @@ sap.ui.define([
 		.then(function(oAggregationConfig) {
 			assert.equal(oAggregationConfig.aggregations.items.test.text, "someTestText", "The xConfig customdata has been written and read correctly");
 
-			assert.ok(oFMHStub.calledOnce, "Check that the correct modification handler has been called");
+			assert.ok(oXConfigAPIStub.calledOnce, "Check that the correct modification handler has been called");
 
-			FlexModificationHandler.getInstance().enhanceConfig.restore();
+			xConfigAPI.enhanceConfig.restore();
 		});
 	});
 
@@ -394,6 +395,50 @@ sap.ui.define([
 		}.bind(this));
 	});
 
+	QUnit.test("Check 'createChanges' sequential appliance", function(assert){
+
+		var done = assert.async(4);
+
+		var oChangeCreation1 = this.oEngine.createChanges({
+			control: this.oControl,
+			key: "Test",
+			suppressAppliance: true,
+			applySequentially: true,
+			state: []
+		}).then(function(){
+			done(1);
+		});
+
+		var oChangeCreation2 = this.oEngine.createChanges({
+			control: this.oControl,
+			key: "Test",
+			suppressAppliance: true,
+			applySequentially: true,
+			state: []
+		}).then(function(){
+			done(2);
+		});
+
+		var oChangeCreation3 = this.oEngine.createChanges({
+			control: this.oControl,
+			key: "Test",
+			suppressAppliance: true,
+			applySequentially: true,
+			state: []
+		}).then(function(){
+			done(3);
+		});
+
+		assert.ok(this.oControl._pModificationQueue instanceof Promise, "Promise queue started");
+
+		Promise.all([oChangeCreation1, oChangeCreation2, oChangeCreation3])
+		.then(function(){
+			assert.ok(!this.oControl.hasOwnProperty("_pModificationQueue"), "Promise queue finished and cleared");
+			done(4);
+		}.bind(this));
+
+	});
+
 	QUnit.test("Check 'createChanges' parameter 'applyAbsolute' (false)", function(assert){
 
 		var done = assert.async();
@@ -424,12 +469,17 @@ sap.ui.define([
 			state: []
 		});
 
+        sinon.stub(this.oEngine, '_processChanges').callsFake(function fakeFn(vControl, aChanges) {
+			return Promise.resolve(aChanges);
+        });
+
 		assert.ok(oChangeCreation instanceof Promise, "Engine#createChanges returns a Promise");
 
 		oChangeCreation.then(function(aChanges){
 			assert.equal(aChanges.length, 1, "One change created");
+			this.oEngine._processChanges.restore();
 			done();
-		});
+		}.bind(this));
 	});
 
 	QUnit.test("Check 'createChanges' parameter 'suppressAppliance' (false)", function(assert){
@@ -447,6 +497,8 @@ sap.ui.define([
 			this.oEngine._setModificationHandler(this.oControl, FlexModificationHandler.getInstance());
 
 			done();
+			return Promise.resolve();
+
 		}.bind(this);
 
 		this.oEngine._setModificationHandler(this.oControl, oModificationHandler);
@@ -650,7 +702,7 @@ sap.ui.define([
 
 		sinon.stub(AggregationBaseDelegate, "validateState").callsFake(function(oControl, oState){
 			assert.ok(oControl.isA("sap.ui.mdc.Control"), "Check that the control instance has been provided");
-			assert.equal(oState.Test2.length, 1, "Check that the (theortical) state object has been provided");
+			assert.equal(oState.items.length, 1, "Check that the (theortical) state object has been provided");
 
 			return {
 				validation: coreLibrary.MessageType.Warning,
@@ -670,7 +722,10 @@ sap.ui.define([
 		var oP13nUI = new BasePanel({
 			id: "someTestPanel"
 		});
-		Engine.getInstance().validateP13n(this.oControl, "Test2", oP13nUI);
+		var mValidation = Engine.getInstance().validateP13n(this.oControl, "Test2", oP13nUI);
+
+		assert.equal(mValidation.validation, coreLibrary.MessageType.Warning, "The correct validation state provided");
+		assert.equal(mValidation.message, "Test", "The correct validation messsage provided");
 
 		//Check if the strip has been placed in the BasePanel content area
 		var oMessageStrip = oP13nUI._oMessageStrip;
@@ -680,11 +735,20 @@ sap.ui.define([
 
 	});
 
+	QUnit.test("Check 'validateP13n' will gracefully skip in case no corresponding controller is registered and return undefined", function(assert){
+
+		//Create a mock UI (usually done via runtime in personalization)
+		var oP13nUI = new BasePanel();
+
+		var mValidation = Engine.getInstance().validateP13n(this.oControl, "SomeUnregisteredKey", oP13nUI);
+		assert.notOk(mValidation, "No validation triggered as the provided key is unregistered");
+	});
+
 	QUnit.test("Check 'validateP13n' message handling (valid validation should NOT display a message strip)", function(assert){
 
 		sinon.stub(AggregationBaseDelegate, "validateState").callsFake(function(oControl, oState){
 			assert.ok(oControl.isA("sap.ui.mdc.Control"), "Check that the control instance has been provided");
-			assert.equal(oState.Test2.length, 1, "Check that the (theortical) state object has been provided");
+			assert.equal(oState.items.length, 1, "Check that the (theortical) state object has been provided");
 
 			return {
 				validation: coreLibrary.MessageType.None,
@@ -924,22 +988,4 @@ sap.ui.define([
 		}
 	});
 
-	QUnit.test("Check '_onChangeAppliance' hook execution", function(assert){
-
-		var done = assert.async();
-
-		this.oControl._onChangeAppliance = function() {
-			assert.ok(true, "Hook executed");
-			done();
-		};
-
-		this.oEngine._processChanges(this.oControl, [{
-			selectorElement: this.oControl,
-			changeSpecificData: {
-				changeType: "someTestChange",
-				content: {}
-			}
-		}]);
-
-	});
 });

@@ -3,7 +3,6 @@
  */
 
 sap.ui.define([
-	"sap/ui/thirdparty/jquery",
 	"sap/ui/documentation/sdk/controller/SampleBaseController",
 	"sap/ui/documentation/sdk/controller/util/ControlsInfo",
 	"sap/ui/documentation/sdk/model/formatter",
@@ -11,7 +10,7 @@ sap.ui.define([
 	"sap/base/util/merge",
 	"sap/ui/core/Component",
 	"sap/ui/core/Core"
-], function(jQuery, SampleBaseController, ControlsInfo, formatter, JSONModel, merge, Component, Core) {
+], function(SampleBaseController, ControlsInfo, formatter, JSONModel, merge, Component, Core) {
 		"use strict";
 
 		return SampleBaseController.extend("sap.ui.documentation.sdk.controller.Code", {
@@ -70,9 +69,8 @@ sap.ui.define([
 					// get component and data when sample is changed or nothing exists so far
 					this._createComponent().then(function (oComponent) {
 						// create data object
-						var oMetadata = oComponent.getMetadata();
 						var aPromises = [];
-						var oConfig = (oMetadata) ? oMetadata.getConfig() : null;
+						var oConfig = oComponent.getManifestEntry("/sap.ui5/config") || {};
 						this._oData = {
 							id: oSample.id,
 							title: "Code: " + oSample.name,
@@ -86,7 +84,7 @@ sap.ui.define([
 
 						// retrieve files
 						// (via the 'Orcish maneuver': Use XHR to retrieve and cache code)
-						if (oConfig && oConfig.sample && oConfig.sample.files) {
+						if (oConfig.sample && oConfig.sample.files) {
 							var sRef = sap.ui.require.toUrl((oSample.id).replace(/\./g, "/"));
 							for (var i = 0; i < oConfig.sample.files.length; i++) {
 								var sFile = oConfig.sample.files[i];
@@ -241,7 +239,14 @@ sap.ui.define([
 
 			_getFileType : function (sFileName) {
 				var sFileExtension = sFileName.split('.').pop();
-				return sFileExtension === "js" ? "javascript" : sFileExtension;
+				switch (sFileExtension) {
+					case "js":
+						return "javascript";
+					case "feature":
+						return "text";
+					default:
+						return sFileExtension;
+				}
 			},
 
 			_getInitialFileName : function() {

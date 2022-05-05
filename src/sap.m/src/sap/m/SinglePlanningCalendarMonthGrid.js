@@ -21,7 +21,9 @@ sap.ui.define([
 	'./Link',
 	'./PlanningCalendarLegend',
 	'./SinglePlanningCalendarMonthGridRenderer',
-	'sap/ui/thirdparty/jquery'
+	'sap/ui/thirdparty/jquery',
+	'sap/ui/core/InvisibleMessage',
+	'sap/ui/core/library'
 	],
 	function (
 		Control,
@@ -41,7 +43,9 @@ sap.ui.define([
 		Link,
 		PlanningCalendarLegend,
 		SinglePlanningCalendarMonthGridRenderer,
-		jQuery
+		jQuery,
+		InvisibleMessage,
+		coreLibrary
 	) {
 		"use strict";
 
@@ -49,6 +53,7 @@ sap.ui.define([
 		var CELL_HEADER_HEIGHT_COMPACT = 1.5; //rem
 		var APP_HEIGHT_COZY = 2.125; //rem
 		var CELL_HEADER_HEIGHT_COZY = 1.75; //rem
+		var InvisibleMessageMode = coreLibrary.InvisibleMessageMode;
 
 		/**
 		 * Constructor for a new <code>SinglePlanningCalendarMonthGrid</code>.
@@ -250,6 +255,7 @@ sap.ui.define([
 
 			this._oAppointmentsToRender = this._calculateAppointmentsNodes(oStartDate);
 			this._createAppointmentsDndPlaceholders(oStartDate);
+			this._oInvisibleMessage = InvisibleMessage.getInstance();
 		};
 
 		SinglePlanningCalendarMonthGrid.prototype.onAfterRendering = function() {
@@ -314,6 +320,12 @@ sap.ui.define([
 		SinglePlanningCalendarMonthGrid.prototype.onkeydown = function(oEvent) {
 			if (oEvent.which === KeyCodes.SPACE || oEvent.which === KeyCodes.ENTER) {
 				this._fireSelectionEvent(oEvent);
+
+				var oControl = this._findSrcControl(oEvent);
+				if (oControl && oControl.isA("sap.ui.unified.CalendarAppointment")) {
+					var sBundleKey = oControl.getSelected() ? "APPOINTMENT_SELECTED" : "APPOINTMENT_UNSELECTED";
+					this._oInvisibleMessage.announce(this._oUnifiedRB.getText(sBundleKey), InvisibleMessageMode.Polite);
+				}
 
 				// Prevent scrolling
 				oEvent.preventDefault();
@@ -534,15 +546,15 @@ sap.ui.define([
 				oLastVisibleDay = aVisibleDays[aVisibleDays.length - 1],
 					// we do not need appointments without start and end dates
 				aApps = this.getAppointments().filter(function(app) {
-					var bValid = app.getStartDate() && app.getEndDate();
+					var bValid = app._getStartDateWithTimezoneAdaptation() && app._getEndDateWithTimezoneAdaptation();
 					if (!bValid) {
 						Log.warning("Appointment " + app.getId() + " has no start or no end date. It is ignored.");
 					}
 					return bValid;
 					// map to a structure ready for calculations
 				}).map(function(app) {
-					var oStart = CalendarDate.fromLocalJSDate(app.getStartDate()),
-						oEnd = CalendarDate.fromLocalJSDate(app.getEndDate());
+					var oStart = CalendarDate.fromLocalJSDate(app._getStartDateWithTimezoneAdaptation()),
+						oEnd = CalendarDate.fromLocalJSDate(app._getEndDateWithTimezoneAdaptation());
 					return {
 						data: app,
 						start: oStart,
@@ -675,8 +687,8 @@ sap.ui.define([
 						oAppointment = oDragSession.getDragControl(),
 						oPlaceholder = oDragSession.getDropControl(),
 						oCellCalStartDate = oPlaceholder.getDate(),
-						oAppCalStartDate = CalendarDate.fromLocalJSDate(oAppointment.getStartDate()),
-						oAppCalEndDate = CalendarDate.fromLocalJSDate(oAppointment.getEndDate()),
+						oAppCalStartDate = CalendarDate.fromLocalJSDate(oAppointment._getStartDateWithTimezoneAdaptation()),
+						oAppCalEndDate = CalendarDate.fromLocalJSDate(oAppointment._getEndDateWithTimezoneAdaptation()),
 						iOffset = CalendarUtils._daysBetween(oCellCalStartDate, oAppCalStartDate),
 						oStartDate = new CalendarDate(oAppCalStartDate),
 						oEndDate = new CalendarDate(oAppCalEndDate),
@@ -815,8 +827,8 @@ sap.ui.define([
 			var oUnifiedRB = Core.getLibraryResourceBundle("sap.ui.unified"),
 				sStartTime = oUnifiedRB.getText("CALENDAR_START_TIME"),
 				sEndTime = oUnifiedRB.getText("CALENDAR_END_TIME"),
-				sFormattedStartDate = this._oFormatAriaApp.format(oAppointment.getStartDate()),
-				sFormattedEndDate = this._oFormatAriaApp.format(oAppointment.getEndDate()),
+				sFormattedStartDate = this._oFormatAriaApp.format(oAppointment._getStartDateWithTimezoneAdaptation()),
+				sFormattedEndDate = this._oFormatAriaApp.format(oAppointment._getEndDateWithTimezoneAdaptation()),
 				sAppInfo = sStartTime + ": " + sFormattedStartDate + "; " + sEndTime + ": " + sFormattedEndDate;
 
 			return sAppInfo + "; " + PlanningCalendarLegend.findLegendItemForItem(Core.byId(this._sLegendId), oAppointment);

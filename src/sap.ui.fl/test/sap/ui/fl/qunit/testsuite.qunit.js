@@ -307,6 +307,18 @@ sap.ui.define([
 					}
 				}
 			},
+			"apply/_internal/flexObjects/FlexObject": {
+				group: "Apply Internal",
+				coverage: {
+					only: ["sap/ui/fl/apply/_internal/flexObjects/FlexObject.js"]
+				}
+			},
+			"apply/_internal/flexObjects/FlexObjectFactory": {
+				group: "Apply Internal",
+				coverage: {
+					only: ["sap/ui/fl/apply/_internal/flexObjects/FlexObjectFactory"]
+				}
+			},
 			"apply/_internal/flexObjects/CompVariant": {
 				group: "Apply Internal",
 				coverage: {
@@ -439,9 +451,6 @@ sap.ui.define([
 						"sap/ui/fl/qunit/extensionPoint": "test-resources/sap/ui/fl/qunit/apply/_internal/extensionPoint"
 					}
 				}
-			},
-			EnforceSemanticRendering: {
-				title: "QUnit Page for Semantic Rendering Coverage"
 			},
 			"write/api/AppVariantWriteAPI": {
 				group: "Write API",
@@ -1196,6 +1205,9 @@ sap.ui.define([
 				coverage: {
 					only: ["sap/ui/fl/apply/_internal/changes/descriptor/ovp/DeleteCard"]
 				}
+			},
+			"Generic Testsuite": {
+				page: "test-resources/sap/ui/fl/qunit/testsuite.generic.qunit.html"
 			}
 		}
 	};

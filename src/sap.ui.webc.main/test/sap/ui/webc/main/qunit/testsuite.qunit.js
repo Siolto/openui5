@@ -25,6 +25,7 @@ sap.ui.define(function() {
 					"qunit": "test-resources/sap/ui/webc/main/qunit/"
 				}
 			},
+			runAfterLoader: "qunit/ResizeObserverErrorHandler",
 			page: "test-resources/sap/ui/webc/main/qunit/testsandbox.qunit.html?test={name}",
 			autostart: true
 		},
@@ -305,8 +306,88 @@ sap.ui.define(function() {
 					only: ["sap/ui/webc/main/Tree"]
 				}
 			},
+			"designtime/Badge": {
+				title: "QUnit Page for sap.ui.webc.main.Badge design time and rta enabling",
+				ui5: {
+					libs: ["sap.ui.webc.main", "sap.ui.rta"]
+				},
+				sinon: false,
+				group: "Designtime"
+			},
+			"designtime/BusyIndicator": {
+				title: "QUnit Page for sap.ui.webc.main.BusyIndicator design time and rta enabling",
+				ui5: {
+					libs: ["sap.ui.webc.main", "sap.ui.rta"]
+				},
+				sinon: false,
+				group: "Designtime"
+			},
+			"designtime/Button": {
+				title: "QUnit Page for sap.ui.webc.main.Button design time and rta enabling",
+				ui5: {
+					libs: ["sap.ui.webc.main","sap.ui.rta"]
+				},
+				sinon: false,
+				group: "Designtime"
+			},
+			"designtime/Card": {
+				title: "QUnit Page for sap.ui.webc.main.Card design time and rta enabling",
+				ui5: {
+					libs: ["sap.ui.webc.main", "sap.ui.rta"]
+				},
+				sinon: false,
+				group: "Designtime"
+			},
+			"designtime/Carousel": {
+				title: "QUnit Page for sap.ui.webc.main.Carousel design time and rta enabling",
+				ui5: {
+					libs: ["sap.ui.webc.main", "sap.ui.rta"]
+				},
+				sinon: false,
+				group: "Designtime"
+			},
+			"designtime/DatePicker": {
+				title: "QUnit Page for sap.ui.webc.main.DatePicker design time and rta enabling",
+				ui5: {
+					libs: ["sap.ui.webc.main","sap.ui.rta"]
+				},
+				sinon: false,
+				group: "Designtime"
+			},
+			"designtime/DateTimePicker": {
+				title: "QUnit Page for sap.ui.webc.main.DateTimePicker design time and rta enabling",
+				ui5: {
+					libs: ["sap.ui.webc.main","sap.ui.rta"]
+				},
+				sinon: false,
+				group: "Designtime"
+			},
+			"designtime/Dialog": {
+				title: "QUnit Page for sap.ui.webc.main.Dialog design time and rta enabling",
+				ui5: {
+					libs: ["sap.ui.webc.main", "sap.ui.rta"]
+				},
+				sinon: false,
+				group: "Designtime"
+			},
 			"designtime/Input": {
 				title: "QUnit Page for sap.ui.webc.main.Input design time and rta enabling",
+				ui5: {
+					libs: ["sap.ui.webc.main","sap.ui.rta"]
+				},
+				sinon: false,
+				group: "Designtime"
+			},
+			"designtime/Label": {
+				title: "QUnit Page for sap.ui.webc.main.Label design time and rta enabling",
+				ui5: {
+					libs: ["sap.ui.webc.main", "sap.ui.rta"]
+				},
+				sinon: false,
+				group: "Designtime"
+			},
+			"designtime/Link": {
+				title: "QUnit Page for sap.ui.webc.main.Link design time and rta enabling",
 				ui5: {
 					libs: ["sap.ui.webc.main","sap.ui.rta"]
 				},
@@ -325,6 +406,22 @@ sap.ui.define(function() {
 				title: "QUnit Page for sap.ui.webc.main.Panel design time and rta enabling",
 				ui5: {
 					libs: ["sap.ui.webc.main","sap.ui.rta"]
+				},
+				sinon: false,
+				group: "Designtime"
+			},
+			"designtime/Popover": {
+				title: "QUnit Page for sap.ui.webc.main.Popover design time and rta enabling",
+				ui5: {
+					libs: ["sap.ui.webc.main", "sap.ui.rta"]
+				},
+				sinon: false,
+				group: "Designtime"
+			},
+			"designtime/RadioButton": {
+				title: "QUnit Page for sap.ui.webc.main.RadioButton design time and rta enabling",
+				ui5: {
+					libs: ["sap.ui.webc.main", "sap.ui.rta"]
 				},
 				sinon: false,
 				group: "Designtime"
@@ -350,6 +447,14 @@ sap.ui.define(function() {
 				sinon: false,
 				group: "Designtime"
 			},
+			"designtime/ResponsivePopover": {
+				title: "QUnit Page for sap.ui.webc.main.ResponsivePopover design time and rta enabling",
+				ui5: {
+					libs: ["sap.ui.webc.main", "sap.ui.rta"]
+				},
+				sinon: false,
+				group: "Designtime"
+			},
 			"designtime/Slider": {
 				title: "QUnit Page for sap.ui.webc.main.Slider design time and rta enabling",
 				ui5: {
@@ -357,6 +462,41 @@ sap.ui.define(function() {
 				},
 				sinon: false,
 				group: "Designtime"
+			},
+			"designtime/Tab": {
+				title: "QUnit Page for sap.ui.webc.main.Tab design time and rta enabling",
+				ui5: {
+					libs: ["sap.ui.webc.main", "sap.ui.rta"]
+				},
+				sinon: false,
+				group: "Designtime"
+			},
+			"designtime/TabContainer": {
+				title: "QUnit Page for sap.ui.webc.main.TabContainer design time and rta enabling",
+				ui5: {
+					libs: ["sap.ui.webc.main", "sap.ui.rta"]
+				},
+				sinon: false,
+				group: "Designtime"
+			},
+			"designtime/Table": {
+				title: "QUnit Page for sap.ui.webc.main.Table design time and rta enabling",
+				ui5: {
+					libs: ["sap.ui.webc.main","sap.ui.rta"]
+				},
+				sinon: false,
+				group: "Designtime"
+			},
+			"designtime/Title": {
+				title: "QUnit Page for sap.ui.webc.main.Title design time and rta enabling",
+				ui5: {
+					libs: ["sap.ui.webc.main", "sap.ui.rta"]
+				},
+				sinon: false,
+				group: "Designtime"
+			},
+			"Generic Testsuite": {
+				page: "test-resources/sap/ui/webc/main/qunit/testsuite.generic.qunit.html"
 			}
 		}
 	};

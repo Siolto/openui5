@@ -13,10 +13,8 @@ sap.ui.define([
 	"sap/base/Log",
 	"sap/base/util/merge",
 	"sap/base/util/deepEqual",
+	"sap/base/util/each",
 	"sap/ui/integration/util/DataProviderFactory",
-	"sap/m/HBox",
-	"sap/ui/core/Icon",
-	"sap/m/Text",
 	"sap/ui/model/json/JSONModel",
 	"sap/ui/integration/model/ObservableModel",
 	"sap/ui/model/resource/ResourceModel",
@@ -37,7 +35,9 @@ sap.ui.define([
 	"sap/m/IllustratedMessage",
 	"sap/m/IllustratedMessageType",
 	"sap/m/IllustratedMessageSize",
-	"sap/ui/integration/util/Utils"
+	"sap/ui/integration/util/Utils",
+	"sap/m/HBox",
+	"sap/m/library"
 ], function (
 	CardRenderer,
 	Footer,
@@ -50,10 +50,8 @@ sap.ui.define([
 	Log,
 	merge,
 	deepEqual,
+	each,
 	DataProviderFactory,
-	HBox,
-	Icon,
-	Text,
 	JSONModel,
 	ObservableModel,
 	ResourceModel,
@@ -74,7 +72,9 @@ sap.ui.define([
 	IllustratedMessage,
 	IllustratedMessageType,
 	IllustratedMessageSize,
-	Utils
+	Utils,
+	HBox,
+	mLibrary
 ) {
 	"use strict";
 
@@ -103,11 +103,20 @@ sap.ui.define([
 
 	var HeaderPosition = fLibrary.cards.HeaderPosition;
 
+	var CardArea = library.CardArea;
+
 	var CardDataMode = library.CardDataMode;
 
 	var CARD_DESTROYED_ERROR = "Card is destroyed!";
 
-	var CardArea = library.CardArea;
+	var FlexRendertype = mLibrary.FlexRendertype;
+
+	var FlexJustifyContent = mLibrary.FlexJustifyContent;
+
+	var FlexAlignItems = mLibrary.FlexAlignItems;
+
+	var MODULE_PREFIX = "module:";
+
 
 	/**
 	 * Constructor for a new <code>Card</code>.
@@ -147,7 +156,7 @@ sap.ui.define([
 	 * <li>The behavior for the actions described in the manifest.json file, using the action event</li>
 	 * </ul>
 	 *
-	* <strong>You can learn more about integration cards in the <a href="test-resources/sap/ui/integration/demokit/cardExplorer/index.html">Card Explorer</a></strong>
+	* <strong>You can learn more about integration cards in the {@link demo:sap/ui/integration/demokit/cardExplorer/index.html Card Explorer}</strong>
 	 *
 	 * <i>When to use</i>
 	 * <ul>
@@ -399,7 +408,14 @@ sap.ui.define([
 				/**
 				 * The host.
 				 */
-				host: {}
+				host: {},
+
+				/**
+				 * The opener card.
+				 * @private
+				 * @ui5-restricted
+				 */
+				openerReference: { visibility: "hidden" }
 			}
 		},
 		renderer: CardRenderer
@@ -460,6 +476,9 @@ sap.ui.define([
 		 * @borrows sap.ui.integration.widgets.Card#destroyActionDefinition as destroyActionDefinition
 		 * @borrows sap.ui.integration.widgets.Card#showLoadingPlaceholders as showLoadingPlaceholders
 		 * @borrows sap.ui.integration.widgets.Card#hideLoadingPlaceholders as hideLoadingPlaceholders
+		 * @borrows sap.ui.integration.widgets.Card#showCard as showCard
+		 * @borrows sap.ui.integration.widgets.Card#hide as hide
+		 * @borrows sap.ui.integration.widgets.Card#getOpener as getOpener
 		 */
 		this._oLimitedInterface = new Interface(this, [
 			"getDomRef",
@@ -484,7 +503,10 @@ sap.ui.define([
 			"indexOfActionDefinition",
 			"destroyActionDefinition",
 			"showLoadingPlaceholders",
-			"hideLoadingPlaceholders"
+			"hideLoadingPlaceholders",
+			"showCard",
+			"hide",
+			"getOpener"
 		]);
 	};
 
@@ -558,7 +580,6 @@ sap.ui.define([
 				"To enable it, set the 'compatVersion' configuration option to 'edge', e.g.: data-sap-ui-compatVersion='edge' - " +
 				"sap.ui.integration.widgets.Card"
 			);
-			return;
 		}
 
 		if (this._bApplyManifest || this._bApplyParameters) {
@@ -566,16 +587,10 @@ sap.ui.define([
 			this._initReadyState();
 		}
 
-		if (this._bApplyManifest) {
-			var vManifest = this.getManifest();
-
-			if (!vManifest) {
-				// Destroy the manifest when null/undefined/empty string are passed
-				this.destroyManifest();
-			} else {
-				this._cleanupOldManifest();
-				this.createManifest(vManifest, this.getBaseUrl());
-			}
+		var vManifest = this.getManifest();
+		if (vManifest && this._bApplyManifest) {
+			this._cleanupOldManifest();
+			this.createManifest(vManifest, this.getBaseUrl());
 		}
 
 		if (!this._bApplyManifest && this._bApplyParameters) {
@@ -590,9 +605,17 @@ sap.ui.define([
 	};
 
 	Card.prototype.setManifest = function (vValue) {
-		this.setProperty("manifest", vValue);
-		this.destroyActionDefinitions();
+		if (!deepEqual(this.getProperty("manifest"), vValue)) {
+			this.destroyActionDefinitions();
+		}
+
+		if (!vValue) {
+			// Destroy the manifest when null/undefined/empty string is passed
+			this._destroyManifest();
+		}
+
 		this._bApplyManifest = true;
+		this.setProperty("manifest", vValue);
 		return this;
 	};
 
@@ -707,13 +730,18 @@ sap.ui.define([
 	 * @returns {Promise|null} Null if there is no need to load extension, else a promise.
 	 */
 	Card.prototype._loadExtension = function () {
-		var sExtensionPath = this._oCardManifest.get("/sap.card/extension");
+		var sExtensionPath = this._oCardManifest.get("/sap.card/extension"),
+			sFullExtensionPath;
 
 		if (!sExtensionPath) {
 			return null;
 		}
 
-		var sFullExtensionPath = this._oCardManifest.get("/sap.app/id").replace(/\./g, "/") + "/" + sExtensionPath;
+		if (sExtensionPath.startsWith(MODULE_PREFIX)) {
+			sFullExtensionPath = sExtensionPath.replace(MODULE_PREFIX, "");
+		} else {
+			sFullExtensionPath = this._oCardManifest.get("/sap.app/id").replace(/\./g, "/") + "/" + sExtensionPath;
+		}
 
 		return new Promise(function (resolve, reject) {
 			sap.ui.require([sFullExtensionPath], function (ExtensionSubclass) {
@@ -723,9 +751,9 @@ sap.ui.define([
 
 				resolve();
 			}.bind(this), function (vErr) {
-				this._logFundamentalError("Failed to load " + sExtensionPath + ". Check if the path is correct. Reason: " + vErr);
+				this._logFundamentalError("Failed to load " + sFullExtensionPath + ". Check if the path is correct. Reason: " + vErr);
 				reject(vErr);
-			});
+			}.bind(this));
 		}.bind(this));
 	};
 
@@ -937,6 +965,10 @@ sap.ui.define([
 	 * @since 1.95
 	 */
 	Card.prototype.refreshData = function () {
+		if (!this.isReady()) {
+			return;
+		}
+
 		var oHeader = this.getCardHeader(),
 			oContent = this.getCardContent(),
 			oFilterBar = this.getAggregation("_filterBar");
@@ -953,6 +985,7 @@ sap.ui.define([
 			oContent.refreshData();
 		} else {
 			this.destroyAggregation("_content");
+			this._destroyTemporaryContent();
 			this._applyContentManifestSettings();
 		}
 
@@ -995,7 +1028,7 @@ sap.ui.define([
 
 		CardBase.prototype.exit.call(this);
 
-		this.destroyManifest();
+		this._destroyManifest();
 		this._oCardObserver.destroy();
 		this._oCardObserver = null;
 		this._oContentFactory = null;
@@ -1010,7 +1043,7 @@ sap.ui.define([
 	/**
 	 * Destroys everything configured by the manifest.
 	 */
-	Card.prototype.destroyManifest = function () {
+	Card.prototype._destroyManifest = function () {
 		if (this._oCardManifest) {
 			this._oCardManifest.destroy();
 			this._oCardManifest = null;
@@ -1061,10 +1094,7 @@ sap.ui.define([
 
 		this.destroyAggregation("_extension");
 
-		if (this._oTemporaryContent) {
-			this._oTemporaryContent.destroy();
-			this._oTemporaryContent = null;
-		}
+		this._destroyTemporaryContent();
 
 		// destroying the factory would also destroy the data provider
 		if (this._oDataProviderFactory) {
@@ -1419,6 +1449,13 @@ sap.ui.define([
 		}
 
 		oModel.attachEvent("change", function () {
+			var oCardContent = this.getAggregation("_content");
+			if (oCardContent && !oCardContent.isA("sap.ui.integration.cards.BaseContent")) {
+				this.destroyAggregation("_content");
+				this._destroyTemporaryContent();
+				this._applyContentManifestSettings();
+			}
+
 			if (this._createContentPromise) {
 				this._createContentPromise.then(function (oContent) {
 					oContent.onDataChanged();
@@ -1779,6 +1816,13 @@ sap.ui.define([
 		}
 	};
 
+	Card.prototype._destroyTemporaryContent = function () {
+		if (this._oTemporaryContent) {
+			this._oTemporaryContent.destroy();
+			this._oTemporaryContent = null;
+		}
+	};
+
 	/**
 	 * Handler for error states.
 	 * If the content is not provided in the manifest, the error message will be displayed in the header.
@@ -1838,6 +1882,9 @@ sap.ui.define([
 					sIllustratedMessageType = IllustratedMessageType.NoEntries;
 					sTitle = this._oIntegrationRb.getText("CARD_NO_ITEMS_ERROR_LISTS");
 					break;
+				case "Analytical":
+					sIllustratedMessageType = IllustratedMessageType.NoEntries;
+					sTitle = this._oIntegrationRb.getText("CARD_NO_ITEMS_ERROR_CHART");
 			}
 		}
 
@@ -1850,14 +1897,22 @@ sap.ui.define([
 				sDescription = oErrorData.description;
 		}
 
+
 		var oIllustratedMessage = new IllustratedMessage({
 			illustrationType: sIllustratedMessageType,
 			illustrationSize: sIllustratedMessageSize,
 			title: sTitle,
 			description: sDescription ? sDescription : " "
-		}).addStyleClass("sapFCardErrorContent");
+		});
 
-		return oIllustratedMessage;
+		var oFlexBox = new HBox({
+			renderType: FlexRendertype.Bare,
+			justifyContent: FlexJustifyContent.Center,
+			alignItems: FlexAlignItems.Center,
+			width: "100%",
+			items: [oIllustratedMessage]
+		}).addStyleClass("sapFCardErrorContent");
+		return oFlexBox;
 	};
 
 	/**
@@ -2122,7 +2177,6 @@ sap.ui.define([
 		var oContent = this.getCardContent(),
 			oLoadingProvider = this.getAggregation("_loadingProvider");
 
-		this._fireContentDataChange();
 		this.fireEvent("_cardReady");
 		this.hideLoadingPlaceholders(CardArea.Header);
 		this.hideLoadingPlaceholders(CardArea.Filters);
@@ -2134,6 +2188,8 @@ sap.ui.define([
 		if (oLoadingProvider) {
 			oLoadingProvider.setLoading(false);
 		}
+
+		this._fireContentDataChange();
 	};
 
 	/**
@@ -2318,7 +2374,7 @@ sap.ui.define([
 	 * @private
 	 */
 	Card.prototype.getContentPageSize = function (oContentConfig) {
-		var iMaxItems = parseInt((oContentConfig || {}).maxItems) || 0,
+		var iMaxItems = parseInt(BindingResolver.resolveValue(oContentConfig, this).maxItems) || 0,
 			oFooter = this.getAggregation("_footer"),
 			oPaginator;
 
@@ -2341,6 +2397,108 @@ sap.ui.define([
 	Card.prototype.hasPaginator = function () {
 		var oManifestFooter = this._oCardManifest.get(MANIFEST_PATHS.FOOTER);
 		return oManifestFooter && oManifestFooter.paginator;
+	};
+
+	/**
+	 * Shows a child card. By default opens in a dialog.
+	 * @private
+	 * @ui5-restricted
+	 * @param {Object} oParameters The settings for showing the card.
+	 * @param {String|Object} oParameters.manifest Url to a manifest or the manifest itself.
+	 * @param {String} oParameters.baseUrl If manifest is an object - specify the base url to the card.
+	 * @param {Object} oParameters.parameters Parameters to be passed to the new card.
+	 * @param {Object} oParameters.data Data to be passed to the new card.
+	 * @returns {Promise} Promise which resolves with the created card.
+	 */
+	Card.prototype.showCard = function (oParameters) {
+		var oChildCard = this._createChildCard(oParameters);
+
+		oParameters._cardId = oChildCard.getId();
+
+		this.triggerAction({
+			type: "ShowCard",
+			parameters: oParameters
+		});
+
+		return Promise.resolve(oChildCard);
+	};
+
+	/**
+	 * Hides the card.
+	 * @private
+	 * @ui5-restricted
+	 */
+	Card.prototype.hide = function () {
+		this.triggerAction({
+			type: "HideCard"
+		});
+	};
+
+	/**
+	 * Gets the card which has opened this one if any.
+	 * @private
+	 * @ui5-restricted
+	 * @returns {sap.ui.integration.widgets.Card} The card which opened the current one.
+	 */
+	Card.prototype.getOpener = function () {
+		var oOpener = Core.byId(this.getAssociation("openerReference"));
+
+		if (!oOpener) {
+			return null;
+		}
+
+		return oOpener._oLimitedInterface;
+	};
+
+	/**
+	 * Creates the child card.
+	 *
+	 * @private
+	 * @ui5-restricted
+	 * @param {Object} oParameters The parameters for the card.
+	 * @returns {sap.ui.integration.widgets.Card} The result card.
+	 */
+	Card.prototype._createChildCard = function (oParameters) {
+		var vManifest = oParameters.manifest,
+			sBaseUrl = oParameters.baseUrl,
+			oData = oParameters.data,
+			oChildCard = this._createCard({
+				width: oParameters.width,
+				host: this.getHostInstance(),
+				parameters: oParameters.parameters
+			});
+
+		oChildCard.setAssociation("openerReference", this);
+
+		if (oData) {
+			each(oData, function (sModelName, oModelData) {
+				var oModel = new JSONModel(oModelData);
+				oChildCard.setModel(oModel, sModelName);
+			});
+		}
+
+		if (typeof vManifest === "string") {
+			oChildCard.setManifest(this.getRuntimeUrl(vManifest));
+			if (sBaseUrl) {
+				oChildCard.setBaseUrl(sBaseUrl);
+			}
+		} else {
+			oChildCard.setManifest(vManifest);
+			oChildCard.setBaseUrl(sBaseUrl || this.getRuntimeUrl("/"));
+		}
+
+		return oChildCard;
+	};
+
+	/**
+	 * Creates a card with the given settings.
+	 *
+	 * @private
+	 * @param {Object} oSettings The settings for the card.
+	 * @returns {sap.ui.integration.widgets.Card} The result card.
+	 */
+	Card.prototype._createCard = function (oSettings) {
+		return new Card(oSettings);
 	};
 
 	return Card;

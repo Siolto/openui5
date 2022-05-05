@@ -122,7 +122,7 @@ sap.ui.define([
 		 * Create an instance of the DynamicDateFormat.
 		 *
 		 * @param {object} [oFormatOptions] Object which defines the format options
-		 * @param {{sap.ui.core.Locale}} [oLocale] Locale to get the formatter for
+		 * @param {sap.ui.core.Locale} [oLocale] Locale to get the formatter for
 		 * @return {sap.m.DynamicDateFormat} Instance of the DynamicDateFormat
 		 * @private
 		 */
@@ -141,6 +141,7 @@ sap.ui.define([
 			oFormat.oLocaleData = LocaleData.getInstance(oLocale);
 			oFormat.oOriginalFormatOptions = deepExtend({}, DynamicDateFormat.oDefaultDynamicDateFormat, oFormatOptions);
 			oFormat._dateFormatter = DateFormat.getInstance(oFormat.oOriginalFormatOptions["date"]);
+			oFormat._dateTimeFormatter = DateFormat.getDateTimeInstance(oFormat.oOriginalFormatOptions["datetime"]);
 			// hack the date formatter not to parse relative
 			// dates like: "next month", "next quarter", "previous week"
 			[oFormat._dateFormatter].concat(oFormat._dateFormatter.aFallbackFormats).forEach(function(f) {
@@ -149,7 +150,12 @@ sap.ui.define([
 				};
 			});
 
-			oFormat._dateTimeFormatter = DateFormat.getDateTimeInstance(oFormat.oOriginalFormatOptions["datetime"]);
+			[oFormat._dateTimeFormatter].concat(oFormat._dateTimeFormatter.aFallbackFormats).forEach(function(f) {
+				f.parseRelative = function() {
+					return null;
+				};
+			});
+
 			oFormat._monthFormatter = DateFormat.getInstance(oFormat.oOriginalFormatOptions["month"]);
 			oFormat._yearFormatter = DateFormat.getInstance(oFormat.oOriginalFormatOptions["year"]);
 			oFormat._numberFormatter = NumberFormat.getInstance(oFormat.oOriginalFormatOptions["int"]);
@@ -162,10 +168,11 @@ sap.ui.define([
 		 * Formats a list according to the given format options.
 		 *
 		 * @param {object} oObj The value to format
+		 * @param {boolean} bSkipCustomFormatting If set to <code>true</code> the formatter does not format to the equivalent user-friendly string. Instead, the formatter uses the specified option key and parameters.
 		 * @return {string} The formatted output value.
 		 * @public
 		 */
-		DynamicDateFormat.prototype.format = function(oObj) {
+		DynamicDateFormat.prototype.format = function(oObj, bSkipCustomFormatting) {
 			var sKey = oObj.operator;
 			var aParams = oObj.values.slice(0);
 
@@ -181,10 +188,10 @@ sap.ui.define([
 
 				aParams[0] = this._monthFormatter.format(oDate);
 				aParams[1] = this._yearFormatter.format(oDate);
-			} else if (sKey === "LASTDAYS" && aParams[0] === 1) {
+			} else if (sKey === "LASTDAYS" && aParams[0] === 1 && !bSkipCustomFormatting) {
 				sKey = "YESTERDAY";
 				aParams = [];
-			} else if (sKey === "NEXTDAYS" && aParams[0] === 1) {
+			} else if (sKey === "NEXTDAYS" && aParams[0] === 1 && !bSkipCustomFormatting) {
 				sKey = "TOMORROW";
 				aParams = [];
 			} else if ((sKey === "LASTDAYS" || sKey === "NEXTDAYS") && aParams[0] === 0) {
@@ -270,7 +277,7 @@ sap.ui.define([
 							break;
 					}
 
-					if (!oVal) {
+					if (!oVal && oVal !== 0) {
 						aResult = null;
 						break;
 					}

@@ -28,8 +28,10 @@ sap.ui.define([
 	"sap/ui/model/type/Integer",
 	"sap/ui/model/type/Currency",
 	"sap/ui/model/odata/type/Currency",
-	"sap/ui/model/json/JSONModel",
+	"sap/ui/model/odata/type/DateTimeWithTimezone",
+	"sap/ui/model/odata/type/DateTimeOffset",
 	"sap/ui/model/odata/type/DateTime",
+	"sap/ui/model/json/JSONModel",
 	"sap/ui/events/KeyCodes",
 	"sap/ui/core/Core"
 ], function(
@@ -58,8 +60,10 @@ sap.ui.define([
 	IntegerType,
 	CurrencyType,
 	oDataCurrencyType,
-	JSONModel,
+	DateTimeWithTimezoneType,
+	DateTimeOffsetType,
 	DateTimeType,
+	JSONModel,
 	KeyCodes,
 	oCore
 ) {
@@ -168,8 +172,8 @@ sap.ui.define([
 
 		oField.setEditMode(EditMode.ReadOnly);
 		oCore.applyChanges();
-		var aContent = oField.getAggregation("_content");
-		var oContent = aContent && aContent.length > 0 && aContent[0];
+		aContent = oField.getAggregation("_content");
+		oContent = aContent && aContent.length > 0 && aContent[0];
 		assert.ok(oContent, "content exist");
 		assert.equal(oContent.getMetadata().getName(), "sap.ui.mdc.field.FieldInput", "sap.ui.mdc.field.FieldInput is used");
 		assert.notOk(oContent.getEditable(), "Input is not editable");
@@ -203,6 +207,18 @@ sap.ui.define([
 
 		assert.ok(oSlider.getDomRef(), "Slider rendered");
 		assert.equal(oSlider.getValue(), 70, "Value of Slider");
+
+	});
+
+	QUnit.test("internal control creation", function(assert) {
+
+		var fnDone = assert.async();
+		setTimeout(function() { // async control creation in applySettings
+			var aContent = oField.getAggregation("_content");
+			var oContent = aContent && aContent.length > 0 && aContent[0];
+			assert.notOk(oContent, "no content exist before rendering"); // as no data type can be determined
+			fnDone();
+		}, 0);
 
 	});
 
@@ -1085,6 +1101,75 @@ sap.ui.define([
 
 	});
 
+	QUnit.test("internal control creation", function(assert) {
+
+		oField.destroy();
+		oField = new Field("F1", {
+			value: { path: "/value", type: oType },
+			change: _myChangeHandler
+		});
+
+		var fnDone = assert.async();
+		setTimeout(function() { // async control creation in applySettings
+			var aContent = oField.getAggregation("_content");
+			var oContent = aContent && aContent.length > 0 && aContent[0];
+			assert.notOk(oContent, "no content exist before rendering"); // as edit mode is not explicit defined
+
+			oField.setMultipleLines(false);
+			oField.setEditMode(EditMode.Display);
+			setTimeout(function() { // async control creation in observeChanges
+				aContent = oField.getAggregation("_content");
+				oContent = aContent && aContent.length > 0 && aContent[0];
+				assert.ok(oContent, "content exist after setting editMode and multipleLines");
+
+				oField.destroy();
+				oField = new Field("F1", {
+					value: { path: "/value", type: oType },
+					editMode: EditMode.Editable,
+					multipleLines: true,
+					change: _myChangeHandler
+				});
+
+				setTimeout(function() { // async control creation in applySettings
+					aContent = oField.getAggregation("_content");
+					oContent = aContent && aContent.length > 0 && aContent[0];
+					assert.ok(oContent, "content exist before rendering");
+
+					oField.destroy();
+					oField = new Field("F1", {
+						value: { path: "/value", type: oType },
+						editMode: { path: "/editMode"},
+						multipleLines: true,
+						change: _myChangeHandler
+					});
+
+					setTimeout(function() { // async control creation in applySettings
+						aContent = oField.getAggregation("_content");
+						oContent = aContent && aContent.length > 0 && aContent[0];
+						assert.notOk(oContent, "content not exist before rendering"); // as editMode has not set by binding right now
+
+						oField.destroy();
+						oField = new Field("F1", {
+							value: { path: "/value", type: oType },
+							editMode: { path: "/editMode"},
+							multipleLines: true,
+							change: _myChangeHandler
+						});
+						oField.setModel(oModel);
+
+						setTimeout(function() { // async control creation in applySettings
+							aContent = oField.getAggregation("_content");
+							oContent = aContent && aContent.length > 0 && aContent[0];
+							assert.ok(oContent, "content exist before rendering");
+							fnDone();
+						}, 0);
+					}, 0);
+				}, 0);
+			}, 0);
+		}, 0);
+
+	});
+
 	QUnit.module("nullable data type", {
 		beforeEach: function() {
 			oField = new Field("F1", {
@@ -1396,6 +1481,89 @@ sap.ui.define([
 				}, 0);
 			}, 0);
 		}, 0);
+
+	});
+
+	QUnit.module("DateTime with timezone", {
+		beforeEach: function() {
+			oModel = new JSONModel({
+				dateTime: "2022-02-25T07:06:30+01:00",
+				timezone: "Europe/Berlin"
+			});
+
+			oType = new DateTimeWithTimezoneType({showTimezone: true});
+			oType._bMyType = true;
+			oType2 = new DateTimeOffsetType({}, {V4: true});
+			oType2._bMyType = true;
+			oType3 = new StringType();
+			oType3._bMyType = true;
+
+			oField = new Field("F1", {
+				value: {parts: [{path: "/dateTime", type: oType2}, {path: "/timezone", type: oType3}], type: oType},
+				change: _myChangeHandler
+			}).placeAt("content");
+			oField.setModel(oModel);
+
+			oField2 = new Field("F12", {
+				value: {parts: [{path: "/dateTime", type: oType2}, {path: "/timezone", type: oType3}], type: oType},
+				editMode: EditMode.Display,
+				change: _myChangeHandler
+			}).placeAt("content");
+			oField2.setModel(oModel);
+			oCore.applyChanges();
+		},
+		afterEach: function() {
+			oField.destroy();
+			oField = undefined;
+			oField2.destroy();
+			oField2 = undefined;
+			oModel.destroy();
+			oModel = undefined;
+			oType.destroy();
+			oType = undefined;
+			oType2.destroy();
+			oType2 = undefined;
+			oType3.destroy();
+			oType3 = undefined;
+			_cleanupEvents();
+		}
+	});
+
+	QUnit.test("inner control binding", function(assert) {
+
+		assert.notOk(oField._oContentFactory.getDataType()._bMyType, "Given Type is not used used in Field");
+		assert.ok(oField._oContentFactory.getDataType().isA("sap.ui.model.odata.type.DateTimeWithTimezone"), "DateTimeWithTimezone type used");
+		assert.deepEqual(oField._oContentFactory.getCompositeTypes(), [oType2, oType3], "Composite types stored");
+		var aContent = oField.getAggregation("_content");
+		var oContent = aContent && aContent.length > 0 && aContent[0];
+		assert.ok(oContent instanceof DateTimePicker, "DateTimePicker used");
+		assert.equal(oContent.getValue(), "2022-02-25T07:06:30", "Value set on DateTimePicker control");
+		assert.equal(oContent.getTimezone(), "Europe, Berlin", "Timezone set on DateTimePicker control");
+		var oBindingInfo = oContent.getBindingInfo("value");
+		var oConditionsType = oBindingInfo.type;
+		var oMyType = oConditionsType.getFormatOptions().valueType;
+		assert.notOk(oMyType._bMyType, "Given Type is not used in Binding for DateTimePicker");
+		assert.ok(oMyType.isA("sap.ui.model.odata.type.DateTimeWithTimezone"), "DateTimeWithTimezone type used in ConditionsType");
+		var aCompositeTypes = oConditionsType.getFormatOptions().compositeTypes;
+		assert.deepEqual(aCompositeTypes, [oType2, oType3], "Composite types stored used in ConditionsType");
+		var oMyOriginalType = oConditionsType.getFormatOptions().originalDateType;
+		assert.equal(oMyOriginalType, oType, "original type used in ConditionsType as originalDateType");
+
+		var sText = oType.formatValue([new Date(2022, 1, 25, 7, 6, 30, 0), "Europe/Berlin"], "string"); // as it might locale dependent (formatting and parsing tested in ConditionType)
+		assert.ok(oField2._oContentFactory.getDataType()._bMyType, "Given Type is used used in Field");
+		assert.deepEqual(oField2._oContentFactory.getCompositeTypes(), [oType2, oType3], "Composite types stored");
+		aContent = oField2.getAggregation("_content");
+		oContent = aContent && aContent.length > 0 && aContent[0];
+		assert.ok(oContent instanceof Text, "Text used");
+		assert.equal(oContent.getText(), sText, "Text set on text control");
+		oBindingInfo = oContent.getBindingInfo("text");
+		oConditionsType = oBindingInfo.type;
+		oMyType = oConditionsType.getFormatOptions().valueType;
+		assert.ok(oMyType._bMyType, "Given Type is used in Binding for Text");
+		aCompositeTypes = oConditionsType.getFormatOptions().compositeTypes;
+		assert.deepEqual(aCompositeTypes, [oType2, oType3], "Composite types stored used in ConditionsType");
+		oMyOriginalType = oConditionsType.getFormatOptions().originalDateType;
+		assert.notOk(oMyOriginalType, "no type used in ConditionsType as originalDateType");
 
 	});
 

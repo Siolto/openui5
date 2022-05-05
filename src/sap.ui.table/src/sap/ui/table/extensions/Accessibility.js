@@ -9,9 +9,8 @@ sap.ui.define([
 	"../utils/TableUtils",
 	"../library",
 	"sap/ui/core/Control",
-	"sap/ui/Device",
 	"sap/ui/thirdparty/jquery"
-], function(ExtensionBase, AccRenderExtension, TableUtils, library, Control, Device, jQuery) {
+], function(ExtensionBase, AccRenderExtension, TableUtils, library, Control, jQuery) {
 	"use strict";
 
 	// shortcuts
@@ -864,8 +863,22 @@ sap.ui.define([
 
 				case AccExtension.ELEMENTTYPES.NODATA: //The no data container
 					mAttributes["role"] = "gridcell";
-					var oNoData = oTable.getNoData();
-					mAttributes["aria-labelledby"] = [oNoData instanceof Control ? oNoData.getId() : (sTableId + "-noDataMsg")];
+					var oNoContentMessage = TableUtils.getNoContentMessage(oTable);
+					var aLabels = [];
+
+					if (oNoContentMessage instanceof Control) {
+						if (oNoContentMessage.isA("sap.m.IllustratedMessage")) {
+							var oAccRef = oNoContentMessage.getAccessibilityReferences();
+							aLabels.push(oAccRef.title);
+							aLabels.push(oAccRef.description);
+						} else {
+							aLabels.push(oNoContentMessage.getId());
+						}
+					} else {
+						aLabels.push(sTableId + "-noDataMsg");
+					}
+
+					mAttributes["aria-labelledby"] = aLabels;
 					addAriaForOverlayOrNoData(oTable, mAttributes, true, false);
 					break;
 
@@ -1185,7 +1198,7 @@ sap.ui.define([
 	 *
 	 * @param {sap.ui.table.Row} oRow Instance of the row.
 	 * @param {jQuery} $Ref The jQuery references to the DOM areas of the row.
-	 * @param {string} sSelectReference The text for the tooltip.
+	 * @param {string} sTextMouse The text for the tooltip.
 	 * @public
 	 */
 	AccExtension.prototype.updateRowTooltips = function(oRow, $Ref, sTextMouse) {

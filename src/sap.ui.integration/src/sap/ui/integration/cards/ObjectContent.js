@@ -20,9 +20,15 @@ sap.ui.define([
 	"sap/ui/layout/AlignedFlowLayout",
 	"sap/ui/dom/units/Rem",
 	"sap/ui/integration/util/BindingHelper",
+	"sap/ui/integration/util/BindingResolver",
 	"sap/ui/integration/util/Utils",
+	"sap/f/AvatarGroup",
+	"sap/f/AvatarGroupItem",
 	"sap/f/cards/NumericIndicators",
-	"sap/f/cards/NumericSideIndicator"
+	"sap/f/cards/NumericSideIndicator",
+	"sap/f/library",
+	"sap/m/OverflowToolbar",
+	"sap/m/OverflowToolbarButton"
 ], function (
 	BaseContent,
 	ObjectContentRenderer,
@@ -42,9 +48,15 @@ sap.ui.define([
 	AlignedFlowLayout,
 	Rem,
 	BindingHelper,
+	BindingResolver,
 	Utils,
+	AvatarGroup,
+	AvatarGroupItem,
 	NumericIndicators,
-	NumericSideIndicator
+	NumericSideIndicator,
+	fLibrary,
+	OverflowToolbar,
+	OverflowToolbarButton
 ) {
 	"use strict";
 
@@ -54,10 +66,16 @@ sap.ui.define([
 	// shortcut for sap.m.AvatarColor
 	var AvatarColor = mLibrary.AvatarColor;
 
+	var ButtonType = mLibrary.ButtonType;
+
 	var FlexRendertype = mLibrary.FlexRendertype;
 
 	// shortcut for sap.ui.integration.CardActionArea
 	var ActionArea = library.CardActionArea;
+
+	var AvatarGroupType = fLibrary.AvatarGroupType;
+
+	var ToolbarStyle = mLibrary.ToolbarStyle;
 
 	/**
 	 * Constructor for a new <code>ObjectContent</code>.
@@ -73,7 +91,6 @@ sap.ui.define([
 	 * @version ${version}
 	 *
 	 * @constructor
-	 * @experimental
 	 * @since 1.64
 	 * @alias sap.ui.integration.cards.ObjectContent
 	 */
@@ -265,10 +282,16 @@ sap.ui.define([
 
 		switch (oItem.type) {
 			case "NumericData":
-				oControl = this._createNumericDataItem(oItem);
+				oControl = this._createNumericDataItem(oItem, vVisible);
 				break;
 			case "Status":
 				oControl = this._createStatusItem(oItem, vVisible);
+				break;
+			case "IconGroup":
+				oControl = this._createIconGroupItem(oItem, vVisible);
+				break;
+			case "ButtonGroup":
+				oControl = this._createButtonGroupItem(oItem, vVisible);
 				break;
 
 			// deprecated types
@@ -324,8 +347,10 @@ sap.ui.define([
 		return oControl;
 	};
 
-	ObjectContent.prototype._createNumericDataItem = function (oItem) {
-		var oVbox = new VBox();
+	ObjectContent.prototype._createNumericDataItem = function (oItem, vVisible) {
+		var oVbox = new VBox({
+			visible: BindingHelper.reuse(vVisible)
+		});
 		var oNumericIndicators = new NumericIndicators({
 			number: oItem.mainIndicator.number,
 			numberSize: oItem.mainIndicator.size,
@@ -401,6 +426,104 @@ sap.ui.define([
 		}
 
 		return oControl;
+	};
+
+	ObjectContent.prototype._createButtonGroupItem = function (oItem, vVisible) {
+		var oTemplateConfig = oItem.template;
+		if (!oTemplateConfig) {
+			return null;
+		}
+
+		var oButtonGroup = new OverflowToolbar({
+			visible: BindingHelper.reuse(vVisible),
+			style: ToolbarStyle.Clear
+		});
+
+		oButtonGroup.addStyleClass("sapUiIntCardObjectButtonGroup");
+
+		var oItemTemplate = new OverflowToolbarButton({
+			icon: BindingHelper.formattedProperty(oTemplateConfig.icon, function (sValue) {
+				return this._oIconFormatter.formatSrc(sValue);
+			}.bind(this)),
+			text: oTemplateConfig.text || oTemplateConfig.tooltip,
+			tooltip: oTemplateConfig.tooltip || oTemplateConfig.text,
+			type: ButtonType.Transparent,
+			visible: oTemplateConfig.visible
+		});
+
+		if (oTemplateConfig.actions) {
+			oItemTemplate.attachPress(function (oEvent) {
+				this._onButtonGroupPress(oEvent, oTemplateConfig.actions);
+			}.bind(this));
+		}
+
+		oButtonGroup.bindAggregation("content", {
+			path: oItem.path || "/",
+			template: oItemTemplate,
+			templateShareable: false // destroy the template when the AvatarGroup is destroyed
+		});
+
+		return oButtonGroup;
+	};
+
+	ObjectContent.prototype._onButtonGroupPress = function (oEvent, oActionTemplate) {
+		var oItem = oEvent.getSource();
+		var aResolvedActions = BindingResolver.resolveValue(oActionTemplate, oItem, oItem.getBindingContext().getPath());
+		var oAction = aResolvedActions[0];
+		this.getActions().fireAction(this, oAction.type, oAction.parameters);
+	};
+
+	ObjectContent.prototype._createIconGroupItem = function (oItem, vVisible) {
+		var oTemplateConfig = oItem.template;
+		if (!oTemplateConfig) {
+			return null;
+		}
+
+		var oIconGroup = new AvatarGroup({
+			avatarDisplaySize: oItem.size || AvatarSize.XS,
+			groupType: AvatarGroupType.Individual,
+			visible: BindingHelper.reuse(vVisible)
+		});
+
+		// Disable "show more" button
+		oIconGroup._oShowMoreButton.setType(ButtonType.Transparent);
+		oIconGroup._oShowMoreButton.setEnabled(false);
+
+		if (oTemplateConfig.actions) {
+			oIconGroup.attachPress(function (oEvent) {
+				this._onIconGroupPress(oEvent, oTemplateConfig.actions);
+			}.bind(this));
+		} else {
+			// make avatars non-interactive, disable press and hover cursor
+			oIconGroup._setInteractive(false);
+		}
+
+		var oItemTemplate = new AvatarGroupItem({
+			src: BindingHelper.formattedProperty(oTemplateConfig.icon.src, function (sValue) {
+				return this._oIconFormatter.formatSrc(sValue);
+			}.bind(this)),
+			initials: oTemplateConfig.icon.text,
+			tooltip: oTemplateConfig.icon.alt
+		});
+
+		oIconGroup.bindAggregation("items", {
+			path: oItem.path || "/",
+			template: oItemTemplate,
+			templateShareable: false // destroy the template when the AvatarGroup is destroyed
+		});
+
+		return oIconGroup;
+	};
+
+	ObjectContent.prototype._onIconGroupPress = function (oEvent, oActionTemplate) {
+		if (oEvent.getParameter("overflowButtonPressed")) {
+			// ignore presses on the "show more" button
+		} else {
+			var oItem = oEvent.getParameter("eventSource");
+			var aResolvedActions = BindingResolver.resolveValue(oActionTemplate, oItem, oItem.getBindingContext().getPath());
+			var oAction = aResolvedActions[0];
+			this.getActions().fireAction(this, oAction.type, oAction.parameters);
+		}
 	};
 
 	ObjectContent.prototype._createAFLayout = function () {

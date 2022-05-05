@@ -12,7 +12,6 @@ sap.ui.define([
 	"sap/ui/layout/GridData",
 	"sap/ui/layout/VerticalLayout",
 	"sap/ui/layout/HorizontalLayout",
-	"sap/ui/core/Icon",
 	"sap/ui/core/theming/Parameters",
 	"sap/ui/core/InvisibleText",
 	"sap/ui/Device",
@@ -30,7 +29,6 @@ sap.ui.define([
 	GridData,
 	VLayout,
 	HLayout,
-	Icon,
 	Parameters,
 	InvisibleText,
 	Device,
@@ -337,13 +335,13 @@ sap.ui.define([
 				}
 			}
 		}
-	}});
+	}, renderer: ColorPickerRenderer});
 
 	// variable that will be used for browser specific prefix of the slider background gradient
 	// it is set in the init function and is used inside _updateAlphaBackground() function
 	var sBrowserPrefix = "",
 		// get the background image of the slider
-		sBgSrc = sap.ui.resource('sap.ui.unified', 'img/ColorPicker/Alphaslider_BG.png'),
+		sBgSrc = sap.ui.require.toUrl("sap/ui/unified/img/ColorPicker/Alphaslider_BG.png"),
 		// get resource bundle
 		oRb = sap.ui.getCore().getLibraryResourceBundle("sap.ui.unified"),
 		// Constants object

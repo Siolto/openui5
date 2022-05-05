@@ -6,8 +6,8 @@ sap.ui.define(function () {
 	"use strict";
 
 	/**
-	 * @class Section renderer.
-	 * @static
+	 * Section renderer.
+	 * @namespace
 	 */
 	var ObjectPageSectionRenderer = {
 		apiVersion: 2
@@ -37,6 +37,8 @@ sap.ui.define(function () {
 		if (bAccessibilityOn && oLabelledBy) {
 			oRm.attr("aria-labelledby", oLabelledBy.getId());
 		}
+
+		oRm.attr("data-sap-ui-customfastnavgroup", true);
 
 		oRm.openEnd();
 

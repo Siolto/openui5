@@ -4,8 +4,9 @@ sap.ui.define([
 	"sap/m/table/columnmenu/Menu",
 	"sap/m/table/columnmenu/QuickTotal",
 	"sap/m/table/columnmenu/QuickTotalItem",
-	"sap/m/Button"
-], function (QUnitUtils, Menu, QuickTotal, QuickTotalItem, Button) {
+	"sap/m/Button",
+	"sap/ui/core/Core"
+], function (QUnitUtils, Menu, QuickTotal, QuickTotalItem, Button, Core) {
 	"use strict";
 
 	QUnit.module("Basic", {
@@ -36,21 +37,22 @@ sap.ui.define([
 	});
 
 	QUnit.test("Label", function(assert) {
-		var oBundle = sap.ui.getCore().getLibraryResourceBundle("sap.m");
+		var oBundle = Core.getLibraryResourceBundle("sap.m");
 		var sLabel = oBundle.getText("table.COLUMNMENU_QUICK_TOTAL");
 		assert.equal(this.oQuickTotal.getLabel(), sLabel, "QuickTotal label is correct.");
 	});
 
 	QUnit.test("Content", function(assert) {
-		var oContent = this.oQuickTotal.getContent();
-		assert.ok(oContent, "The quick total has content");
+		var aContent = this.oQuickTotal.getContent();
+		assert.ok(aContent, "The quick total has content");
+		assert.strictEqual(aContent[0].getParent(), this.oQuickTotal, "The content is in the control tree");
+		assert.strictEqual(aContent[1].getParent(), this.oQuickTotal, "The content is in the control tree");
 
-		var aItems = oContent.getItems();
-		assert.equal(aItems.length, 2, "The quick total has the correct number of items");
-		assert.equal(aItems[0].getText(), "A", "The first button text is correct");
-		assert.ok(!aItems[0].getPressed(), "The first button is not pressed");
-		assert.equal(aItems[1].getText(), "B", "The second button text is correct");
-		assert.ok(aItems[1].getPressed(), "The second button is pressed");
+		assert.equal(aContent.length, 2, "The quick total has the correct number of items");
+		assert.equal(aContent[0].getText(), "A", "The first button text is correct");
+		assert.ok(!aContent[0].getPressed(), "The first button is not pressed");
+		assert.equal(aContent[1].getText(), "B", "The second button text is correct");
+		assert.ok(aContent[1].getPressed(), "The second button is pressed");
 	});
 
 	QUnit.module("Events", {
@@ -80,7 +82,7 @@ sap.ui.define([
 				})]
 			});
 
-			sap.ui.getCore().applyChanges();
+			Core.applyChanges();
 		},
 		afterEach: function () {
 			this.oColumnMenu.destroy();
@@ -90,24 +92,24 @@ sap.ui.define([
 
 	QUnit.test("Change", function(assert) {
 		var done = assert.async();
-		this.oColumnMenu.openBy(this.oButton);
-		sap.ui.getCore().applyChanges();
+		var oMenu = this.oColumnMenu;
+		oMenu.openBy(this.oButton);
 
-		var oQuickTotal = this.oColumnMenu.getAggregation("quickActions")[0];
-		var aItems = oQuickTotal.getContent().getItems();
+		var oQuickTotal = oMenu.getAggregation("quickActions")[0];
+		var aItems = oQuickTotal.getContent();
 
 		oQuickTotal.attachChange(function(oEvent) {
 			assert.ok(true, "Change event has been fired");
 			var oItem = oEvent.getParameter("item");
 			assert.equal(oItem.getKey(), "PropertyA", "The item is passed as event parameter");
 			assert.ok(oItem.getTotaled(), "The totaled property of the item is correct");
-			assert.ok(aItems[0].getPressed(), "The first button is pressed");
-			assert.ok(!aItems[1].getPressed(), "After pressing the first button, the state of the second button has changed.");
-			done();
+
+			setTimeout(function() {
+				assert.ok(!oMenu._oPopover.isOpen(), "The popover closes");
+				done();
+			}, 1000);
 		});
 
-		assert.ok(!aItems[0].getPressed(), "The first button is initially not pressed");
-		assert.ok(aItems[1].getPressed(), "The second button is initially pressed");
 		this.triggerClickEvent(aItems[0].getId());
 	});
 

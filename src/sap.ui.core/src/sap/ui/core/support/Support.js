@@ -40,7 +40,7 @@ sap.ui.define(['sap/ui/base/EventProvider', './Plugin', "sap/base/util/UriParame
 			this._sType = sType;
 			this._sLocalOrigin = window.location.protocol + "//" + window.location.host;
 
-			var fHandler = jQuery.proxy(this._receiveEvent, this);
+			var fHandler = this._receiveEvent.bind(this);
 			if (window.addEventListener) {
 				window.addEventListener("message", fHandler, false);
 			} else {
@@ -666,7 +666,7 @@ sap.ui.define(['sap/ui/base/EventProvider', './Plugin', "sap/base/util/UriParame
 
 		/**
 		 * Returns the support info by index
-		 * @param {int} the index of the info
+		 * @param {int} iIndex the index of the info
 		 * @experimental
 		 * @private
 		 */
@@ -815,7 +815,7 @@ sap.ui.define(['sap/ui/base/EventProvider', './Plugin', "sap/base/util/UriParame
 		 * Adds an XML modification to the stack of modifications.
 		 * @param {string} sId the id of that is used to identify the change after a reload
 		 * @param {int} iIdx the index of node within the XML document (can be determined by root.querySelectorAll('*')
-		 * @param {object} containing the change as {setAttribute: [attributeName,newValue]}
+		 * @param {object} oChange containing the change as {setAttribute: [attributeName,newValue]}
 		 * @experimental
 		 * @private
 		 */

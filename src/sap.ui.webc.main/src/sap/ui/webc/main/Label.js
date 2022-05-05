@@ -82,7 +82,6 @@ sap.ui.define([
 				 */
 				width: {
 					type: "sap.ui.core.CSSSize",
-					defaultValue: null,
 					mapping: "style"
 				},
 
@@ -114,7 +113,8 @@ sap.ui.define([
 						to: "for"
 					}
 				}
-			}
+			},
+			designtime: "sap/ui/webc/main/designtime/Label.designtime"
 		}
 	});
 

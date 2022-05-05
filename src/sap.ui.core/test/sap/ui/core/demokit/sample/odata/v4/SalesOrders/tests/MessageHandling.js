@@ -12,7 +12,6 @@ sap.ui.define([
 	var MessageType = library.MessageType, // shortcut for sap.ui.core.MessageType
 		ValueState = library.ValueState; // shortcut for sap.ui.core.ValueState
 
-
 	return {
 		checkMessages : function (Given, When, Then, sUIComponent) {
 			var sDiscountFailure = "User John Doe is not authorized to approve more than 50%"
@@ -254,11 +253,6 @@ sap.ui.define([
 				component : "sap.ui.model.odata.v4.ODataListBinding",
 				level : Log.Level.ERROR,
 				message : "Failed to request side effects",
-				details : "HTTP request was not processed because the previous request failed"
-			}, {
-				component : "sap.ui.model.odata.v4.ODataPropertyBinding",
-				level : Log.Level.ERROR,
-				message : "Failed to read path /SalesOrderList('0500000004')/SO_2_SCHDL/$count",
 				details : "HTTP request was not processed because the previous request failed"
 			}, {
 				component : "sap.ui.model.odata.v4.ODataListBinding",

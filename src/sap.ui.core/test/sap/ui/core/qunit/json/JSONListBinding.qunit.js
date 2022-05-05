@@ -1,21 +1,20 @@
-/*global QUnit */
+/*!
+ * ${copyright}
+ */
 sap.ui.define([
-	"sap/ui/model/json/JSONListBinding",
-	"sap/ui/model/json/JSONModel",
+	"sap/base/Log",
+	"sap/base/util/deepEqual",
+	"sap/ui/Device",
+	"sap/ui/model/ClientListBinding",
 	"sap/ui/model/Filter",
 	"sap/ui/model/FilterOperator",
 	"sap/ui/model/Sorter",
-	"sap/ui/Device",
-	"sap/base/util/deepEqual"
-], function(
-	JSONListBinding,
-	JSONModel,
-	Filter,
-	FilterOperator,
-	Sorter,
-	Device,
-	deepEqual
-) {
+	"sap/ui/model/json/JSONListBinding",
+	"sap/ui/model/json/JSONModel",
+	"sap/ui/test/TestUtils"
+], function(Log, deepEqual, Device, ClientListBinding, Filter, FilterOperator, Sorter,
+		JSONListBinding, JSONModel, TestUtils) {
+	/*global QUnit */
 	"use strict";
 
 	var oModel;
@@ -597,19 +596,20 @@ sap.ui.define([
 	});
 
 	QUnit.test("flat arrays", function(assert) {
+		var listBinding, sorted;
 
 		createListBinding("/flatNumbers");
-		var listBinding = bindings[0];
+		listBinding = bindings[0];
 		listBinding.sort(new Sorter(""));
-		var sorted = listBinding.getContexts().map(function(oContext, i) {
+		sorted = listBinding.getContexts().map(function(oContext, i) {
 			return oContext.getProperty("");
 		});
 		assert.deepEqual(sorted, [0,1,2,3,4,5,6], "sorted array of numbers");
 
 		createListBinding("/flatStrings");
-		var listBinding = bindings[0];
+		listBinding = bindings[0];
 		listBinding.sort(new Sorter(""));
-		var sorted = listBinding.getContexts().map(function(oContext, i) {
+		sorted = listBinding.getContexts().map(function(oContext, i) {
 			return oContext.getProperty("");
 		});
 		assert.deepEqual(sorted, ["", "Andreas", "Marc", "Peter"], "sorted array of strings");
@@ -1519,6 +1519,19 @@ sap.ui.define([
 		assert.deepEqual(oBinding._getContexts(1, 1), ["~context"]);
 	});
 
+	//*********************************************************************************************
+	QUnit.module("sap.ui.model.json.JSONListBinding", {
+		beforeEach : function () {
+			this.oLogMock = this.mock(Log);
+			this.oLogMock.expects("error").never();
+			this.oLogMock.expects("warning").never();
+		},
+
+		afterEach : function (assert) {
+			return TestUtils.awaitRendering();
+		}
+	});
+
 	//**********************************************************************************************
 	QUnit.test("getAllCurrentContexts: Returns contexts", function (assert) {
 		var oBinding = {
@@ -1531,5 +1544,17 @@ sap.ui.define([
 		// code under test
 		assert.strictEqual(JSONListBinding.prototype.getAllCurrentContexts.call(oBinding),
 			"~aContexts");
+	});
+
+	//**********************************************************************************************
+	QUnit.test("getContexts: implemented in ClientListBinding", function (assert) {
+		assert.strictEqual(JSONListBinding.prototype.getContexts,
+			ClientListBinding.prototype.getContexts);
+	});
+
+	//**********************************************************************************************
+	QUnit.test("getCurrentContexts: implemented in ClientListBinding", function (assert) {
+		assert.strictEqual(JSONListBinding.prototype.getCurrentContexts,
+			ClientListBinding.prototype.getCurrentContexts);
 	});
 });

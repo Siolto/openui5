@@ -47,7 +47,7 @@ sap.ui.define([
 	 * @since 1.92.0
 	 * @experimental Since 1.92.0 This control is experimental and its API might change significantly.
 	 * @alias sap.ui.webc.main.Icon
-	 * @implements sap.ui.webc.main.IIcon, sap.ui.core.IFormContent
+	 * @implements sap.ui.webc.main.IIcon
 	 * @ui5-metamodel This control/element also will be described in the UI5 (legacy) designtime metamodel
 	 */
 	var Icon = WebComponent.extend("sap.ui.webc.main.Icon", {
@@ -55,8 +55,7 @@ sap.ui.define([
 			library: "sap.ui.webc.main",
 			tag: "ui5-icon-ui5",
 			interfaces: [
-				"sap.ui.webc.main.IIcon",
-				"sap.ui.core.IFormContent"
+				"sap.ui.webc.main.IIcon"
 			],
 			properties: {
 
@@ -82,8 +81,7 @@ sap.ui.define([
 				 * Defines the background color of the control
 				 */
 				backgroundColor: {
-					type: "sap.ui.core.CSSSize",
-					defaultValue: null,
+					type: "sap.ui.core.CSSColor",
 					mapping: "style"
 				},
 
@@ -91,8 +89,7 @@ sap.ui.define([
 				 * Defines the color of the control
 				 */
 				color: {
-					type: "sap.ui.core.CSSSize",
-					defaultValue: null,
+					type: "sap.ui.core.CSSColor",
 					mapping: "style"
 				},
 
@@ -101,7 +98,6 @@ sap.ui.define([
 				 */
 				height: {
 					type: "sap.ui.core.CSSSize",
-					defaultValue: null,
 					mapping: "style"
 				},
 
@@ -149,7 +145,6 @@ sap.ui.define([
 				 */
 				width: {
 					type: "sap.ui.core.CSSSize",
-					defaultValue: null,
 					mapping: "style"
 				}
 			},

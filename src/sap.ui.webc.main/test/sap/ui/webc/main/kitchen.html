@@ -28,6 +28,7 @@
                 "sap/ui/webc/main/CheckBox",
                 "sap/ui/webc/main/ColorPalette",
                 "sap/ui/webc/main/ColorPaletteItem",
+                "sap/ui/webc/main/ColorPalettePopover",
                 "sap/ui/webc/main/ColorPicker",
                 "sap/ui/webc/main/ComboBox",
                 "sap/ui/webc/main/ComboBoxGroupItem",
@@ -46,6 +47,8 @@
                 "sap/ui/webc/main/CustomListItem",
                 "sap/ui/webc/main/GroupHeaderListItem",
                 "sap/ui/webc/main/StandardListItem",
+                "sap/ui/webc/main/Menu",
+                "sap/ui/webc/main/MenuItem",
                 "sap/ui/webc/main/MessageStrip",
                 "sap/ui/webc/main/MultiComboBox",
                 "sap/ui/webc/main/MultiComboBoxItem",
@@ -80,18 +83,21 @@
                 "sap/ui/webc/main/Tree",
                 "sap/ui/webc/main/TreeItem"
             ], function(
-                Avatar, Button, AvatarGroup, Badge, Icon, Breadcrumbs, BreadcrumbsItem, BusyIndicator, Calendar, CalendarDate, Card, CardHeader, Carousel, CheckBox, ColorPalette, ColorPaletteItem, ColorPicker, ComboBox, ComboBoxGroupItem, ComboBoxItem, DatePicker, DateRangePicker, DateTimePicker, Dialog, FileUploader, Input, SuggestionGroupItem, SuggestionItem, Label, Link, List, CustomListItem, GroupHeaderListItem, StandardListItem, MessageStrip, MultiComboBox, MultiComboBoxItem, MultiInput, Token, Panel, Popover, ProgressIndicator, RadioButton, RangeSlider, RatingIndicator, ResponsivePopover, SegmentedButton, SegmentedButtonItem, Select, Option, Slider, StepInput, Switch, TabContainer, Tab, TabSeparator, Table, TableColumn, TableGroupRow, TableRow, TableCell, TextArea, TimePicker, Title, Toast, Tree, TreeItem
+                Avatar, Button, AvatarGroup, Badge, Icon, Breadcrumbs, BreadcrumbsItem, BusyIndicator, Calendar, CalendarDate, Card, CardHeader, Carousel, CheckBox, ColorPalette, ColorPaletteItem, ColorPalettePopover, ColorPicker, ComboBox, ComboBoxGroupItem, ComboBoxItem, DatePicker, DateRangePicker, DateTimePicker, Dialog, FileUploader, Input, SuggestionGroupItem, SuggestionItem, Label, Link, List, CustomListItem, GroupHeaderListItem, StandardListItem, Menu, MenuItem, MessageStrip, MultiComboBox, MultiComboBoxItem, MultiInput, Token, Panel, Popover, ProgressIndicator, RadioButton, RangeSlider, RatingIndicator, ResponsivePopover, SegmentedButton, SegmentedButtonItem, Select, Option, Slider, StepInput, Switch, TabContainer, Tab, TabSeparator, Table, TableColumn, TableGroupRow, TableRow, TableCell, TextArea, TimePicker, Title, Toast, Tree, TreeItem
             ) {
 
                 var oAvatar = new Avatar({
                     icon: "employee",
-                    content: new Button({
+                    image: new Button({
                         icon: "employee",
                         text: "Some text...",
                         click: function(oEvent) {
                             console.log("Event click fired for Button with parameters: ", oEvent.getParameters());
                         }
-                    })
+                    }),
+                    click: function(oEvent) {
+                        console.log("Event click fired for Avatar with parameters: ", oEvent.getParameters());
+                    }
                 });
                 oAvatar.placeAt("testAvatar");
 
@@ -122,33 +128,42 @@
                     items: [
                         new Avatar({
                             icon: "employee",
-                            content: new Button({
+                            image: new Button({
                                 icon: "employee",
                                 text: "Some text...",
                                 click: function(oEvent) {
                                     console.log("Event click fired for Button with parameters: ", oEvent.getParameters());
                                 }
-                            })
+                            }),
+                            click: function(oEvent) {
+                                console.log("Event click fired for Avatar with parameters: ", oEvent.getParameters());
+                            }
                         }),
                         new Avatar({
                             icon: "employee",
-                            content: new Button({
+                            image: new Button({
                                 icon: "employee",
                                 text: "Some text...",
                                 click: function(oEvent) {
                                     console.log("Event click fired for Button with parameters: ", oEvent.getParameters());
                                 }
-                            })
+                            }),
+                            click: function(oEvent) {
+                                console.log("Event click fired for Avatar with parameters: ", oEvent.getParameters());
+                            }
                         }),
                         new Avatar({
                             icon: "employee",
-                            content: new Button({
+                            image: new Button({
                                 icon: "employee",
                                 text: "Some text...",
                                 click: function(oEvent) {
                                     console.log("Event click fired for Button with parameters: ", oEvent.getParameters());
                                 }
-                            })
+                            }),
+                            click: function(oEvent) {
+                                console.log("Event click fired for Avatar with parameters: ", oEvent.getParameters());
+                            }
                         })
                     ],
                     overflowButton: new Button({
@@ -171,6 +186,7 @@
                 var oBadge = new Badge({
                     text: "Some text...",
                     icon: new Icon({
+                        color: "blue",
                         name: "add",
                         click: function(oEvent) {
                             console.log("Event click fired for Icon with parameters: ", oEvent.getParameters());
@@ -434,6 +450,48 @@
                 oColorPalette.placeAt("testColorPalette");
 
 
+                var oColorPalettePopover0Button = new Button({
+                    text: "openPopover",
+                    click: function(oEvent) {
+                        console.log("Calling openPopover...");
+                        var result = oColorPalettePopover.openPopover();
+                        console.log("... openPopover returned: ", result);
+                    }
+                });
+                oColorPalettePopover0Button.placeAt("methodsColorPalettePopover");
+
+
+
+                var oColorPalettePopover1Button = new Button({
+                    text: "showAt",
+                    click: function(oEvent) {
+                        console.log("Calling showAt...");
+                        var result = oColorPalettePopover.showAt(oColorPalettePopover1Button);
+                        console.log("... showAt returned: ", result);
+                    }
+                });
+                oColorPalettePopover1Button.placeAt("methodsColorPalettePopover");
+
+                var oColorPalettePopover = new ColorPalettePopover({
+                    defaultColor: "blue",
+                    colors: [
+                        new ColorPaletteItem({
+                            value: "blue"
+                        }),
+                        new ColorPaletteItem({
+                            value: "blue"
+                        }),
+                        new ColorPaletteItem({
+                            value: "blue"
+                        })
+                    ],
+                    itemClick: function(oEvent) {
+                        console.log("Event itemClick fired for ColorPalettePopover with parameters: ", oEvent.getParameters());
+                    }
+                });
+                oColorPalettePopover.placeAt("testColorPalettePopover");
+
+
                 var oColorPicker = new ColorPicker({
                     color: "blue",
                     change: function(oEvent) {
@@ -449,6 +507,7 @@
                     valueState: "Warning",
                     valueStateMessage: "Value State Message",
                     icon: new Icon({
+                        color: "blue",
                         name: "add",
                         click: function(oEvent) {
                             console.log("Event click fired for Icon with parameters: ", oEvent.getParameters());
@@ -985,6 +1044,7 @@
 
 
                 var oIcon = new Icon({
+                    color: "blue",
                     name: "add",
                     click: function(oEvent) {
                         console.log("Event click fired for Icon with parameters: ", oEvent.getParameters());
@@ -994,6 +1054,18 @@
 
 
                 var oInput0Button = new Button({
+                    text: "openPicker",
+                    click: function(oEvent) {
+                        console.log("Calling openPicker...");
+                        var result = oInput.openPicker();
+                        console.log("... openPicker returned: ", result);
+                    }
+                });
+                oInput0Button.placeAt("methodsInput");
+
+
+
+                var oInput1Button = new Button({
                     text: "getPreviewItem",
                     click: function(oEvent) {
                         console.log("Calling getPreviewItem...");
@@ -1001,7 +1073,7 @@
                         console.log("... getPreviewItem returned: ", result);
                     }
                 });
-                oInput0Button.placeAt("methodsInput");
+                oInput1Button.placeAt("methodsInput");
 
                 var oInput = new Input({
                     placeholder: "This is my placeholder value",
@@ -1010,18 +1082,21 @@
                     valueStateMessage: "Value State Message",
                     icon: [
                         new Icon({
+                            color: "blue",
                             name: "add",
                             click: function(oEvent) {
                                 console.log("Event click fired for Icon with parameters: ", oEvent.getParameters());
                             }
                         }),
                         new Icon({
+                            color: "blue",
                             name: "add",
                             click: function(oEvent) {
                                 console.log("Event click fired for Icon with parameters: ", oEvent.getParameters());
                             }
                         }),
                         new Icon({
+                            color: "blue",
                             name: "add",
                             click: function(oEvent) {
                                 console.log("Event click fired for Icon with parameters: ", oEvent.getParameters());
@@ -1162,9 +1237,304 @@
                 oList.placeAt("testList");
 
 
+                var oMenu0Button = new Button({
+                    text: "close",
+                    click: function(oEvent) {
+                        console.log("Calling close...");
+                        var result = oMenu.close();
+                        console.log("... close returned: ", result);
+                    }
+                });
+                oMenu0Button.placeAt("methodsMenu");
+
+
+
+                var oMenu1Button = new Button({
+                    text: "showAt",
+                    click: function(oEvent) {
+                        console.log("Calling showAt...");
+                        var result = oMenu.showAt(oMenu1Button);
+                        console.log("... showAt returned: ", result);
+                    }
+                });
+                oMenu1Button.placeAt("methodsMenu");
+
+                var oMenu = new Menu({
+                    headerText: "Some text...",
+                    items: [
+                        new MenuItem({
+                            icon: "employee",
+                            text: "Some text...",
+                            items: [
+                                new MenuItem({
+                                    icon: "employee",
+                                    text: "Some text...",
+                                    items: [
+                                        new MenuItem({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            items: [
+
+                                            ]
+                                        }),
+                                        new MenuItem({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            items: [
+
+                                            ]
+                                        }),
+                                        new MenuItem({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            items: [
+
+                                            ]
+                                        })
+                                    ]
+                                }),
+                                new MenuItem({
+                                    icon: "employee",
+                                    text: "Some text...",
+                                    items: [
+                                        new MenuItem({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            items: [
+
+                                            ]
+                                        }),
+                                        new MenuItem({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            items: [
+
+                                            ]
+                                        }),
+                                        new MenuItem({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            items: [
+
+                                            ]
+                                        })
+                                    ]
+                                }),
+                                new MenuItem({
+                                    icon: "employee",
+                                    text: "Some text...",
+                                    items: [
+                                        new MenuItem({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            items: [
+
+                                            ]
+                                        }),
+                                        new MenuItem({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            items: [
+
+                                            ]
+                                        }),
+                                        new MenuItem({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            items: [
+
+                                            ]
+                                        })
+                                    ]
+                                })
+                            ]
+                        }),
+                        new MenuItem({
+                            icon: "employee",
+                            text: "Some text...",
+                            items: [
+                                new MenuItem({
+                                    icon: "employee",
+                                    text: "Some text...",
+                                    items: [
+                                        new MenuItem({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            items: [
+
+                                            ]
+                                        }),
+                                        new MenuItem({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            items: [
+
+                                            ]
+                                        }),
+                                        new MenuItem({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            items: [
+
+                                            ]
+                                        })
+                                    ]
+                                }),
+                                new MenuItem({
+                                    icon: "employee",
+                                    text: "Some text...",
+                                    items: [
+                                        new MenuItem({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            items: [
+
+                                            ]
+                                        }),
+                                        new MenuItem({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            items: [
+
+                                            ]
+                                        }),
+                                        new MenuItem({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            items: [
+
+                                            ]
+                                        })
+                                    ]
+                                }),
+                                new MenuItem({
+                                    icon: "employee",
+                                    text: "Some text...",
+                                    items: [
+                                        new MenuItem({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            items: [
+
+                                            ]
+                                        }),
+                                        new MenuItem({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            items: [
+
+                                            ]
+                                        }),
+                                        new MenuItem({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            items: [
+
+                                            ]
+                                        })
+                                    ]
+                                })
+                            ]
+                        }),
+                        new MenuItem({
+                            icon: "employee",
+                            text: "Some text...",
+                            items: [
+                                new MenuItem({
+                                    icon: "employee",
+                                    text: "Some text...",
+                                    items: [
+                                        new MenuItem({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            items: [
+
+                                            ]
+                                        }),
+                                        new MenuItem({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            items: [
+
+                                            ]
+                                        }),
+                                        new MenuItem({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            items: [
+
+                                            ]
+                                        })
+                                    ]
+                                }),
+                                new MenuItem({
+                                    icon: "employee",
+                                    text: "Some text...",
+                                    items: [
+                                        new MenuItem({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            items: [
+
+                                            ]
+                                        }),
+                                        new MenuItem({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            items: [
+
+                                            ]
+                                        }),
+                                        new MenuItem({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            items: [
+
+                                            ]
+                                        })
+                                    ]
+                                }),
+                                new MenuItem({
+                                    icon: "employee",
+                                    text: "Some text...",
+                                    items: [
+                                        new MenuItem({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            items: [
+
+                                            ]
+                                        }),
+                                        new MenuItem({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            items: [
+
+                                            ]
+                                        }),
+                                        new MenuItem({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            items: [
+
+                                            ]
+                                        })
+                                    ]
+                                })
+                            ]
+                        })
+                    ],
+                    itemClick: function(oEvent) {
+                        console.log("Event itemClick fired for Menu with parameters: ", oEvent.getParameters());
+                    }
+                });
+                oMenu.placeAt("testMenu");
+
+
                 var oMessageStrip = new MessageStrip({
                     text: "Some text...",
                     icon: new Icon({
+                        color: "blue",
                         name: "add",
                         click: function(oEvent) {
                             console.log("Event click fired for Icon with parameters: ", oEvent.getParameters());
@@ -1193,6 +1563,7 @@
                     valueState: "Warning",
                     valueStateMessage: "Value State Message",
                     icon: new Icon({
+                        color: "blue",
                         name: "add",
                         click: function(oEvent) {
                             console.log("Event click fired for Icon with parameters: ", oEvent.getParameters());
@@ -1229,6 +1600,18 @@
 
 
                 var oMultiInput0Button = new Button({
+                    text: "openPicker",
+                    click: function(oEvent) {
+                        console.log("Calling openPicker...");
+                        var result = oMultiInput.openPicker();
+                        console.log("... openPicker returned: ", result);
+                    }
+                });
+                oMultiInput0Button.placeAt("methodsMultiInput");
+
+
+
+                var oMultiInput1Button = new Button({
                     text: "getPreviewItem",
                     click: function(oEvent) {
                         console.log("Calling getPreviewItem...");
@@ -1236,7 +1619,7 @@
                         console.log("... getPreviewItem returned: ", result);
                     }
                 });
-                oMultiInput0Button.placeAt("methodsMultiInput");
+                oMultiInput1Button.placeAt("methodsMultiInput");
 
                 var oMultiInput = new MultiInput({
                     placeholder: "This is my placeholder value",
@@ -1245,18 +1628,21 @@
                     valueStateMessage: "Value State Message",
                     icon: [
                         new Icon({
+                            color: "blue",
                             name: "add",
                             click: function(oEvent) {
                                 console.log("Event click fired for Icon with parameters: ", oEvent.getParameters());
                             }
                         }),
                         new Icon({
+                            color: "blue",
                             name: "add",
                             click: function(oEvent) {
                                 console.log("Event click fired for Icon with parameters: ", oEvent.getParameters());
                             }
                         }),
                         new Icon({
+                            color: "blue",
                             name: "add",
                             click: function(oEvent) {
                                 console.log("Event click fired for Icon with parameters: ", oEvent.getParameters());
@@ -1280,6 +1666,7 @@
                         new Token({
                             text: "Some text...",
                             closeIcon: new Icon({
+                                color: "blue",
                                 name: "add",
                                 click: function(oEvent) {
                                     console.log("Event click fired for Icon with parameters: ", oEvent.getParameters());
@@ -1292,6 +1679,7 @@
                         new Token({
                             text: "Some text...",
                             closeIcon: new Icon({
+                                color: "blue",
                                 name: "add",
                                 click: function(oEvent) {
                                     console.log("Event click fired for Icon with parameters: ", oEvent.getParameters());
@@ -1304,6 +1692,7 @@
                         new Token({
                             text: "Some text...",
                             closeIcon: new Icon({
+                                color: "blue",
                                 name: "add",
                                 click: function(oEvent) {
                                     console.log("Event click fired for Icon with parameters: ", oEvent.getParameters());
@@ -1431,7 +1820,7 @@
                     text: "showAt",
                     click: function(oEvent) {
                         console.log("Calling showAt...");
-                        var result = oPopover.showAt();
+                        var result = oPopover.showAt(oPopover3Button);
                         console.log("... showAt returned: ", result);
                     }
                 });
@@ -1600,7 +1989,7 @@
                     text: "showAt",
                     click: function(oEvent) {
                         console.log("Calling showAt...");
-                        var result = oResponsivePopover.showAt();
+                        var result = oResponsivePopover.showAt(oResponsivePopover3Button);
                         console.log("... showAt returned: ", result);
                     }
                 });
@@ -1749,16 +2138,19 @@
                     valueStateMessage: "Value State Message",
                     options: [
                         new Option({
+                            additionalText: "Some text...",
                             icon: "employee",
                             text: "Some text...",
                             value: "Control value"
                         }),
                         new Option({
+                            additionalText: "Some text...",
                             icon: "employee",
                             text: "Some text...",
                             value: "Control value"
                         }),
                         new Option({
+                            additionalText: "Some text...",
                             icon: "employee",
                             text: "Some text...",
                             value: "Control value"
@@ -1831,6 +2223,121 @@
                                         console.log("Event click fired for Button with parameters: ", oEvent.getParameters());
                                     }
                                 })
+                            ],
+                            subTabs: [
+                                new Tab({
+                                    additionalText: "Some text...",
+                                    icon: "employee",
+                                    text: "Some text...",
+                                    content: [
+                                        new Button({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            click: function(oEvent) {
+                                                console.log("Event click fired for Button with parameters: ", oEvent.getParameters());
+                                            }
+                                        }),
+                                        new Button({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            click: function(oEvent) {
+                                                console.log("Event click fired for Button with parameters: ", oEvent.getParameters());
+                                            }
+                                        }),
+                                        new Button({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            click: function(oEvent) {
+                                                console.log("Event click fired for Button with parameters: ", oEvent.getParameters());
+                                            }
+                                        })
+                                    ],
+                                    subTabs: [
+                                        new Tab({
+                                            additionalText: "Some text...",
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            content: [
+
+                                            ],
+                                            subTabs: [
+
+                                            ]
+                                        }),
+                                        new TabSeparator({
+
+                                        }),
+                                        new Tab({
+                                            additionalText: "Some text...",
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            content: [
+
+                                            ],
+                                            subTabs: [
+
+                                            ]
+                                        })
+                                    ]
+                                }),
+                                new TabSeparator({
+
+                                }),
+                                new Tab({
+                                    additionalText: "Some text...",
+                                    icon: "employee",
+                                    text: "Some text...",
+                                    content: [
+                                        new Button({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            click: function(oEvent) {
+                                                console.log("Event click fired for Button with parameters: ", oEvent.getParameters());
+                                            }
+                                        }),
+                                        new Button({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            click: function(oEvent) {
+                                                console.log("Event click fired for Button with parameters: ", oEvent.getParameters());
+                                            }
+                                        }),
+                                        new Button({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            click: function(oEvent) {
+                                                console.log("Event click fired for Button with parameters: ", oEvent.getParameters());
+                                            }
+                                        })
+                                    ],
+                                    subTabs: [
+                                        new Tab({
+                                            additionalText: "Some text...",
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            content: [
+
+                                            ],
+                                            subTabs: [
+
+                                            ]
+                                        }),
+                                        new TabSeparator({
+
+                                        }),
+                                        new Tab({
+                                            additionalText: "Some text...",
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            content: [
+
+                                            ],
+                                            subTabs: [
+
+                                            ]
+                                        })
+                                    ]
+                                })
                             ]
                         }),
                         new TabSeparator({
@@ -1861,6 +2368,121 @@
                                     click: function(oEvent) {
                                         console.log("Event click fired for Button with parameters: ", oEvent.getParameters());
                                     }
+                                })
+                            ],
+                            subTabs: [
+                                new Tab({
+                                    additionalText: "Some text...",
+                                    icon: "employee",
+                                    text: "Some text...",
+                                    content: [
+                                        new Button({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            click: function(oEvent) {
+                                                console.log("Event click fired for Button with parameters: ", oEvent.getParameters());
+                                            }
+                                        }),
+                                        new Button({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            click: function(oEvent) {
+                                                console.log("Event click fired for Button with parameters: ", oEvent.getParameters());
+                                            }
+                                        }),
+                                        new Button({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            click: function(oEvent) {
+                                                console.log("Event click fired for Button with parameters: ", oEvent.getParameters());
+                                            }
+                                        })
+                                    ],
+                                    subTabs: [
+                                        new Tab({
+                                            additionalText: "Some text...",
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            content: [
+
+                                            ],
+                                            subTabs: [
+
+                                            ]
+                                        }),
+                                        new TabSeparator({
+
+                                        }),
+                                        new Tab({
+                                            additionalText: "Some text...",
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            content: [
+
+                                            ],
+                                            subTabs: [
+
+                                            ]
+                                        })
+                                    ]
+                                }),
+                                new TabSeparator({
+
+                                }),
+                                new Tab({
+                                    additionalText: "Some text...",
+                                    icon: "employee",
+                                    text: "Some text...",
+                                    content: [
+                                        new Button({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            click: function(oEvent) {
+                                                console.log("Event click fired for Button with parameters: ", oEvent.getParameters());
+                                            }
+                                        }),
+                                        new Button({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            click: function(oEvent) {
+                                                console.log("Event click fired for Button with parameters: ", oEvent.getParameters());
+                                            }
+                                        }),
+                                        new Button({
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            click: function(oEvent) {
+                                                console.log("Event click fired for Button with parameters: ", oEvent.getParameters());
+                                            }
+                                        })
+                                    ],
+                                    subTabs: [
+                                        new Tab({
+                                            additionalText: "Some text...",
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            content: [
+
+                                            ],
+                                            subTabs: [
+
+                                            ]
+                                        }),
+                                        new TabSeparator({
+
+                                        }),
+                                        new Tab({
+                                            additionalText: "Some text...",
+                                            icon: "employee",
+                                            text: "Some text...",
+                                            content: [
+
+                                            ],
+                                            subTabs: [
+
+                                            ]
+                                        })
+                                    ]
                                 })
                             ]
                         })
@@ -2633,205 +3255,217 @@
     <br><br>
 
 
-    <h1>12. ColorPicker</h1>
+    <h1>12. ColorPalettePopover</h1>
+    <div id="methodsColorPalettePopover"></div>
+    <div id="testColorPalettePopover"></div>
+    <br><br>
+
+
+    <h1>13. ColorPicker</h1>
     <div id="methodsColorPicker"></div>
     <div id="testColorPicker"></div>
     <br><br>
 
 
-    <h1>13. ComboBox</h1>
+    <h1>14. ComboBox</h1>
     <div id="methodsComboBox"></div>
     <div id="testComboBox"></div>
     <br><br>
 
 
-    <h1>14. DatePicker</h1>
+    <h1>15. DatePicker</h1>
     <div id="methodsDatePicker"></div>
     <div id="testDatePicker"></div>
     <br><br>
 
 
-    <h1>15. DateRangePicker</h1>
+    <h1>16. DateRangePicker</h1>
     <div id="methodsDateRangePicker"></div>
     <div id="testDateRangePicker"></div>
     <br><br>
 
 
-    <h1>16. DateTimePicker</h1>
+    <h1>17. DateTimePicker</h1>
     <div id="methodsDateTimePicker"></div>
     <div id="testDateTimePicker"></div>
     <br><br>
 
 
-    <h1>17. Dialog</h1>
+    <h1>18. Dialog</h1>
     <div id="methodsDialog"></div>
     <div id="testDialog"></div>
     <br><br>
 
 
-    <h1>18. FileUploader</h1>
+    <h1>19. FileUploader</h1>
     <div id="methodsFileUploader"></div>
     <div id="testFileUploader"></div>
     <br><br>
 
 
-    <h1>19. Icon</h1>
+    <h1>20. Icon</h1>
     <div id="methodsIcon"></div>
     <div id="testIcon"></div>
     <br><br>
 
 
-    <h1>20. Input</h1>
+    <h1>21. Input</h1>
     <div id="methodsInput"></div>
     <div id="testInput"></div>
     <br><br>
 
 
-    <h1>21. Label</h1>
+    <h1>22. Label</h1>
     <div id="methodsLabel"></div>
     <div id="testLabel"></div>
     <br><br>
 
 
-    <h1>22. Link</h1>
+    <h1>23. Link</h1>
     <div id="methodsLink"></div>
     <div id="testLink"></div>
     <br><br>
 
 
-    <h1>23. List</h1>
+    <h1>24. List</h1>
     <div id="methodsList"></div>
     <div id="testList"></div>
     <br><br>
 
 
-    <h1>24. MessageStrip</h1>
+    <h1>25. Menu</h1>
+    <div id="methodsMenu"></div>
+    <div id="testMenu"></div>
+    <br><br>
+
+
+    <h1>26. MessageStrip</h1>
     <div id="methodsMessageStrip"></div>
     <div id="testMessageStrip"></div>
     <br><br>
 
 
-    <h1>25. MultiComboBox</h1>
+    <h1>27. MultiComboBox</h1>
     <div id="methodsMultiComboBox"></div>
     <div id="testMultiComboBox"></div>
     <br><br>
 
 
-    <h1>26. MultiInput</h1>
+    <h1>28. MultiInput</h1>
     <div id="methodsMultiInput"></div>
     <div id="testMultiInput"></div>
     <br><br>
 
 
-    <h1>27. Panel</h1>
+    <h1>29. Panel</h1>
     <div id="methodsPanel"></div>
     <div id="testPanel"></div>
     <br><br>
 
 
-    <h1>28. Popover</h1>
+    <h1>30. Popover</h1>
     <div id="methodsPopover"></div>
     <div id="testPopover"></div>
     <br><br>
 
 
-    <h1>29. ProgressIndicator</h1>
+    <h1>31. ProgressIndicator</h1>
     <div id="methodsProgressIndicator"></div>
     <div id="testProgressIndicator"></div>
     <br><br>
 
 
-    <h1>30. RadioButton</h1>
+    <h1>32. RadioButton</h1>
     <div id="methodsRadioButton"></div>
     <div id="testRadioButton"></div>
     <br><br>
 
 
-    <h1>31. RangeSlider</h1>
+    <h1>33. RangeSlider</h1>
     <div id="methodsRangeSlider"></div>
     <div id="testRangeSlider"></div>
     <br><br>
 
 
-    <h1>32. RatingIndicator</h1>
+    <h1>34. RatingIndicator</h1>
     <div id="methodsRatingIndicator"></div>
     <div id="testRatingIndicator"></div>
     <br><br>
 
 
-    <h1>33. ResponsivePopover</h1>
+    <h1>35. ResponsivePopover</h1>
     <div id="methodsResponsivePopover"></div>
     <div id="testResponsivePopover"></div>
     <br><br>
 
 
-    <h1>34. SegmentedButton</h1>
+    <h1>36. SegmentedButton</h1>
     <div id="methodsSegmentedButton"></div>
     <div id="testSegmentedButton"></div>
     <br><br>
 
 
-    <h1>35. Select</h1>
+    <h1>37. Select</h1>
     <div id="methodsSelect"></div>
     <div id="testSelect"></div>
     <br><br>
 
 
-    <h1>36. Slider</h1>
+    <h1>38. Slider</h1>
     <div id="methodsSlider"></div>
     <div id="testSlider"></div>
     <br><br>
 
 
-    <h1>37. StepInput</h1>
+    <h1>39. StepInput</h1>
     <div id="methodsStepInput"></div>
     <div id="testStepInput"></div>
     <br><br>
 
 
-    <h1>38. Switch</h1>
+    <h1>40. Switch</h1>
     <div id="methodsSwitch"></div>
     <div id="testSwitch"></div>
     <br><br>
 
 
-    <h1>39. TabContainer</h1>
+    <h1>41. TabContainer</h1>
     <div id="methodsTabContainer"></div>
     <div id="testTabContainer"></div>
     <br><br>
 
 
-    <h1>40. Table</h1>
+    <h1>42. Table</h1>
     <div id="methodsTable"></div>
     <div id="testTable"></div>
     <br><br>
 
 
-    <h1>41. TextArea</h1>
+    <h1>43. TextArea</h1>
     <div id="methodsTextArea"></div>
     <div id="testTextArea"></div>
     <br><br>
 
 
-    <h1>42. TimePicker</h1>
+    <h1>44. TimePicker</h1>
     <div id="methodsTimePicker"></div>
     <div id="testTimePicker"></div>
     <br><br>
 
 
-    <h1>43. Title</h1>
+    <h1>45. Title</h1>
     <div id="methodsTitle"></div>
     <div id="testTitle"></div>
     <br><br>
 
 
-    <h1>44. Toast</h1>
+    <h1>46. Toast</h1>
     <div id="methodsToast"></div>
     <div id="testToast"></div>
     <br><br>
 
 
-    <h1>45. Tree</h1>
+    <h1>47. Tree</h1>
     <div id="methodsTree"></div>
     <div id="testTree"></div>
     <br><br>

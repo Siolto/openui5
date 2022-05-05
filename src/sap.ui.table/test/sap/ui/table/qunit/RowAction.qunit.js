@@ -1,7 +1,6 @@
 /*global QUnit, sinon */
 
 sap.ui.define([
-	"sap/ui/table/qunit/TableQUnitUtils",
 	"sap/ui/qunit/QUnitUtils",
 	"sap/ui/table/RowAction",
 	"sap/ui/table/RowActionItem",
@@ -10,12 +9,8 @@ sap.ui.define([
 	"sap/ui/table/utils/TableUtils",
 	"sap/ui/Device",
 	"sap/ui/core/Core"
-], function(TableQUnitUtils, qutils, RowAction, RowActionItem, Row, Table, TableUtils, Device, oCore) {
+], function(qutils, RowAction, RowActionItem, Row, Table, TableUtils, Device, oCore) {
 	"use strict";
-
-	var MENUICON = "sap-icon://overflow";
-	var NAVICON = "sap-icon://navigation-right-arrow";
-	var DELICON = "sap-icon://sys-cancel";
 
 	QUnit.module("API", {
 		beforeEach: function() {
@@ -136,13 +131,21 @@ sap.ui.define([
 		}
 	});
 
-	function checkRendering(that, sText, assert, fnChanges, aExpectedIcons, aExpectedTexts) {
+	function checkRendering(that, assert, fnChanges, aExpectedIcons, aExpectedTexts) {
 		fnChanges.apply(that);
 		oCore.applyChanges();
 
 		var aChildren = that.oRowAction.getDomRef().children;
 
-		if (!aExpectedIcons || aExpectedIcons.length === 0) {
+		aExpectedIcons = aExpectedIcons.map(function(sIcon) {
+			if (sIcon.startsWith("sap-icon://")) {
+				return sIcon;
+			} else {
+				return "sap-icon://" + TableUtils.ThemeParameters[sIcon];
+			}
+		});
+
+		if (aExpectedIcons.length === 0) {
 			var bIconsHidden = true;
 			for (var i = 0; i < aChildren.length; i++) {
 				bIconsHidden = bIconsHidden && aChildren[i].classList.contains("sapUiTableActionHidden");
@@ -171,38 +174,38 @@ sap.ui.define([
 	}
 
 	QUnit.test("addItem / removeItem", function(assert) {
-		checkRendering(this, "addItem", assert, function() {
+		checkRendering(this, assert, function() {
 			this.oRowAction.addItem(new RowActionItem({icon: "sap-icon://search", text: "A"}));
 		}, ["sap-icon://search"], ["A"]);
-		checkRendering(this, "removeItem", assert, function() {
+		checkRendering(this, assert, function() {
 			this.oRowAction.removeItem(this.oRowAction.getItems()[0]);
 		}, [], []);
 	});
 
 	QUnit.test("insertItem / removeAllItems", function(assert) {
-		checkRendering(this, "insertItem", assert, function() {
+		checkRendering(this, assert, function() {
 			this.oRowAction.insertItem(new RowActionItem({icon: "sap-icon://search", text: "A"}), 0);
 		}, ["sap-icon://search"], ["A"]);
-		checkRendering(this, "insertItem", assert, function() {
+		checkRendering(this, assert, function() {
 			this.oRowAction.insertItem(new RowActionItem({icon: "sap-icon://delete", tooltip: "B"}), 0);
 		}, ["sap-icon://delete", "sap-icon://search"], ["B", "A"]);
-		checkRendering(this, "insertItem", assert, function() {
+		checkRendering(this, assert, function() {
 			this.oRowAction.insertItem(new RowActionItem({
 				icon: "sap-icon://account",
 				tooltip: "C",
 				text: "Wrong"
 			}), 1);
-		}, ["sap-icon://delete", MENUICON], ["B", TableUtils.getResourceBundle().getText("TBL_ROW_ACTION_MORE")]);
-		checkRendering(this, "removeAllItems", assert, function() {
+		}, ["sap-icon://delete", "sap-icon://overflow"], ["B", TableUtils.getResourceBundle().getText("TBL_ROW_ACTION_MORE")]);
+		checkRendering(this, assert, function() {
 			this.oRowAction.removeAllItems();
 		}, [], []);
 	});
 
 	QUnit.test("addItem / destroyItems", function(assert) {
-		checkRendering(this, "addItem", assert, function() {
+		checkRendering(this, assert, function() {
 			this.oRowAction.addItem(new RowActionItem({icon: "sap-icon://search", text: "A"}));
 		}, ["sap-icon://search"], ["A"]);
-		checkRendering(this, "destroyItems", assert, function() {
+		checkRendering(this, assert, function() {
 			this.oRowAction.destroyItems();
 		}, [], []);
 	});
@@ -211,11 +214,11 @@ sap.ui.define([
 		this.oRowAction.addItem(new RowActionItem({icon: "sap-icon://search", text: "A"}));
 		oCore.applyChanges();
 
-		checkRendering(this, "setVisible", assert, function() {
+		checkRendering(this, assert, function() {
 			this.oRowAction.setVisible(false);
 		}, ["sap-icon://search"], ["A"]);
 		assert.ok(this.oRowAction.getDomRef().classList.contains("sapUiTableActionHidden"), "RowAction hidden");
-		checkRendering(this, "setVisible", assert, function() {
+		checkRendering(this, assert, function() {
 			this.oRowAction.setVisible(true);
 		}, ["sap-icon://search"], ["A"]);
 		assert.ok(!this.oRowAction.getDomRef().classList.contains("sapUiTableActionHidden"), "RowAction visible");
@@ -225,11 +228,11 @@ sap.ui.define([
 		this.oRowAction.addItem(new RowActionItem({icon: "sap-icon://search", text: "A"}));
 		oCore.applyChanges();
 
-		checkRendering(this, "setTooltip", assert, function() {
+		checkRendering(this, assert, function() {
 			this.oRowAction.setTooltip("Some Tooltip");
 		}, ["sap-icon://search"], ["A"]);
 		assert.equal(this.oRowAction.getDomRef().getAttribute("title"), "Some Tooltip", "Tooltip is set");
-		checkRendering(this, "setTooltip", assert, function() {
+		checkRendering(this, assert, function() {
 			this.oRowAction.setTooltip("");
 		}, ["sap-icon://search"], ["A"]);
 		assert.ok(!this.oRowAction.getDomRef().getAttribute("title"), "Tooltip is not set");
@@ -239,7 +242,7 @@ sap.ui.define([
 		this.oRowAction.addItem(new RowActionItem({icon: "sap-icon://search", text: "A"}));
 		oCore.applyChanges();
 
-		checkRendering(this, "Item.setIcon", assert, function() {
+		checkRendering(this, assert, function() {
 			this.oRowAction.getItems()[0].setIcon("sap-icon://delete");
 		}, ["sap-icon://delete"], ["A"]);
 	});
@@ -248,13 +251,13 @@ sap.ui.define([
 		this.oRowAction.addItem(new RowActionItem({icon: "sap-icon://search", text: "A"}));
 		oCore.applyChanges();
 
-		checkRendering(this, "Item.setText", assert, function() {
+		checkRendering(this, assert, function() {
 			this.oRowAction.getItems()[0].setText("Some Text");
 		}, ["sap-icon://search"], ["Some Text"]);
-		checkRendering(this, "Item.setTooltip", assert, function() {
+		checkRendering(this, assert, function() {
 			this.oRowAction.getItems()[0].setTooltip("Some Other Text");
 		}, ["sap-icon://search"], ["Some Other Text"]);
-		checkRendering(this, "Item.setTooltip", assert, function() {
+		checkRendering(this, assert, function() {
 			this.oRowAction.getItems()[0].setTooltip("");
 		}, ["sap-icon://search"], ["Some Text"]);
 	});
@@ -268,28 +271,28 @@ sap.ui.define([
 		}));
 		oCore.applyChanges();
 
-		checkRendering(this, "Item.setVisible", assert, function() {
+		checkRendering(this, assert, function() {
 			this.oRowAction.getItems()[0].setVisible(false);
 		}, ["sap-icon://delete"], ["B"]);
-		checkRendering(this, "addItem", assert, function() {
+		checkRendering(this, assert, function() {
 			this.oRowAction.getItems()[0].setVisible(true);
 		}, ["sap-icon://search", "sap-icon://delete"], ["A", "B"]);
 	});
 
 	QUnit.test("Type Navigation", function(assert) {
-		checkRendering(this, "addItem", assert, function() {
+		checkRendering(this, assert, function() {
 			this.oRowAction.addItem(new RowActionItem({type: "Navigation"}));
-		}, [NAVICON], [TableUtils.getResourceBundle().getText("TBL_ROW_ACTION_NAVIGATE")]);
-		checkRendering(this, "setIcon", assert, function() {
+		}, ["navigationIcon"], [TableUtils.getResourceBundle().getText("TBL_ROW_ACTION_NAVIGATE")]);
+		checkRendering(this, assert, function() {
 			this.oRowAction.getItems()[0].setIcon("sap-icon://account");
 		}, ["sap-icon://account"], [TableUtils.getResourceBundle().getText("TBL_ROW_ACTION_NAVIGATE")]);
 	});
 
 	QUnit.test("Type Delete", function(assert) {
-		checkRendering(this, "addItem", assert, function() {
+		checkRendering(this, assert, function() {
 			this.oRowAction.addItem(new RowActionItem({type: "Delete"}));
-		}, [DELICON], [TableUtils.getResourceBundle().getText("TBL_ROW_ACTION_DELETE")]);
-		checkRendering(this, "setIcon", assert, function() {
+		}, ["deleteIcon"], [TableUtils.getResourceBundle().getText("TBL_ROW_ACTION_DELETE")]);
+		checkRendering(this, assert, function() {
 			this.oRowAction.getItems()[0].setIcon("sap-icon://account");
 		}, ["sap-icon://account"], [TableUtils.getResourceBundle().getText("TBL_ROW_ACTION_DELETE")]);
 	});

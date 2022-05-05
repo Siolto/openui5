@@ -27,6 +27,16 @@ sap.ui.define([
 	 *
 	 * <h3>Responsive Behavior</h3> The <code>stretch</code> property can be used to stretch the <code>sap.ui.webc.main.Dialog</code> on full screen.
 	 *
+	 * <h3>CSS Shadow Parts</h3>
+	 *
+	 * <ui5-link target="_blank" href="https://developer.mozilla.org/en-US/docs/Web/CSS/::part">CSS Shadow Parts</ui5-link> allow developers to style elements inside the Shadow DOM. <br>
+	 * The <code>sap.ui.webc.main.Dialog</code> exposes the following CSS Shadow Parts:
+	 * <ul>
+	 *     <li>header - Used to style the header of the component</li>
+	 *     <li>content - Used to style the content of the component</li>
+	 *     <li>footer - Used to style the footer of the component</li>
+	 * </ul>
+	 *
 	 *
 	 *
 	 * <b>Note:</b> We don't recommend nesting popup-like components (<code>sap.ui.webc.main.Dialog</code>, <code>sap.ui.webc.main.Popover</code>) inside <code>sap.ui.webc.main.Dialog</code>. Ideally you should create all popups on the same level inside your HTML page and just open them from one another, rather than nesting them.
@@ -82,16 +92,15 @@ sap.ui.define([
 				 */
 				height: {
 					type: "sap.ui.core.CSSSize",
-					defaultValue: null,
 					mapping: "style"
 				},
 
 				/**
-				 * Defines the ID of the HTML Element, which will get the initial focus.
+				 * Indicates if the element is open
 				 */
-				initialFocus: {
-					type: "string",
-					defaultValue: ""
+				open: {
+					type: "boolean",
+					defaultValue: false
 				},
 
 				/**
@@ -128,7 +137,6 @@ sap.ui.define([
 				 */
 				width: {
 					type: "sap.ui.core.CSSSize",
-					defaultValue: null,
 					mapping: "style"
 				}
 			},
@@ -176,6 +184,18 @@ sap.ui.define([
 						to: "accessibleNameRef",
 						formatter: "_getAriaLabelledByForRendering"
 					}
+				},
+
+				/**
+				 * Defines the ID of the HTML Element, which will get the initial focus.
+				 */
+				initialFocus: {
+					type: "sap.ui.core.Control",
+					multiple: false,
+					mapping: {
+						type: "property",
+						to: "initialFocus"
+					}
 				}
 			},
 			events: {
@@ -217,7 +237,8 @@ sap.ui.define([
 					parameters: {}
 				}
 			},
-			methods: ["applyFocus", "close", "isOpen", "show"]
+			methods: ["applyFocus", "close", "isOpen", "show"],
+			designtime: "sap/ui/webc/main/designtime/Dialog.designtime"
 		}
 	});
 

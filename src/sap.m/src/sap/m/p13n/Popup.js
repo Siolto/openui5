@@ -41,6 +41,7 @@ sap.ui.define([
 	 */
 	var Popup = Control.extend("sap.m.p13n.Popup", {
 		metadata: {
+			library: "sap.m",
 			properties: {
 				/**
 				 * Text describing the personalization popup.
@@ -184,9 +185,15 @@ sap.ui.define([
 	 * @returns {sap.m.p13n.Popup} The popup instance
 	 */
 	Popup.prototype.addPanel = function(oPanel) {
+		var oPanelTitleBindingInfo = oPanel.getBindingInfo("title"), oBindingInfo;
+		if (oPanelTitleBindingInfo && oPanelTitleBindingInfo.parts) {
+			oBindingInfo = {
+				parts: oPanelTitleBindingInfo.parts
+			};
+		}
 		this._getContainer().addView(new AbstractContainerItem({
 			key: oPanel.getId(),
-			text: oPanel.getTitle(),
+			text: oBindingInfo || oPanel.getTitle(), //oBindinfInfo is undefined in case no binding is provided
 			content: oPanel
 		}));
 		this._aPanels.push(oPanel);

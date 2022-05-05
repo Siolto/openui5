@@ -258,6 +258,11 @@
 					"target": "manifestResolver"
 				},
 				{
+					"pattern": "showCardWithResolvedManifest",
+					"name": "showCardWithResolvedManifest",
+					"target": "showCardWithResolvedManifest"
+				},
+				{
 					"pattern": "csrfToken",
 					"name": "csrfToken",
 					"target": "csrfToken"
@@ -281,6 +286,11 @@
 					"pattern": "transparent",
 					"name": "transparent",
 					"target": "transparent"
+				},
+				{
+					"pattern": "showCard",
+					"name": "showCard",
+					"target": "showCard"
 				}
 			],
 			"targets": {
@@ -469,6 +479,11 @@
 					"name": "ManifestResolver",
 					"level": 1
 				},
+				"showCardWithResolvedManifest": {
+					"id": "showCardWithResolvedManifest",
+					"name": "ShowCardWithResolvedManifest",
+					"level": 1
+				},
 				"csrfToken": {
 					"id": "csrfToken",
 					"name": "CsrfToken",
@@ -491,6 +506,11 @@
 				"transparent": {
 					"id": "transparent",
 					"name": "Transparent",
+					"level": 1
+				},
+				"showCard": {
+					"id": "showCard",
+					"name": "ShowCard",
 					"level": 1
 				}
 			}

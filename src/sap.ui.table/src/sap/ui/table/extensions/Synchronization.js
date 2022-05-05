@@ -3,8 +3,8 @@
  */
 
 sap.ui.define([
-	"./ExtensionBase", "../Table", "../utils/TableUtils", "../library", "sap/base/Log"
-], function(ExtensionBase, Table, TableUtils, library, Log) {
+	"./ExtensionBase", "../utils/TableUtils", "../library", "sap/base/Log"
+], function(ExtensionBase, TableUtils, library, Log) {
 	"use strict";
 
 	/**
@@ -236,7 +236,7 @@ sap.ui.define([
 	/**
 	 * Synchronizes the layout information.
 	 *
-	 * @param {{top:number, headerHeight:number, contentHeight:number}} mLayoutData The layout information.
+	 * @param {{top: number, headerHeight: number, contentHeight: number}} mLayoutData The layout information.
 	 */
 	SyncExtension.prototype.syncLayout = function(mLayoutData) {
 		this.callInterfaceHook("layout", arguments);

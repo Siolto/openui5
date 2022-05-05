@@ -3,31 +3,33 @@
  */
 
 sap.ui.define([
+	"sap/m/GroupHeaderListItem",
 	"sap/ui/core/format/DateFormat",
 	"sap/ui/core/Fragment",
 	"sap/ui/core/library",
-	"sap/ui/fl/library",
+	"sap/ui/fl/write/api/Version",
 	"sap/ui/rta/Utils",
 	"sap/ui/rta/toolbar/translation/Translation",
 	"sap/ui/rta/appVariant/Feature",
 	"sap/ui/rta/toolbar/Base",
+	"sap/ui/model/Sorter",
 	"sap/ui/Device"
-],
-function(
+], function(
+	GroupHeaderListItem,
 	DateFormat,
 	Fragment,
 	coreLibrary,
-	flexLibrary,
+	Version,
 	Utils,
 	Translation,
 	AppVariantFeature,
 	Base,
+	Sorter,
 	Device
 ) {
 	"use strict";
 
 	var MessageType = coreLibrary.MessageType;
-	var Versions = flexLibrary.Versions;
 
 	/**
 	 * Constructor for a new sap.ui.rta.toolbar.Adaptation control
@@ -57,13 +59,15 @@ function(
 				undo: {},
 				redo: {},
 				exit: {},
+				save: {},
 				restore: {},
 				transport: {},
+				publishVersion: {},
 				modeChange: {},
 				activate: {},
 				discardDraft: {},
 				switchVersion: {},
-				onCommandCategorySelection: {}
+				openChangeCategorySelectionPopover: {}
 			}
 		}
 	});
@@ -80,17 +84,12 @@ function(
 	var ACTIVE_ACCENT_COLOR = "sapUiRtaActiveVersionAccent";
 
 	Adaptation.prototype.init = function() {
-		Device.media.attachHandler(this._onSizeChanged, this, DEVICE_SET);
-		this._pFragmentLoaded = Base.prototype.init.apply(this, arguments);
-	};
-
-	Adaptation.prototype.onBeforeRendering = function () {
-		if (!Device.media.hasRangeSet(DEVICE_SET)) {
-			Device.media.initRangeSet(DEVICE_SET, [900, 1200], "px", [Adaptation.modes.MOBILE, Adaptation.modes.TABLET, Adaptation.modes.DESKTOP]);
-		}
-		this._onSizeChanged(Device.media.getCurrentRange(DEVICE_SET));
-
-		Base.prototype.onBeforeRendering.apply(this, arguments);
+		this._pFragmentLoaded = Base.prototype.init.apply(this, arguments).then(function() {
+			if (!Device.media.hasRangeSet(DEVICE_SET)) {
+				Device.media.initRangeSet(DEVICE_SET, [900, 1200], "px", [Adaptation.modes.MOBILE, Adaptation.modes.TABLET, Adaptation.modes.DESKTOP]);
+			}
+			Device.media.attachHandler(this._onSizeChanged, this, DEVICE_SET);
+		}.bind(this));
 	};
 
 	Adaptation.prototype.onFragmentLoaded = function() {
@@ -102,6 +101,11 @@ function(
 		Base.prototype.exit.apply(this, arguments);
 	};
 
+	Adaptation.prototype.show = function() {
+		this._onSizeChanged(Device.media.getCurrentRange(DEVICE_SET), true);
+		return Base.prototype.show.apply(this, arguments);
+	};
+
 	function setButtonProperties(sButtonName, sIcon, sTextKey, sToolTipKey) {
 		var oButton = this.getControl(sButtonName);
 		var sText = sTextKey ? this.getTextResources().getText(sTextKey) : "";
@@ -111,8 +115,13 @@ function(
 		oButton.setIcon(sIcon || "");
 	}
 
-	Adaptation.prototype.formatDiscardDraftVisible = function (sDisplayedVersion, bVersioningEnabled) {
-		return sDisplayedVersion === Versions.Draft && bVersioningEnabled;
+	Adaptation.prototype.formatPublishVersionVisibility = function (bPublishVisible, bVersioningEnabled, sDisplayedVersion, sModeSwitcher) {
+		return bPublishVisible && bVersioningEnabled && sDisplayedVersion !== Version.Number.Draft && sModeSwitcher === "adaptation";
+	};
+
+
+	Adaptation.prototype.formatDiscardDraftVisible = function (sDisplayedVersion, bVersioningEnabled, sModeSwitcher) {
+		return sDisplayedVersion === Version.Number.Draft && bVersioningEnabled && sModeSwitcher === "adaptation";
 	};
 
 	Adaptation.prototype.formatVersionButtonText = function (aVersions, sDisplayedVersion) {
@@ -121,7 +130,7 @@ function(
 		var sType = "Active";
 		aVersions = aVersions || [];
 
-		if (sDisplayedVersion === undefined || sDisplayedVersion === Versions.Original) {
+		if (sDisplayedVersion === undefined || sDisplayedVersion === Version.Number.Original) {
 			sText = oTextResources.getText("TIT_ORIGINAL_APP");
 			sType = "inactive";
 			if (aVersions.length === 0 || (aVersions.length === 1 && aVersions[0].type === "draft")) {
@@ -133,7 +142,7 @@ function(
 			});
 			if (oDisplayedVersion) {
 				sType = oDisplayedVersion.type;
-				if (sDisplayedVersion === Versions.Draft) {
+				if (sDisplayedVersion === Version.Number.Draft) {
 					sText = oTextResources.getText("TIT_DRAFT");
 				} else {
 					sText = oDisplayedVersion.title || oTextResources.getText("TIT_VERSION_1");
@@ -210,7 +219,7 @@ function(
 
 	Adaptation.prototype.versionSelected = function (oEvent) {
 		var oVersionsBindingContext = oEvent.getSource().getBindingContext("versions");
-		var sVersion = Versions.Original;
+		var sVersion = Version.Number.Original;
 
 		if (oVersionsBindingContext) {
 			// the original Version does not have a version binding Context
@@ -226,7 +235,7 @@ function(
 		if (!this.oVersionDialogPromise) {
 			this.oVersionDialogPromise = Fragment.load({
 				name: "sap.ui.rta.toolbar.VersionHistory",
-				id: this.getId() + "_versionHistoryDialog",
+				id: this.getId() + "_fragment--sapUiRta_versionHistoryDialog",
 				controller: {
 					formatVersionTitle: this.formatVersionTitle.bind(this),
 					formatVersionTimeStamp: this.formatVersionTimeStamp.bind(this),
@@ -235,26 +244,39 @@ function(
 					formatHighlightText: this.formatHighlightText.bind(this),
 					formatOriginalAppHighlight: this.formatOriginalAppHighlight.bind(this),
 					formatOriginalAppHighlightText: this.formatOriginalAppHighlightText.bind(this),
-					versionSelected: this.versionSelected.bind(this)
+					versionSelected: this.versionSelected.bind(this),
+					getGroupHeaderFactory: this.getGroupHeaderFactory.bind(this)
 				}
-			}).then(function (oVersionsDialog) {
-				oVersionButton.addDependent(oVersionsDialog);
-				return oVersionsDialog;
+			}).then(function(oDialog) {
+				oVersionButton.addDependent(oDialog);
+				return oDialog;
 			});
 		}
 
 		return this.oVersionDialogPromise.then(function (oVersionsDialog) {
 			if (!oVersionsDialog.isOpen()) {
 				oVersionsDialog.openBy(oVersionButton);
+				if (this.getModel("controls").getProperty("/publishVisible")) {
+					var oList = this.getControl("versionHistoryDialog--versionList");
+					var oSorter = new Sorter({
+						path: "isPublished",
+						group: true
+					});
+					oList.getBinding("items").sort(oSorter);
+				}
 			} else {
 				oVersionsDialog.close();
 			}
-		});
+		}.bind(this));
 	};
 
-	Adaptation.prototype.showTranslationPopover = function (oEvent) {
-		var oTranslation = this.addExtension("translation", Translation);
-		return oTranslation.showTranslationPopover(oEvent, this);
+	Adaptation.prototype.getGroupHeaderFactory = function (oGroup) {
+		var oTextResources = sap.ui.getCore().getLibraryResourceBundle("sap.ui.rta");
+		return new GroupHeaderListItem({
+			title: oGroup.key ? oTextResources.getText("TIT_VERSION_HISTORY_PUBLISHED") : oTextResources.getText("TIT_VERSION_HISTORY_UNPUBLISHED"),
+			upperCase: false,
+			visible: this.getModel("controls").getProperty("/publishVisible")
+		}).addStyleClass("sapUiRtaVersionHistoryGrouping").addStyleClass("sapUiRtaVersionHistory");
 	};
 
 	Adaptation.prototype.showRestore = function (bVersioningEnabled) {
@@ -293,12 +315,8 @@ function(
 		this._showButtonText("exit", "BTN_EXIT");
 	};
 
-	Adaptation.prototype._onSizeChanged = function(mParams) {
-		if (!mParams) {
-			return Promise.resolve();
-		}
-
-		return this.onFragmentLoaded().then(function() {
+	Adaptation.prototype._onSizeChanged = function(mParams, bInitial) {
+		if (mParams) {
 			var sMode = mParams.name;
 			this.sMode = sMode;
 
@@ -308,12 +326,15 @@ function(
 					break;
 				case Adaptation.modes.TABLET:
 				case Adaptation.modes.DESKTOP:
-					this._switchToTexts();
+					// this is already defined in the view
+					if (!bInitial) {
+						this._switchToTexts();
+					}
 					break;
 				default:
 				// no default
 			}
-		}.bind(this));
+		}
 	};
 
 	/**
@@ -329,16 +350,19 @@ function(
 				activate: this._openVersionTitleDialog.bind(this),
 				discardDraft: this.eventHandler.bind(this, "DiscardDraft"),
 				formatDiscardDraftVisible: this.formatDiscardDraftVisible.bind(this),
+				formatPublishVersionVisibility: this.formatPublishVersionVisibility.bind(this),
 				modeChange: this.eventHandler.bind(this, "ModeChange"),
-				showTranslationPopover: this.showTranslationPopover.bind(this),
+				openDownloadTranslationDialog: onOpenDownloadTranslationDialog.bind(this),
+				openUploadTranslationDialog: onOpenUploadTranslationDialog.bind(this),
 				undo: this.eventHandler.bind(this, "Undo"),
 				redo: this.eventHandler.bind(this, "Redo"),
-				onCommandCategorySelection: this.eventHandler.bind(this, "OnCommandCategorySelection"),
+				openChangeCategorySelectionPopover: this.eventHandler.bind(this, "OpenChangeCategorySelectionPopover"),
 				manageApps: onManageAppsPressed.bind(this),
 				appVariantOverview: onOverviewPressed.bind(this),
 				saveAs: onSaveAsPressed.bind(this),
 				restore: this.eventHandler.bind(this, "Restore"),
 				publish: this.eventHandler.bind(this, "Transport"),
+				publishVersion: this.eventHandler.bind(this, "PublishVersion"),
 				exit: this.eventHandler.bind(this, "Exit"),
 				formatVersionButtonText: this.formatVersionButtonText.bind(this),
 				showVersionHistory: this.showVersionHistory.bind(this),
@@ -346,6 +370,18 @@ function(
 			}
 		});
 	};
+
+	function onOpenDownloadTranslationDialog() {
+		var mPropertyBag = {
+			layer: this.getRtaInformation().flexSettings.layer,
+			selector: this.getRtaInformation().rootControl
+		};
+		this.addExtension("translation", Translation).openDownloadTranslationDialog(mPropertyBag);
+	}
+
+	function onOpenUploadTranslationDialog() {
+		this.addExtension("translation", Translation).openUploadTranslationDialog();
+	}
 
 	function onSaveAsPressed() {
 		AppVariantFeature.onSaveAs(true, true, this.getRtaInformation().flexSettings.layer, null);
@@ -408,7 +444,7 @@ function(
 		return oDialogPromise.then(function () {
 			var oTextResources = sap.ui.getCore().getLibraryResourceBundle("sap.ui.rta");
 			var sTitle = oTextResources.getText("TIT_VERSION_TITLE_DIALOG");
-			if (sDisplayedVersion !== Versions.Draft) {
+			if (sDisplayedVersion !== Version.Number.Draft) {
 				sTitle = oTextResources.getText("TIT_REACTIVATE_VERSION_TITLE_DIALOG");
 			}
 			this._oDialog.setTitle(sTitle);

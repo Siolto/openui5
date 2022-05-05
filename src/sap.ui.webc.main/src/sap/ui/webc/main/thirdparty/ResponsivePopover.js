@@ -3,9 +3,6 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/Device', 'sap/ui/webc/common/
 	const metadata = {
 		tag: "ui5-responsive-popover",
 		properties:  {
-			withPadding: {
-				type: Boolean,
-			},
 			contentOnlyOnDesktop: {
 				type: Boolean,
 			},
@@ -74,6 +71,9 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/Device', 'sap/ui/webc/common/
 		get _dialog() {
 			return this.shadowRoot.querySelector("[ui5-dialog]");
 		}
+		get contentDOM() {
+			return this._isPhone ? this._dialog.contentDOM : super.contentDOM;
+		}
 		get _isPhone() {
 			return Device.isPhone();
 		}
@@ -86,11 +86,13 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/Device', 'sap/ui/webc/common/
 		get _closeDialogAriaLabel() {
 			return ResponsivePopover.i18nBundle.getText(i18nDefaults.RESPONSIVE_POPOVER_CLOSE_DIALOG_BUTTON);
 		}
-		_afterDialogOpen(event) {
+		_beforeDialogOpen(event) {
+			this.open = true;
 			this.opened = true;
 			this._propagateDialogEvent(event);
 		}
 		_afterDialogClose(event) {
+			this.open = false;
 			this.opened = false;
 			this._propagateDialogEvent(event);
 		}

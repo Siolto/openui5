@@ -47,7 +47,8 @@ function(
                         name: sDelegatePath,
 					    payload: {
 						collectionPath: "/testPath"
-						}}
+						}},
+						propertyInfo: [{name: "name1"}, {name: "name2"}]
 					});
 				}
 			});
@@ -77,6 +78,15 @@ function(
 		assert.ok(this.oMDCChart);
 		assert.ok(this.oMDCChart.isA("sap.ui.mdc.IxState"));
 
+    });
+
+	QUnit.test("PropertyHelperMixin relevant parts are part of MDC Chart", function(assert) {
+		assert.ok(this.oMDCChart.isPropertyHelperFinal);
+		assert.ok(this.oMDCChart._getPropertyByNameAsync);
+    });
+
+	QUnit.test("PropertyHelper not finalized on startup", function(assert) {
+		assert.ok(this.oMDCChart.isPropertyHelperFinal() == false);
     });
 
 	QUnit.test("MDC Chart init", function(assert) {
@@ -381,6 +391,21 @@ function(
 		}.bind(this));
 
 	});
+
+		QUnit.test("MDC Chart setNoDataText", function(assert){
+		var done = assert.async();
+
+		this.oMDCChart.initialized().then(function(){
+			var delegateSpy = sinon.spy(this.oMDCChart.getControlDelegate(), "setNoDataText");
+
+			this.oMDCChart.setNoDataText("Test Text 12345");
+			assert.ok(delegateSpy.calledOnce, "setNoDataText was called on delegate");
+			assert.equal(this.oMDCChart.getNoDataText(), "Test Text 12345", "No data text was updated");
+
+			done();
+		}.bind(this));
+	});
+
 
 	QUnit.module("sap.ui.mdc.Chart: Toolbar Actions", {
 

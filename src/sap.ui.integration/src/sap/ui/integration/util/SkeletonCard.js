@@ -25,7 +25,11 @@ sap.ui.define([
 	 * @since 1.98
 	 * @alias sap.ui.integration.util.SkeletonCard
 	 */
-	var SkeletonCard = Card.extend("sap.ui.integration.util.SkeletonCard");
+	var SkeletonCard = Card.extend("sap.ui.integration.util.SkeletonCard", {
+		metadata: {
+			library: "sap.ui.integration"
+		}
+	});
 
 	/**
 	 * Resolves the card manifest to a static manifest.
@@ -42,6 +46,14 @@ sap.ui.define([
 	 */
 	SkeletonCard.prototype.isSkeleton = function () {
 		return true;
+	};
+
+	/**
+	 * @override
+	 * @returns {sap.ui.integration.util.SkeletonCard} The result card.
+	 */
+	SkeletonCard.prototype._createCard = function (oSettings) {
+		return new SkeletonCard(oSettings);
 	};
 
 	return SkeletonCard;

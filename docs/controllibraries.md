@@ -130,14 +130,13 @@ sap.ui.define(['jquery.sap.global',
 	 * Suite controls library.
 	 *
 	 * @namespace
-	 * @name sap.ui.suite
+	 * @alias sap.ui.suite
 	 * @author SAP SE
 	 * @version ${version}
 	 * @public
 	 */
 	
-	// delegate further initialization of this library to the Core
-	sap.ui.getCore().initLibrary({
+	var thisLib = sap.ui.getCore().initLibrary({
 		name : "sap.ui.suite",
 		version: "${version}",
 		dependencies : ["sap.ui.core"],
@@ -161,7 +160,7 @@ sap.ui.define(['jquery.sap.global',
 	 * @public
 	 * @ui5-metamodel This enumeration also will be described in the UI5 (legacy) designtime metamodel
 	 */
-	sap.ui.suite.TaskCircleColor = {
+	thisLib.TaskCircleColor = {
 	
 		/**
 		 * Red
@@ -189,9 +188,9 @@ sap.ui.define(['jquery.sap.global',
 	
 	};
 
-	return sap.ui.suite;
+	return thisLib;
 
-}, /* bExport= */ false);
+});
 ```
 
 ### Translation file (messagebundle.properties) and translation
@@ -265,7 +264,7 @@ At development time a control consists of three parts:
 
 ### The Control API and Behavior
 
-The main JavaScript file of a control contains the metadata object describing the API (properties, aggregations, events,...) as well as all method implementations reacting to browser events. This is explained in the main [control development documentation](https://openui5.hana.ondemand.com/#docs/guide/91f1703b6f4d1014b6dd926db0e91070.html). However, there are three significant differences when a control is developed within a control library:
+The main JavaScript file of a control contains the metadata object describing the API (properties, aggregations, events,...) as well as all method implementations reacting to browser events. This is explained in the main [control development documentation](https://openui5.hana.ondemand.com/topic/91f1703b6f4d1014b6dd926db0e91070). However, there are three significant differences when a control is developed within a control library:
 
 1.  By convention, the overall control is implemented in an [AMD structure](http://requirejs.org/docs/whyamd.html) ("Asynchronous Module Definition"), so there is a `sap.ui.define` function call wrapping the implementation and passing in all dependencies. Inside the implementation only the passed objects are used, not fully-namespaced global objects. E.g. if a `sap.ui.commons.Button` is required, it is added to the `define` function and the inner code only refers to a local `Button` object. This is to allow asynchronous usage and to conform with many tools depending on this structure.
 2.  Usually [the renderer](#the-control-renderer) is not just a static function in the behavior JS file, but a separate JS file. This is technically not mandatory, but a way to keep files smaller and more maintainable.

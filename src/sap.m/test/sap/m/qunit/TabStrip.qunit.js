@@ -534,12 +534,19 @@ sap.ui.define([
 		assert.strictEqual(document.activeElement.id, oTabStripItemToBeFocused.getId(), "Focus is applied to the right item");
 	});
 
-	QUnit.test("alt + right/left is not handled", function(assert) {
+	QUnit.test("alt/meta key + right/left is not handled", function(assert) {
 		var oModifiers = this.sut._oItemNavigation.getDisabledModifiers();
 		assert.ok(oModifiers["sapnext"], "sapnext has disabled modifiers");
 		assert.ok(oModifiers["sapprevious"], "sapprevious has disabled modifiers");
-		assert.equal(oModifiers["sapnext"][0], "alt", "alt is not handled when right is pressed");
-		assert.equal(oModifiers["sapprevious"][0], "alt", "alt is not handled when left is pressed");
+		assert.ok(oModifiers["saphome"], "saphome has disabled modifiers");
+		assert.ok(oModifiers["sapend"], "sapend has disabled modifiers");
+		assert.ok(oModifiers["sapnext"].indexOf("alt") !== -1, "right is not handled when alt is pressed");
+		assert.ok(oModifiers["sapnext"].indexOf("meta") !== -1, "right is not handled when meta key is pressed");
+		assert.ok(oModifiers["sapprevious"].indexOf("alt") !== -1, "left is not handled when alt is pressed");
+		assert.ok(oModifiers["sapprevious"].indexOf("meta") !== -1, "left is not handled when meta key is pressed");
+		assert.ok(oModifiers["saphome"].indexOf("alt") !== -1, "home is not handled when alt is pressed");
+		assert.ok(oModifiers["saphome"].indexOf("meta") !== -1, "home is not handled when meta key is pressed");
+		assert.ok(oModifiers["sapend"].indexOf("meta") !== -1, "end is not handled when meta key is pressed");
 	});
 
 	QUnit.module("Scrolling", {
@@ -954,18 +961,18 @@ sap.ui.define([
 			};
 		},
 		prepareSystem: function () {
-			sap.ui.Device.system.desktop = false;
-			sap.ui.Device.system.tablet = true;
-			sap.ui.Device.system.phone = false;
+			Device.system.desktop = false;
+			Device.system.tablet = true;
+			Device.system.phone = false;
 			jQuery("html").removeClass("sap-desktop");
 			jQuery("html").removeClass("sapUiMedia-Std-Desktop");
 			jQuery("html").addClass("sap-tablet");
 			jQuery("html").addClass("sapUiMedia-Std-Tablet");
 		},
 		restoreSystemValues: function () {
-			sap.ui.Device.system.desktop = this.oOriginalSysInfo.desktop;
-			sap.ui.Device.system.tablet = this.oOriginalSysInfo.tablet;
-			sap.ui.Device.system.phone = this.oOriginalSysInfo.phone;
+			Device.system.desktop = this.oOriginalSysInfo.desktop;
+			Device.system.tablet = this.oOriginalSysInfo.tablet;
+			Device.system.phone = this.oOriginalSysInfo.phone;
 			jQuery("html").removeClass("sap-tablet");
 			jQuery("html").removeClass("sapUiMedia-Std-Tablet");
 			jQuery("html").addClass("sap-desktop");

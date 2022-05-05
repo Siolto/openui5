@@ -17,7 +17,8 @@
 .sapMTokenizer .sapMToken {
 	margin-right: 0.3125rem;
 	max-width: calc(~"100% - 0.3125rem");
-	margin-top: 0.25rem;
+	margin-top: 0.1875rem;
+	margin-bottom: 0.1875rem;
 }
 
 html.sap-desktop .sapMTokenizer:focus {
@@ -38,6 +39,14 @@ html.sap-desktop .sapMTokenizer.sapMTokenizerReadonly {
 .sapUiSizeCompact {
 	.sapMTokenizer {
 		padding-left: 0.25rem;
+		.sapMToken {
+			margin-right: 0.25rem;
+			margin-top: 0.0625rem;
+			margin-bottom: 0.0625rem;
+		}
+		.sapMTokenizerIndicator {
+			line-height: 1.375rem;
+		}
 	}
 }
 
@@ -46,28 +55,33 @@ html.sap-desktop .sapMTokenizer.sapMTokenizerReadonly {
 /* ------------------------------ */
 
 .sapMTokenizer.sapMTokenizerDisabled .sapMToken  {
-  border-color: @sapUiHcReducedAltForeground;
+	border-color: @sapUiHcReducedAltForeground;
 
-  &.sapMToken:hover,
-  &.sapMToken:focus,
-  &.sapMTokenSelected {
-    background: @sapUiButtonBackground;
-    cursor: default;
-    color: @sapUiBaseText;
-    outline: none;
-    border-color: @sapUiHcReducedAltForeground;
-  }
+	&.sapMToken:hover,
+	&.sapMToken:focus,
+	&.sapMToken.sapMTokenSelected:hover,
+	&.sapMTokenSelected {
+		background: @sapUiButtonBackground;
+		cursor: default;
+		color: @sapUiBaseText;
+		outline: none;
+		border-color: @sapUiHcReducedAltForeground;
+	}
 
-  &.sapMTokenSelected .sapMTokenText {
-    color: @sapUiBaseText;
-  }
+	&:focus:after {
+		content: none;
+	}
 
-  &.sapMTokenSelected .sapMTokenIcon {
-    color: @sapUiContentIconColor;
-    cursor: default;
-  }
+	&.sapMTokenSelected .sapMTokenText {
+		color: @sapUiBaseText;
+	}
 
-  & .sapMTokenIcon {
-    cursor: default;
-  }
+	&.sapMTokenSelected .sapMTokenIcon {
+		color: @sapUiContentIconColor;
+		cursor: default;
+	}
+
+	& .sapMTokenIcon {
+		cursor: default;
+	}
 }

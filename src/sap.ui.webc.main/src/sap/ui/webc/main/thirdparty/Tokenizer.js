@@ -1,4 +1,4 @@
-sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/common/thirdparty/base/renderer/LitRenderer', 'sap/ui/webc/common/thirdparty/base/delegate/ResizeHandler', 'sap/ui/webc/common/thirdparty/base/delegate/ItemNavigation', 'sap/ui/webc/common/thirdparty/base/delegate/ScrollEnablement', 'sap/ui/webc/common/thirdparty/base/types/Integer', 'sap/ui/webc/common/thirdparty/base/i18nBundle', 'sap/ui/webc/common/thirdparty/base/Keys', 'sap/ui/webc/common/thirdparty/base/Device', 'sap/ui/webc/common/thirdparty/base/types/ValueState', './ResponsivePopover', './List', './StandardListItem', './generated/templates/TokenizerTemplate.lit', './generated/templates/TokenizerPopoverTemplate.lit', './generated/i18n/i18n-defaults', './generated/themes/Tokenizer.css', './generated/themes/ResponsivePopoverCommon.css', './generated/themes/ValueStateMessage.css', './generated/themes/Suggestions.css'], function (UI5Element, litRender, ResizeHandler, ItemNavigation, ScrollEnablement, Integer, i18nBundle, Keys, Device, ValueState, ResponsivePopover, List, StandardListItem, TokenizerTemplate_lit, TokenizerPopoverTemplate_lit, i18nDefaults, Tokenizer_css, ResponsivePopoverCommon_css, ValueStateMessage_css, Suggestions_css) { 'use strict';
+sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/common/thirdparty/base/renderer/LitRenderer', 'sap/ui/webc/common/thirdparty/base/delegate/ResizeHandler', 'sap/ui/webc/common/thirdparty/base/delegate/ItemNavigation', 'sap/ui/webc/common/thirdparty/base/delegate/ScrollEnablement', 'sap/ui/webc/common/thirdparty/base/types/Integer', 'sap/ui/webc/common/thirdparty/base/i18nBundle', 'sap/ui/webc/common/thirdparty/base/Keys', 'sap/ui/webc/common/thirdparty/base/Device', 'sap/ui/webc/common/thirdparty/base/types/ValueState', './ResponsivePopover', './List', './Title', './Button', './StandardListItem', './generated/templates/TokenizerTemplate.lit', './generated/templates/TokenizerPopoverTemplate.lit', './generated/i18n/i18n-defaults', './generated/themes/Tokenizer.css', './generated/themes/TokenizerPopover.css', './generated/themes/ResponsivePopoverCommon.css', './generated/themes/ValueStateMessage.css', './generated/themes/Suggestions.css'], function (UI5Element, litRender, ResizeHandler, ItemNavigation, ScrollEnablement, Integer, i18nBundle, Keys, Device, ValueState, ResponsivePopover, List, Title, Button, StandardListItem, TokenizerTemplate_lit, TokenizerPopoverTemplate_lit, i18nDefaults, Tokenizer_css, TokenizerPopover_css, ResponsivePopoverCommon_css, ValueStateMessage_css, Suggestions_css) { 'use strict';
 
 	function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e['default'] : e; }
 
@@ -66,7 +66,7 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 			return Tokenizer_css;
 		}
 		static get staticAreaStyles() {
-			return [ResponsivePopoverCommon_css, ValueStateMessage_css, Suggestions_css];
+			return [ResponsivePopoverCommon_css, ValueStateMessage_css, Suggestions_css, TokenizerPopover_css];
 		}
 		static get staticAreaTemplate() {
 			return TokenizerPopoverTemplate_lit;
@@ -123,50 +123,71 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 		onAfterRendering() {
 			this._scrollEnablement.scrollContainer = this.expanded ? this.contentDom : this;
 		}
-		_tokenDelete(event) {
+		_delete(event) {
+			if (this._selectedTokens.length) {
+				this._selectedTokens.forEach(token => this._tokenDelete(event, token));
+			} else {
+				this._tokenDelete(event);
+			}
+		}
+		_tokenDelete(event, token) {
 			let nextTokenIndex;
-			const deletedTokenIndex = this._getVisibleTokens().indexOf(event.target);
+			const tokens = this._getVisibleTokens();
+			const deletedTokenIndex = token ? tokens.indexOf(token) : tokens.indexOf(event.target);
+			const notSelectedTokens = tokens.filter(t => !t.selected);
 			if (event.detail && event.detail.backSpace) {
 				nextTokenIndex = deletedTokenIndex === 0 ? deletedTokenIndex + 1 : deletedTokenIndex - 1;
 			} else {
-				nextTokenIndex = deletedTokenIndex === this._getVisibleTokens().length - 1 ? deletedTokenIndex - 1 : deletedTokenIndex + 1;
+				nextTokenIndex = deletedTokenIndex === tokens.length - 1 ? deletedTokenIndex - 1 : deletedTokenIndex + 1;
 			}
-			const nextToken = this._getVisibleTokens()[nextTokenIndex];
+			let nextToken = tokens[nextTokenIndex];
+			if (notSelectedTokens.length > 1) {
+				while (nextToken && nextToken.selected) {
+					nextToken = event.detail.backSpace ? tokens[--nextTokenIndex] : tokens[++nextTokenIndex];
+				}
+			} else {
+				nextToken = notSelectedTokens[0];
+			}
 			if (nextToken && !Device.isPhone()) {
 				this._itemNav.setCurrentItem(nextToken);
 				setTimeout(() => {
 					nextToken.focus();
 				}, 0);
 			}
-			this.fireEvent("token-delete", { ref: event.target });
+			this.fireEvent("token-delete", { ref: token || event.target });
 		}
 		itemDelete(event) {
 			const token = event.detail.item.tokenRef;
 			this.fireEvent("token-delete", { ref: token });
 		}
 		_onkeydown(event) {
-			if (Keys.isSpace(event)) {
+			if (Keys.isSpaceShift(event)) {
+				event.preventDefault();
+			}
+			if (Keys.isSpace(event) || Keys.isSpaceCtrl(event)) {
 				event.preventDefault();
 				return this._handleTokenSelection(event, false);
 			}
-			this._handleItemNavigation(event, this.tokens);
+			if (Keys.isHomeShift(event)) {
+				this._handleHomeShift(event);
+			}
+			if (Keys.isEndShift(event)) {
+				this._handleEndShift(event);
+			}
+			this._handleItemNavigation(event, this._tokens);
 		}
 		_handleItemNavigation(event, tokens) {
 			const isCtrl = !!(event.metaKey || event.ctrlKey);
-			if (Keys.isLeftCtrl(event) || Keys.isRightCtrl(event)) {
-				event.preventDefault();
-				return this._handleArrowCtrl(event.target, tokens, Keys.isRightCtrl(event));
+			if (Keys.isLeftCtrl(event) || Keys.isRightCtrl(event) || Keys.isDownCtrl(event) || Keys.isUpCtrl(event)) {
+				return this._handleArrowCtrl(event, event.target, tokens, Keys.isRightCtrl(event) || Keys.isDownCtrl(event));
 			}
-			if (Keys.isLeftCtrl(event)) {
+			if (Keys.isLeftShift(event) || Keys.isRightShift(event) || Keys.isUpShift(event) || Keys.isDownShift(event) || Keys.isLeftShiftCtrl(event) || Keys.isRightShiftCtrl(event)) {
 				event.preventDefault();
-				return this._handleArrowCtrl(event.target, tokens, false);
+				return this._handleArrowShift(event.target, tokens, (Keys.isRightShift(event) || Keys.isRightShiftCtrl(event) || Keys.isDownShift(event)));
 			}
-			if (Keys.isLeftShift(event) || Keys.isRightShift(event) || Keys.isLeftShiftCtrl(event) || Keys.isRightShiftCtrl(event)) {
+			if (Keys.isHome(event) || Keys.isEnd(event) || Keys.isHomeCtrl(event) || Keys.isEndCtrl(event)) {
 				event.preventDefault();
-				return this._handleArrowShift(event.target, tokens, (Keys.isRightShift(event) || Keys.isRightShiftCtrl(event)));
-			}
-			if (Keys.isHome(event) || Keys.isEnd(event)) {
-				return this._handleHome(tokens, Keys.isEnd(event));
+				return this._handleHome(tokens, Keys.isEnd(event) || Keys.isEndCtrl(event));
 			}
 			if (isCtrl && event.key.toLowerCase() === "a") {
 				event.preventDefault();
@@ -180,6 +201,24 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 			const index = endKeyPressed ? tokens.length - 1 : 0;
 			tokens[index].focus();
 			this._itemNav.setCurrentItem(tokens[index]);
+		}
+		_handleHomeShift(event) {
+			const tokens = this.tokens;
+			const currentTokenIdx = tokens.indexOf(event.target);
+			tokens.filter((token, index) => index <= currentTokenIdx).forEach(token => {
+				token.selected = true;
+			});
+			tokens[0].focus();
+			this._itemNav.setCurrentItem(tokens[0]);
+		}
+		_handleEndShift(event) {
+			const tokens = this.tokens;
+			const currentTokenIdx = tokens.indexOf(event.target);
+			tokens.filter((token, index) => index >= currentTokenIdx).forEach(token => {
+				token.selected = true;
+			});
+			tokens[tokens.length - 1].focus();
+			this._itemNav.setCurrentItem(tokens[tokens.length - 1]);
 		}
 		_calcNextTokenIndex(focusedToken, tokens, backwards) {
 			if (!tokens.length) {
@@ -195,22 +234,24 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 			}
 			return nextIndex;
 		}
-		_handleArrowCtrl(focusedToken, tokens, backwards) {
+		_handleArrowCtrl(event, focusedToken, tokens, backwards) {
 			const nextIndex = this._calcNextTokenIndex(focusedToken, tokens, backwards);
+			event.preventDefault();
 			if (nextIndex === -1) {
 				return;
 			}
-			tokens[nextIndex].focus();
+			setTimeout(() => tokens[nextIndex].focus(), 0);
 			this._itemNav.setCurrentItem(tokens[nextIndex]);
 		}
 		_handleArrowShift(focusedToken, tokens, backwards) {
-			const nextIndex = this._calcNextTokenIndex(focusedToken, tokens, backwards);
-			if (nextIndex === -1) {
+			const focusedTokenIndex = tokens.indexOf(focusedToken);
+			const nextIndex = backwards ? (focusedTokenIndex + 1) : (focusedTokenIndex - 1);
+			if (nextIndex === -1 || nextIndex === tokens.length) {
 				return;
 			}
 			focusedToken.selected = true;
 			tokens[nextIndex].selected = true;
-			tokens[nextIndex].focus();
+			setTimeout(() => tokens[nextIndex].focus(), 0);
 			this._itemNav.setCurrentItem(tokens[nextIndex]);
 		}
 		_click(event) {
@@ -296,8 +337,20 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 		get valueStateMessageText() {
 			return this.getSlottedNodes("valueStateMessage").map(el => el.cloneNode(true));
 		}
+		 get _valueStateMessageIcon() {
+			const iconPerValueState = {
+				Error: "error",
+				Warning: "alert",
+				Success: "sys-enter-2",
+				Information: "information",
+			};
+			return this.valueState !== ValueState__default.None ? iconPerValueState[this.valueState] : "";
+		}
 		get _isPhone() {
 			return Device.isPhone();
+		}
+		get _selectedTokens() {
+			return this._getTokens().filter(token => token.selected);
 		}
 		get classes() {
 			return {
@@ -360,6 +413,8 @@ sap.ui.define(['sap/ui/webc/common/thirdparty/base/UI5Element', 'sap/ui/webc/com
 				ResponsivePopover,
 				List,
 				StandardListItem,
+				Title,
+				Button,
 			];
 		}
 		static async onDefine() {

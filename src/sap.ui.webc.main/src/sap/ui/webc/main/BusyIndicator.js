@@ -79,8 +79,8 @@ sap.ui.define([
 				 * Defines whether the control will be rendered as a block or inline HTML element
 				 */
 				display: {
-					type: "sap.ui.core.CSSSize",
-					defaultValue: null,
+					type: "string",
+					defaultValue: "inline-block",
 					mapping: "style"
 				},
 
@@ -116,7 +116,6 @@ sap.ui.define([
 				 */
 				width: {
 					type: "sap.ui.core.CSSSize",
-					defaultValue: null,
 					mapping: "style"
 				}
 			},
@@ -130,7 +129,8 @@ sap.ui.define([
 					type: "sap.ui.core.Control",
 					multiple: true
 				}
-			}
+			},
+			designtime: "sap/ui/webc/main/designtime/BusyIndicator.designtime"
 		}
 	});
 

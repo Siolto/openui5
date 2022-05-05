@@ -57,26 +57,12 @@ sap.ui.define([
 	};
 
 	/**
-	 * @param {sap.ui.dt.ElementOverlay} oElementOverlay - Overlay to be checked for editable
-	 * @return {Promise.<boolean>|boolean} <code>true</code> if it's editable wrapped in a promise.
+	 * @param {sap.ui.dt.ElementOverlay} oOverlay - Overlay to be checked for editable
+	 * @return {Promise.<boolean>} <code>true</code> if it's editable wrapped in a promise.
 	 * @private
 	 */
-	Remove.prototype._isEditable = function (oElementOverlay) {
-		var oElement = oElementOverlay.getElement();
-
-		var oRemoveAction = this.getAction(oElementOverlay);
-		if (oRemoveAction && oRemoveAction.changeType) {
-			if (oRemoveAction.changeOnRelevantContainer) {
-				oElement = oElementOverlay.getRelevantContainer();
-			}
-			return this.hasChangeHandler(oRemoveAction.changeType, oElement)
-				.then(function(bHasChangeHandler) {
-					return bHasChangeHandler
-						&& this._checkRelevantContainerStableID(oRemoveAction, oElementOverlay)
-						&& this.hasStableId(oElementOverlay);
-				}.bind(this));
-		}
-		return false;
+	Remove.prototype._isEditable = function (oOverlay) {
+		return this._checkChangeHandlerAndStableId(oOverlay);
 	};
 
 	/**
@@ -112,12 +98,25 @@ sap.ui.define([
 	/**
 	 * Checks if Overlay control has a valid parent and if it is
 	 * not the last visible control in the aggregation
+	 * The removal of the last element in the aggregation can
+	 * be defined by the parameter 'removeLastElement' in the
+	 * designtime of the aggregation
 	 *
 	 * @param  {sap.ui.dt.ElementOverlay[]} aElementOverlays - overlays to be removed
 	 * @return {boolean} Returns true if the control can be removed
 	 * @private
 	 */
 	Remove.prototype._canBeRemovedFromAggregation = function(aElementOverlays) {
+		//Check if designtime allows removing last visible element
+		var fnCheckDesignTimeSettings = function (oOverlay) {
+			var oParentOverlay = oOverlay.getParentAggregationOverlay();
+			if (oParentOverlay) {
+				var oAction = this.getAction(oParentOverlay);
+				return !!(oAction && oAction.removeLastElement);
+			}
+			return false;
+		}.bind(this);
+
 		var oOverlay = aElementOverlays[0];
 		var oElement = oOverlay.getElement();
 		var oParent = oElement.getParent();
@@ -128,17 +127,17 @@ sap.ui.define([
 		if (!Array.isArray(aElements)) {
 			return true;
 		}
-		if (aElements.length === 1) {
-			return false;
-		}
-
-		// Fallback to 1 if no overlay is selected
+		// check if selected Overlays are the last visible elements in aggregation
 		var iNumberOfSelectedOverlays = aElementOverlays.length;
 		var aInvisibleElements = aElements.filter(function(oElement) {
 			var oElementOverlay = OverlayRegistry.getOverlay(oElement);
 			return !(oElementOverlay && oElementOverlay.getElementVisibility());
 		});
-		return !(aInvisibleElements.length === (aElements.length - iNumberOfSelectedOverlays));
+		var bIsLastVisibleElement = (aInvisibleElements.length + iNumberOfSelectedOverlays === aElements.length);
+		if (bIsLastVisibleElement) {
+			return fnCheckDesignTimeSettings(oOverlay);
+		}
+		return true;
 	};
 
 	/**
